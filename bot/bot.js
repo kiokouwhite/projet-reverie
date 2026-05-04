@@ -5,7 +5,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const app    = express();
 const client = new Client({ intents: [
@@ -109,7 +109,6 @@ app.delete('/scheduled/:id', (req, res) => {
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
   if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot Discord en cours de connexion, réessaie dans 5 secondes' });
-
   const guildId = process.env.GUILD_ID;
   if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
   try {
@@ -131,21 +130,31 @@ let horairesLastMessageIds = [];
 let horairesWeeklyConfig   = null;
 let horairesWeeklyInterval = null;
 
+const EMBED_COLORS = [0x9b59b6, 0x3498db, 0xe91e8c];
+
 async function postHorairesMessages(channelId, questions) {
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased()) throw new Error('Channel introuvable ou non textuel');
   const guild = channel.guild;
   await guild.emojis.fetch();
   const messageIds = [];
-  for (const question of questions) {
-    let text = `**${question.text}**\n`;
+
+  for (let qi = 0; qi < questions.length; qi++) {
+    const question = questions[qi];
+    let description = '';
     for (const opt of question.options) {
       const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
       const emojiStr = emoji ? `<:${emoji.name}:${emoji.id}>` : `:${opt.emoji}:`;
-      text += `${emojiStr} ${opt.label}\n`;
+      description += `${emojiStr} ${opt.label}\n`;
     }
-    const msg = await channel.send(text);
+    const embed = new EmbedBuilder()
+      .setTitle(question.text)
+      .setDescription(description.trim())
+      .setColor(EMBED_COLORS[qi % EMBED_COLORS.length]);
+
+    const msg = await channel.send({ embeds: [embed] });
     messageIds.push(msg.id);
+
     for (const opt of question.options) {
       const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
       if (emoji) {
@@ -160,7 +169,7 @@ async function postHorairesMessages(channelId, questions) {
 app.post('/post-horaires', async (req, res) => {
   if (!checkSecret(req, res)) return;
   const { channelId, questions } = req.body;
-  if (!channelId)        return res.status(400).json({ ok: false, error: 'channelId manquant' });
+  if (!channelId)         return res.status(400).json({ ok: false, error: 'channelId manquant' });
   if (!questions?.length) return res.status(400).json({ ok: false, error: 'questions manquantes' });
   try {
     const messageIds = await postHorairesMessages(channelId, questions);
@@ -207,8 +216,8 @@ app.post('/horaires-schedule', async (req, res) => {
   horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute };
   horairesWeeklyInterval = setInterval(async () => {
     const now = new Date();
-    if (now.getDay() === horairesWeeklyConfig.dayOfWeek &&
-        now.getHours() === horairesWeeklyConfig.hour &&
+    if (now.getDay()     === horairesWeeklyConfig.dayOfWeek &&
+        now.getHours()   === horairesWeeklyConfig.hour &&
         now.getMinutes() === horairesWeeklyConfig.minute) {
       try {
         const ids = await postHorairesMessages(horairesWeeklyConfig.channelId, horairesWeeklyConfig.questions);
