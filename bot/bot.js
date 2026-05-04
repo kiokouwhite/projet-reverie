@@ -1,6 +1,5 @@
 // ============================================================
 // BOT.JS — Bot Discord pour Projet Reverie
-// Reçoit les annonces depuis l'app web et les poste sur Discord
 // ============================================================
 
 require('dotenv').config();
@@ -36,6 +35,7 @@ app.get('/', (req, res) => {
   res.json({ ok: true, status: 'Bot en ligne', bot: client.user?.tag || 'Connexion en cours...' });
 });
 
+// ── Poster immédiatement ──────────────────────────────────────
 app.post('/post-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
   const { channelId, message } = req.body;
@@ -53,7 +53,7 @@ app.post('/post-announce', async (req, res) => {
   }
 });
 
-// ── PLANIFICATION ─────────────────────────────────────────────────────────────
+// ── Planification ─────────────────────────────────────────────
 const scheduled = new Map();
 let schedCounter = 1;
 
@@ -63,7 +63,7 @@ app.post('/schedule-announce', async (req, res) => {
   if (!channelId)   return res.status(400).json({ ok: false, error: 'channelId manquant' });
   if (!message)     return res.status(400).json({ ok: false, error: 'message manquant' });
   if (!scheduledAt) return res.status(400).json({ ok: false, error: 'scheduledAt manquant' });
-  if (message.length > 2000) return res.status(400).json({ ok: false, error: `Message trop long` });
+  if (message.length > 2000) return res.status(400).json({ ok: false, error: 'Message trop long' });
   const delay = scheduledAt - Date.now();
   if (delay < 0) return res.status(400).json({ ok: false, error: 'La date est dans le passé' });
   const id = schedCounter++;
@@ -104,6 +104,7 @@ app.delete('/scheduled/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+// ── Lister les salons ─────────────────────────────────────────
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
   const guildId = process.env.GUILD_ID;
