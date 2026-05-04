@@ -150,6 +150,11 @@ let horairesWeeklyInterval = null;
 
 const EMBED_COLORS = [0x9b59b6, 0x3498db, 0xe91e8c];
 
+// Détecte si c'est un nom custom (ex: "16h") ou un emoji Unicode (ex: "🕐")
+function isCustomEmojiName(str) {
+  return /^[a-zA-Z0-9_]+$/.test(str || '');
+}
+
 async function postHorairesMessages(channelId, questions) {
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased()) throw new Error('Channel introuvable ou non textuel');
@@ -161,10 +166,15 @@ async function postHorairesMessages(channelId, questions) {
     const question = questions[qi];
     let description = '';
     for (const opt of question.options) {
-      const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
-      const emojiStr = emoji ? `<:${emoji.name}:${emoji.id}>` : `:${opt.emoji}:`;
-      description += `${emojiStr} ${opt.label}\n`;
+      if (isCustomEmojiName(opt.emoji)) {
+        const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
+        description += emoji ? `<:${emoji.name}:${emoji.id}> ` : `:${opt.emoji}: `;
+      } else {
+        description += `${opt.emoji} `;
+      }
+      description += `${opt.label}\n`;
     }
+
     const embed = new EmbedBuilder()
       .setTitle(question.text)
       .setDescription(description.trim())
@@ -174,11 +184,15 @@ async function postHorairesMessages(channelId, questions) {
     messageIds.push(msg.id);
 
     for (const opt of question.options) {
-      const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
-      if (emoji) {
-        try { await msg.react(emoji); } catch(e) {}
-        await new Promise(r => setTimeout(r, 300));
-      }
+      try {
+        if (isCustomEmojiName(opt.emoji)) {
+          const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
+          if (emoji) await msg.react(emoji);
+        } else {
+          await msg.react(opt.emoji);
+        }
+      } catch(e) {}
+      await new Promise(r => setTimeout(r, 300));
     }
   }
   return messageIds;
