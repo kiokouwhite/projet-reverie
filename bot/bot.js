@@ -108,6 +108,8 @@ app.delete('/scheduled/:id', (req, res) => {
 // ── Lister les salons ─────────────────────────────────────────
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot Discord en cours de connexion, réessaie dans 5 secondes' });
+
   const guildId = process.env.GUILD_ID;
   if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
   try {
