@@ -105,6 +105,24 @@ app.delete('/scheduled/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+// ── Lister les emojis custom ──────────────────────────────────
+app.get('/emojis', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+  const guildId = process.env.GUILD_ID;
+  if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    await guild.emojis.fetch();
+    const emojis = guild.emojis.cache
+      .map(e => ({ id: e.id, name: e.name, url: e.imageURL() }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ ok: true, emojis });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Lister les salons ─────────────────────────────────────────
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
