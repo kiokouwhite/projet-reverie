@@ -6,10 +6,14 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const app    = express();
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({ intents: [
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.GuildMessageReactions,
+] });
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());               // Autorise les appels depuis ton app web
@@ -136,10 +140,29 @@ app.delete('/scheduled/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+// ── ROUTE : Lister les emojis custom du serveur ───────────────────────────────
+app.get('/emojis', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+  const guildId = process.env.GUILD_ID;
+  if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    await guild.emojis.fetch();
+    const emojis = guild.emojis.cache
+      .map(e => ({ id: e.id, name: e.name, url: e.imageURL() }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ ok: true, emojis });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── ROUTE : Lister les salons disponibles ─────────────────────────────────────
 // Utile pour choisir le channelId depuis l'app web
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot Discord en cours de connexion, réessaie dans 5 secondes' });
 
   const guildId = process.env.GUILD_ID;
   if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
@@ -156,6 +179,181 @@ app.get('/channels', async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ── HORAIRES ─────────────────────────────────────────────────────────────────
+// Stockage en mémoire
+let horairesLastChannelId = '';
+let horairesLastMessageIds = [];
+let horairesWeeklyConfig = null;
+let horairesWeeklyInterval = null;
+
+// Couleurs des embeds par question
+const EMBED_COLORS = [0x9b59b6, 0x3498db, 0xe91e8c];
+
+// Helper : poster les 3 messages sondages avec réactions (format embed)
+// Détecte si c'est un nom d'emoji custom (ex: "16h") ou un emoji Unicode (ex: "🕐")
+function isCustomEmojiName(str) {
+  return /^[a-zA-Z0-9_]+$/.test(str || '');
+}
+
+async function postHorairesMessages(channelId, questions) {
+  const channel = await client.channels.fetch(channelId);
+  if (!channel?.isTextBased()) throw new Error('Channel introuvable ou non textuel');
+
+  const guild = channel.guild;
+  await guild.emojis.fetch();
+
+  const messageIds = [];
+
+  for (let qi = 0; qi < questions.length; qi++) {
+    const question = questions[qi];
+
+    // Construire la description avec les options
+    let description = '';
+    for (const opt of question.options) {
+      if (isCustomEmojiName(opt.emoji)) {
+        const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
+        description += emoji ? `<:${emoji.name}:${emoji.id}> ` : `:${opt.emoji}: `;
+      } else {
+        description += `${opt.emoji} `; // emoji Unicode direct
+      }
+      description += `${opt.label}\n`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(question.text)
+      .setDescription(description.trim())
+      .setColor(EMBED_COLORS[qi % EMBED_COLORS.length]);
+
+    const msg = await channel.send({ embeds: [embed] });
+    messageIds.push(msg.id);
+
+    // Ajouter les réactions (custom ou Unicode)
+    for (const opt of question.options) {
+      try {
+        if (isCustomEmojiName(opt.emoji)) {
+          const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
+          if (emoji) await msg.react(emoji);
+        } else {
+          await msg.react(opt.emoji);
+        }
+      } catch(e) {}
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  return messageIds;
+}
+
+// POST /post-horaires — poster les sondages immédiatement
+app.post('/post-horaires', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const { channelId, questions } = req.body;
+  if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
+  if (!questions?.length) return res.status(400).json({ ok: false, error: 'questions manquantes' });
+
+  try {
+    const messageIds = await postHorairesMessages(channelId, questions);
+    horairesLastChannelId  = channelId;
+    horairesLastMessageIds = messageIds;
+    console.log(`📅 Sondages horaires postés : ${messageIds.join(', ')}`);
+    res.json({ ok: true, messageIds });
+  } catch(e) {
+    console.error('Erreur post-horaires :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /horaires-results — lire les réactions
+app.get('/horaires-results', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+
+  const idsParam  = req.query.messageIds;
+  const channelId = req.query.channelId || horairesLastChannelId;
+  const messageIds = idsParam ? idsParam.split(',').filter(Boolean) : horairesLastMessageIds;
+
+  if (!channelId)       return res.status(400).json({ ok: false, error: 'channelId manquant' });
+  if (!messageIds.length) return res.status(400).json({ ok: false, error: 'Aucun messageId fourni' });
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    const results = [];
+
+    for (const msgId of messageIds) {
+      const message = await channel.messages.fetch(msgId);
+      const msgResult = { messageId: msgId, reactions: [] };
+
+      for (const [, reaction] of message.reactions.cache) {
+        const users = await reaction.users.fetch();
+        const userList = users
+          .filter(u => !u.bot)
+          .map(u => ({ id: u.id, name: u.globalName || u.username }));
+
+        msgResult.reactions.push({
+          emoji: reaction.emoji.name,
+          count: userList.length,
+          users: userList,
+        });
+      }
+
+      results.push(msgResult);
+    }
+
+    res.json({ ok: true, results });
+  } catch(e) {
+    console.error('Erreur horaires-results :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /horaires-schedule — activer l'envoi hebdomadaire
+app.post('/horaires-schedule', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const { channelId, questions, dayOfWeek, hour, minute } = req.body;
+  if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
+
+  // Annuler l'ancien schedule si existant
+  if (horairesWeeklyInterval) clearInterval(horairesWeeklyInterval);
+
+  horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute };
+
+  // Vérifier chaque minute
+  horairesWeeklyInterval = setInterval(async () => {
+    const now = new Date();
+    if (
+      now.getDay()     === horairesWeeklyConfig.dayOfWeek &&
+      now.getHours()   === horairesWeeklyConfig.hour &&
+      now.getMinutes() === horairesWeeklyConfig.minute
+    ) {
+      try {
+        const ids = await postHorairesMessages(
+          horairesWeeklyConfig.channelId,
+          horairesWeeklyConfig.questions
+        );
+        horairesLastChannelId  = horairesWeeklyConfig.channelId;
+        horairesLastMessageIds = ids;
+        console.log(`📅 [HEBDO] Sondages postés automatiquement`);
+      } catch(e) {
+        console.error('Erreur schedule horaires :', e.message);
+      }
+    }
+  }, 60000);
+
+  const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  console.log(`🗓️ Sondages programmés chaque ${days[dayOfWeek]} à ${hour}h${String(minute).padStart(2,'0')}`);
+  res.json({ ok: true, dayOfWeek, hour, minute });
+});
+
+// DELETE /horaires-schedule — désactiver l'envoi hebdomadaire
+app.delete('/horaires-schedule', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (horairesWeeklyInterval) {
+    clearInterval(horairesWeeklyInterval);
+    horairesWeeklyInterval = null;
+    horairesWeeklyConfig   = null;
+  }
+  res.json({ ok: true });
 });
 
 // ── DÉMARRAGE SERVEUR ─────────────────────────────────────────────────────────
