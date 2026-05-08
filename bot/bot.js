@@ -344,6 +344,19 @@ function isCustomEmojiName(str) {
   return /^[a-zA-Z0-9_]+$/.test(str || '');
 }
 
+// Résout un nom d'emoji custom : Application Emojis du bot d'abord
+// (cross-server), puis fallback sur les emojis du serveur cible.
+async function resolveCustomEmoji(guild, name) {
+  // 1. Application Emojis (utilisables dans tous les serveurs où le bot poste)
+  try {
+    const appEmojis = await client.application.emojis.fetch();
+    const found = appEmojis.find(e => e.name === name);
+    if (found) return found;
+  } catch(e) { /* ignore */ }
+  // 2. Emojis du serveur cible
+  return guild.emojis.cache.find(e => e.name === name) || null;
+}
+
 async function postHorairesMessages(channelId, questions) {
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased()) throw new Error('Channel introuvable ou non textuel');
@@ -360,8 +373,13 @@ async function postHorairesMessages(channelId, questions) {
     let description = '';
     for (const opt of question.options) {
       if (isCustomEmojiName(opt.emoji)) {
-        const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
-        description += emoji ? `<:${emoji.name}:${emoji.id}> ` : `:${opt.emoji}: `;
+        const emoji = await resolveCustomEmoji(guild, opt.emoji);
+        if (emoji) {
+          const prefix = emoji.animated ? 'a' : '';
+          description += `<${prefix}:${emoji.name}:${emoji.id}> `;
+        } else {
+          description += `:${opt.emoji}: `;
+        }
       } else {
         description += `${opt.emoji} `; // emoji Unicode direct
       }
@@ -380,8 +398,8 @@ async function postHorairesMessages(channelId, questions) {
     for (const opt of question.options) {
       try {
         if (isCustomEmojiName(opt.emoji)) {
-          const emoji = guild.emojis.cache.find(e => e.name === opt.emoji);
-          if (emoji) await msg.react(emoji);
+          const emoji = await resolveCustomEmoji(guild, opt.emoji);
+          if (emoji) await msg.react(emoji.id);
         } else {
           await msg.react(opt.emoji);
         }
