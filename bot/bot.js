@@ -261,6 +261,32 @@ app.delete('/scheduled/:id', (req, res) => {
   res.json({ ok: true, id });
 });
 
+// ── ROUTE : Lister les emojis de l'APPLICATION (cross-server) ─────────────────
+// Les Application Emojis (Discord 2024) sont liés au bot, pas à un serveur,
+// et utilisables partout où le bot poste. À uploader via Developer Portal →
+// ton app → onglet Emojis (jusqu'à 2000 par application).
+app.get('/app-emojis', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+  try {
+    const emojis = await client.application.emojis.fetch();
+    const list = emojis
+      .map(e => ({
+        id:       e.id,
+        name:     e.name,
+        url:      e.imageURL({ size: 64 }),
+        animated: e.animated,
+        // Code à insérer tel quel dans un message Discord
+        markdown: `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ ok: true, emojis: list });
+  } catch(e) {
+    console.error('app-emojis :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── ROUTE : Lister les emojis custom du serveur ───────────────────────────────
 app.get('/emojis', async (req, res) => {
   if (!checkSecret(req, res)) return;
