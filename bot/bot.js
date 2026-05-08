@@ -96,6 +96,17 @@ async function pollTweets() {
     const newOnes = items.filter(it => !tweetsLastSeen.has(it.guid)).reverse();
     if (!newOnes.length) return;
 
+    // Garde-fou anti-spam : si on détecte d'un coup plus de N "nouveaux"
+    // tweets, c'est presque certainement un changement d'URL, un reset, ou
+    // un cache miss côté RSSHub — pas une vraie volée de tweets. On
+    // resilience-mark sans poster pour éviter de saturer le canal.
+    const SPAM_THRESHOLD = 3;
+    if (newOnes.length > SPAM_THRESHOLD) {
+      newOnes.forEach(it => tweetsLastSeen.add(it.guid));
+      console.warn(`⚠️ ${newOnes.length} "nouveaux" tweets détectés en une passe (> ${SPAM_THRESHOLD}) — marqués comme vus sans poster (probable changement de baseline)`);
+      return;
+    }
+
     const channel = await client.channels.fetch(channelId);
     if (!channel?.isTextBased()) {
       console.warn('TWEETS_CHANNEL_ID introuvable ou non textuel :', channelId);
