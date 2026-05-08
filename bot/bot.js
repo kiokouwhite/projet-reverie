@@ -6,14 +6,22 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Partials } = require('discord.js');
 
 const app    = express();
-const client = new Client({ intents: [
-  GatewayIntentBits.Guilds,
-  GatewayIntentBits.GuildMessages,
-  GatewayIntentBits.GuildMessageReactions,
-] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
+    // MessageContent est privilégié — à activer dans le Developer Portal.
+    // Sans ça, on ne reçoit pas les attachments des messages non-mentionnés.
+    GatewayIntentBits.MessageContent,
+  ],
+  // Partials nécessaires pour réagir aux réactions sur d'anciens messages
+  // qui ne sont pas dans le cache au démarrage du bot.
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+});
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());               // Autorise les appels depuis ton app web
@@ -353,6 +361,94 @@ app.delete('/horaires-schedule', (req, res) => {
     horairesWeeklyInterval = null;
     horairesWeeklyConfig   = null;
   }
+  res.json({ ok: true });
+});
+
+// ── QUEUE DE PHOTOS DEPUIS DISCORD ────────────────────────────────────────────
+// Workflow :
+//   1. Photo postée dans le canal PHOTO_CHANNEL_ID → bot réagit avec 📤
+//   2. Un humain clique sur la réaction 📤 → photo ajoutée à la queue, ✅ ajouté
+//   3. L'app web fetch GET /photo-queue pour récupérer les URLs
+//   4. Après usage l'app peut nettoyer la queue (DELETE /photo-queue)
+const PHOTO_REACT     = '📤';
+const PHOTO_CONFIRM   = '✅';
+const photoQueue      = []; // {id, messageId, channelId, url, author, postedAt, filename, contentType}
+
+function isImageAttachment(att) {
+  if (!att) return false;
+  if (att.contentType && att.contentType.startsWith('image/')) return true;
+  return /\.(png|jpe?g|webp|gif)$/i.test(att.name || att.filename || '');
+}
+
+// Quand une image est postée dans le canal photos → ajoute la réaction 📤
+client.on('messageCreate', async (msg) => {
+  try {
+    if (msg.author?.bot) return;
+    const photoChannelId = process.env.PHOTO_CHANNEL_ID;
+    if (!photoChannelId || msg.channelId !== photoChannelId) return;
+    const imgAttach = msg.attachments?.find(isImageAttachment);
+    if (!imgAttach) return;
+    await msg.react(PHOTO_REACT);
+  } catch(e) {
+    console.warn('messageCreate (photo) :', e.message);
+  }
+});
+
+// Quand un humain clique sur 📤 → photo ajoutée à la queue, ✅ ajouté en confirmation
+client.on('messageReactionAdd', async (reaction, user) => {
+  try {
+    if (user.bot) return;
+    if (reaction.emoji.name !== PHOTO_REACT) return;
+    // Hydrater le message s'il est partial (réaction sur un message hors cache)
+    if (reaction.partial)         await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+    const msg = reaction.message;
+    const photoChannelId = process.env.PHOTO_CHANNEL_ID;
+    if (!photoChannelId || msg.channelId !== photoChannelId) return;
+    const imgAttach = msg.attachments?.find(isImageAttachment);
+    if (!imgAttach) return;
+    // Skip si déjà dans la queue
+    if (photoQueue.some(p => p.messageId === msg.id)) return;
+
+    photoQueue.push({
+      id:          msg.id,
+      messageId:   msg.id,
+      channelId:   msg.channelId,
+      url:         imgAttach.url,
+      author:      msg.author?.globalName || msg.author?.username || '',
+      postedAt:    msg.createdTimestamp,
+      filename:    imgAttach.name || imgAttach.filename || `photo_${msg.id}.png`,
+      contentType: imgAttach.contentType || 'image/png',
+    });
+
+    try { await msg.react(PHOTO_CONFIRM); } catch(e) {}
+    console.log(`📥 Photo ajoutée à la queue par ${user.username} : ${imgAttach.url}`);
+  } catch(e) {
+    console.warn('messageReactionAdd (photo) :', e.message);
+  }
+});
+
+// ── ROUTE : Lire la queue de photos ───────────────────────────────────────────
+app.get('/photo-queue', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  res.json({ ok: true, photos: photoQueue });
+});
+
+// ── ROUTE : Vider toute la queue ──────────────────────────────────────────────
+app.delete('/photo-queue', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const removed = photoQueue.length;
+  photoQueue.length = 0;
+  console.log(`🗑️ Queue vidée (${removed} photos)`);
+  res.json({ ok: true, removed });
+});
+
+// ── ROUTE : Retirer une photo de la queue (id = messageId) ────────────────────
+app.delete('/photo-queue/:id', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const idx = photoQueue.findIndex(p => p.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: 'Photo introuvable dans la queue' });
+  photoQueue.splice(idx, 1);
   res.json({ ok: true });
 });
 
