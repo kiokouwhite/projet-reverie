@@ -27,9 +27,111 @@ const client = new Client({
 app.use(cors());               // Autorise les appels depuis ton app web
 app.use(express.json());
 
+// ── RELAY DES TWEETS X VERS DISCORD (poller RSS) ─────────────────────────────
+// On poll un flux RSS représentant un compte X (RSSHub par défaut, ou rss.app
+// en payant). Variables d'env :
+//   TWEETS_RSS_URL       — URL complète du flux RSS (ex: https://rsshub.app/twitter/user/projet_reverie)
+//   TWEETS_CHANNEL_ID    — canal Discord où poster les nouveaux tweets
+//   TWEETS_POLL_MINUTES  — intervalle de polling (défaut 15)
+const TWEETS_POLL_MS = (parseInt(process.env.TWEETS_POLL_MINUTES) || 15) * 60_000;
+let tweetsLastSeen = new Set();   // guids déjà vus
+let tweetsState = {
+  lastPollAt: null, lastError: null, lastFoundCount: 0, postedSinceStart: 0,
+};
+
+// Mini-parseur RSS (pas de dep, suffit pour les flux courants — RSSHub, rss.app)
+function rssParse(xml) {
+  const items = [];
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = itemRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const get = (tag) => {
+      const r = new RegExp(`<${tag}[^>]*?>([\\s\\S]*?)<\\/${tag}>`);
+      const x = block.match(r);
+      if (!x) return '';
+      return x[1].replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim();
+    };
+    items.push({
+      title:       get('title'),
+      link:        get('link'),
+      description: get('description'),
+      pubDate:     get('pubDate'),
+      guid:        get('guid') || get('link'),
+    });
+  }
+  return items;
+}
+
+// vxtwitter.com fait des embeds Discord propres (X bloque l'embed officiel)
+function rewriteTweetUrl(url) {
+  return (url || '')
+    .replace(/^https?:\/\/(?:www\.)?(?:twitter|x)\.com\//, 'https://vxtwitter.com/');
+}
+
+async function pollTweets() {
+  const url = process.env.TWEETS_RSS_URL;
+  const channelId = process.env.TWEETS_CHANNEL_ID;
+  if (!url || !channelId) return;
+
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'projet-reverie-bot/1.0' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const xml = await res.text();
+    const items = rssParse(xml);
+    tweetsState.lastPollAt = Date.now();
+    tweetsState.lastFoundCount = items.length;
+    tweetsState.lastError = null;
+
+    // Premier poll : tout marquer comme vu sans poster (sinon on spam le canal)
+    const firstRun = tweetsLastSeen.size === 0;
+    if (firstRun) {
+      items.forEach(it => tweetsLastSeen.add(it.guid));
+      console.log(`🐦 Premier poll : ${items.length} tweet(s) marqués comme déjà vus`);
+      return;
+    }
+
+    // Poster les nouveaux du plus ancien au plus récent (les flux RSS sont
+    // généralement triés du plus récent au plus ancien)
+    const newOnes = items.filter(it => !tweetsLastSeen.has(it.guid)).reverse();
+    if (!newOnes.length) return;
+
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased()) {
+      console.warn('TWEETS_CHANNEL_ID introuvable ou non textuel :', channelId);
+      return;
+    }
+
+    for (const it of newOnes) {
+      try {
+        const link = rewriteTweetUrl(it.link);
+        await channel.send(link || it.title || '(tweet sans lien)');
+        tweetsLastSeen.add(it.guid);
+        tweetsState.postedSinceStart++;
+        // Petit délai pour éviter le rate limit Discord
+        await new Promise(r => setTimeout(r, 800));
+      } catch(e) {
+        console.warn('post tweet :', e.message);
+      }
+    }
+    console.log(`🐦 ${newOnes.length} nouveau(x) tweet(s) posté(s) dans #${channel.name}`);
+  } catch(e) {
+    tweetsState.lastError = e.message;
+    console.warn('pollTweets :', e.message);
+  }
+}
+
 // ── CONNEXION DISCORD ─────────────────────────────────────────────────────────
 client.once('ready', () => {
   console.log(`✅ Bot connecté en tant que ${client.user.tag}`);
+  // Démarrer le polling des tweets si configuré
+  if (process.env.TWEETS_RSS_URL && process.env.TWEETS_CHANNEL_ID) {
+    console.log(`🐦 Poller tweets actif (toutes les ${TWEETS_POLL_MS / 60_000} min)`);
+    pollTweets(); // premier poll immédiat (silencieux pour marquer le baseline)
+    setInterval(pollTweets, TWEETS_POLL_MS);
+  } else {
+    console.log('🐦 Poller tweets désactivé (TWEETS_RSS_URL ou TWEETS_CHANNEL_ID manquant)');
+  }
 });
 
 client.login(process.env.DISCORD_TOKEN).catch(err => {
@@ -412,6 +514,39 @@ app.get('/channel-images', async (req, res) => {
     console.error('channel-images :', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ── ROUTES TWEETS ─────────────────────────────────────────────────────────────
+app.get('/tweets-status', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  res.json({
+    ok: true,
+    configured: !!(process.env.TWEETS_RSS_URL && process.env.TWEETS_CHANNEL_ID),
+    rssUrl: process.env.TWEETS_RSS_URL ? '***configured***' : null,
+    channelId: process.env.TWEETS_CHANNEL_ID || null,
+    pollMinutes: TWEETS_POLL_MS / 60_000,
+    lastPollAt: tweetsState.lastPollAt,
+    lastError: tweetsState.lastError,
+    lastFoundCount: tweetsState.lastFoundCount,
+    postedSinceStart: tweetsState.postedSinceStart,
+    seenCount: tweetsLastSeen.size,
+  });
+});
+
+app.post('/tweets-poll', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!process.env.TWEETS_RSS_URL || !process.env.TWEETS_CHANNEL_ID) {
+    return res.status(400).json({ ok: false, error: 'TWEETS_RSS_URL ou TWEETS_CHANNEL_ID manquant' });
+  }
+  await pollTweets();
+  res.json({ ok: true, state: tweetsState });
+});
+
+// Reset du baseline : utile pour re-tester (les tweets actuels redeviendront "neufs")
+app.post('/tweets-reset', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  tweetsLastSeen.clear();
+  res.json({ ok: true });
 });
 
 // ── DÉMARRAGE SERVEUR ─────────────────────────────────────────────────────────
