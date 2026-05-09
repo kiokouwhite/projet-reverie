@@ -444,6 +444,7 @@ app.get('/horaires-results', async (req, res) => {
   try {
     const channel = await client.channels.fetch(channelId);
     const results = [];
+    const allUserIds = new Set(); // pour batch-fetch les rôles
 
     for (const msgId of messageIds) {
       const message = await channel.messages.fetch(msgId);
@@ -453,7 +454,10 @@ app.get('/horaires-results', async (req, res) => {
         const users = await reaction.users.fetch();
         const userList = users
           .filter(u => !u.bot)
-          .map(u => ({ id: u.id, name: u.globalName || u.username }));
+          .map(u => {
+            allUserIds.add(u.id);
+            return { id: u.id, name: u.globalName || u.username };
+          });
 
         msgResult.reactions.push({
           emoji: reaction.emoji.name,
@@ -465,7 +469,28 @@ app.get('/horaires-results', async (req, res) => {
       results.push(msgResult);
     }
 
-    res.json({ ok: true, results });
+    // Récupère les rôles des votants pour annoter TO FG / TO Smash
+    const TO_FG_ID    = process.env.TO_FG_ROLE_ID || '';
+    const TO_SMASH_ID = process.env.TO_SMASH_ROLE_ID || '';
+    const memberRoles = new Map(); // userId → { toFG, toSmash }
+    if ((TO_FG_ID || TO_SMASH_ID) && allUserIds.size > 0 && channel.guild) {
+      await Promise.all([...allUserIds].map(async (uid) => {
+        try {
+          const member = await channel.guild.members.fetch(uid);
+          memberRoles.set(uid, {
+            toFG:    !!TO_FG_ID    && member.roles.cache.has(TO_FG_ID),
+            toSmash: !!TO_SMASH_ID && member.roles.cache.has(TO_SMASH_ID),
+          });
+        } catch(e) { /* membre parti, ignoré */ }
+      }));
+      // Annoter chaque user des résultats
+      results.forEach(r => r.reactions.forEach(react => react.users.forEach(u => {
+        const roles = memberRoles.get(u.id);
+        if (roles) Object.assign(u, roles);
+      })));
+    }
+
+    res.json({ ok: true, results, rolesEnabled: !!(TO_FG_ID || TO_SMASH_ID) });
   } catch(e) {
     console.error('Erreur horaires-results :', e.message);
     res.status(500).json({ ok: false, error: e.message });
