@@ -310,6 +310,28 @@ app.get('/emojis', async (req, res) => {
   }
 });
 
+// ── ROUTE : Lister les rôles du serveur ──────────────────────────────────────
+// Permet à l'app web de proposer un picker de rôles pour @-mentioner depuis
+// les annonces. Filtre les rôles "@everyone" et les rôles managed (bots).
+app.get('/roles', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+  const guildId = process.env.GUILD_ID;
+  if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    await guild.roles.fetch();
+    const roles = guild.roles.cache
+      .filter(r => r.name !== '@everyone' && !r.managed)
+      .map(r => ({ id: r.id, name: r.name, color: r.hexColor, position: r.position, mentionable: r.mentionable }))
+      .sort((a, b) => b.position - a.position); // du plus haut au plus bas
+    res.json({ ok: true, roles });
+  } catch(e) {
+    console.error('roles :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── ROUTE : Lister les salons disponibles ─────────────────────────────────────
 // Utile pour choisir le channelId depuis l'app web
 app.get('/channels', async (req, res) => {
