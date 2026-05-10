@@ -351,25 +351,44 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-// ── ROUTE : Lister les salons disponibles ─────────────────────────────────────
-// Utile pour choisir le channelId depuis l'app web
+// ── ROUTE : Lister les salons de TOUS les serveurs où le bot est ────────────
+// Permet à l'app web de choisir le channel cible (post-announce, horaires).
+// Chaque salon est annoté avec {guildId, guildName} pour l'optgroup côté UI.
 app.get('/channels', async (req, res) => {
   if (!checkSecret(req, res)) return;
   if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot Discord en cours de connexion, réessaie dans 5 secondes' });
 
-  const guildId = process.env.GUILD_ID;
-  if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
-
   try {
-    const guild    = await client.guilds.fetch(guildId);
-    const channels = await guild.channels.fetch();
-    const textChans = channels
-      .filter(c => c.isTextBased() && !c.isThread())
-      .map(c => ({ id: c.id, name: c.name, category: c.parent?.name || '' }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    res.json({ ok: true, channels: textChans });
+    const allGuilds = await client.guilds.fetch();
+    const allChans = [];
+    for (const [, partial] of allGuilds) {
+      try {
+        const guild    = await partial.fetch();
+        const channels = await guild.channels.fetch();
+        channels.forEach(c => {
+          if (!c?.isTextBased?.() || c?.isThread?.()) return;
+          allChans.push({
+            id:        c.id,
+            name:      c.name,
+            category:  c.parent?.name || '',
+            position:  c.rawPosition ?? c.position ?? 0,
+            guildId:   guild.id,
+            guildName: guild.name,
+          });
+        });
+      } catch(e) {
+        console.warn(`channels fetch guild ${partial?.name || partial?.id} :`, e.message);
+      }
+    }
+    // Tri : par nom de serveur, puis catégorie, puis nom
+    allChans.sort((a, b) =>
+      a.guildName.localeCompare(b.guildName) ||
+      a.category.localeCompare(b.category) ||
+      a.name.localeCompare(b.name)
+    );
+    res.json({ ok: true, channels: allChans });
   } catch (e) {
+    console.error('channels :', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
