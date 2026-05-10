@@ -221,17 +221,24 @@ let schedCounter = 1;
 
 // ── ROUTE : Planifier une annonce ─────────────────────────────────────────────
 // Body attendu :
-//   { channelId: "123...", message: "texte...", scheduledAt: 1700000000000 (ms), secret: "..." }
+//   { channelId, message?, embeds?, trailing?, scheduledAt: 1700000000000 (ms) }
+//   - message  : contenu du 1er post (header)
+//   - embeds   : tableau d'embeds Discord (rendus avec le 1er post)
+//   - trailing : contenu d'un 2e post envoyé juste après le 1er (mentions
+//                qui pinguent après les embeds — cf flow Stras'Fighters)
 app.post('/schedule-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
-  const { channelId, message, scheduledAt } = req.body;
+  const { channelId, message, embeds, trailing, scheduledAt } = req.body;
 
   if (!channelId)   return res.status(400).json({ ok: false, error: 'channelId manquant' });
-  if (!message)     return res.status(400).json({ ok: false, error: 'message manquant' });
+  if (!message && !(Array.isArray(embeds) && embeds.length))
+    return res.status(400).json({ ok: false, error: 'message ou embeds manquant' });
   if (!scheduledAt) return res.status(400).json({ ok: false, error: 'scheduledAt manquant' });
-  if (message.length > 2000)
+  if (message && message.length > 2000)
     return res.status(400).json({ ok: false, error: `Message trop long (${message.length}/2000 caractères)` });
+  if (trailing && trailing.length > 2000)
+    return res.status(400).json({ ok: false, error: `Trailing trop long (${trailing.length}/2000 caractères)` });
 
   const delay = scheduledAt - Date.now();
   if (delay < 0)
@@ -242,8 +249,27 @@ app.post('/schedule-announce', async (req, res) => {
     try {
       const channel = await client.channels.fetch(channelId);
       if (channel?.isTextBased()) {
-        await channel.send(message);
-        console.log(`📢 [PLANIFIÉ #${id}] Annonce postée dans #${channel.name}`);
+        // Résolution des emojis d'application au moment de l'envoi (et pas
+        // de la planification) pour récupérer une map fraîche.
+        const emojiMap = await getAppEmojiMap();
+        const payload = {};
+        if (message) payload.content = substituteAppEmojis(message, emojiMap);
+        if (Array.isArray(embeds) && embeds.length) {
+          payload.embeds = embeds.map(e => {
+            const out = { ...e };
+            if (out.title)        out.title       = substituteAppEmojis(out.title, emojiMap);
+            if (out.description)  out.description = substituteAppEmojis(out.description, emojiMap);
+            if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
+            return out;
+          });
+        }
+        await channel.send(payload);
+        // 2e post optionnel : trailing (closing + URL + mentions de rôle).
+        // Posté APRÈS les embeds pour que les mentions pinguent.
+        if (trailing) {
+          await channel.send({ content: substituteAppEmojis(trailing, emojiMap) });
+        }
+        console.log(`📢 [PLANIFIÉ #${id}] Annonce postée dans #${channel.name}${trailing ? ' (+ trailing)' : ''}`);
       }
     } catch(e) {
       console.error(`❌ [PLANIFIÉ #${id}] Erreur :`, e.message);
@@ -252,8 +278,8 @@ app.post('/schedule-announce', async (req, res) => {
     }
   }, delay);
 
-  scheduled.set(id, { id, channelId, message, scheduledAt, timer });
-  console.log(`🕐 Annonce #${id} planifiée dans ${Math.round(delay/1000)}s`);
+  scheduled.set(id, { id, channelId, message, embeds, trailing, scheduledAt, timer });
+  console.log(`🕐 Annonce #${id} planifiée dans ${Math.round(delay/1000)}s${embeds ? ' [embeds]' : ''}${trailing ? ' [+ trailing]' : ''}`);
   res.json({ ok: true, id, scheduledAt, delayMs: delay });
 });
 
