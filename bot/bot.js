@@ -310,22 +310,41 @@ app.get('/emojis', async (req, res) => {
   }
 });
 
-// ── ROUTE : Lister les rôles du serveur ──────────────────────────────────────
-// Permet à l'app web de proposer un picker de rôles pour @-mentioner depuis
-// les annonces. Filtre les rôles "@everyone" et les rôles managed (bots).
+// ── ROUTE : Lister les rôles de TOUS les serveurs où le bot est ─────────────
+// Permet à l'app web de proposer un picker de rôles cross-server pour
+// @-mentioner depuis les annonces. Chaque rôle est annoté avec son serveur
+// pour que l'app puisse les grouper. Filtre @everyone et les managed (bots).
 app.get('/roles', async (req, res) => {
   if (!checkSecret(req, res)) return;
   if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
-  const guildId = process.env.GUILD_ID;
-  if (!guildId) return res.status(400).json({ ok: false, error: 'GUILD_ID non configuré' });
   try {
-    const guild = await client.guilds.fetch(guildId);
-    await guild.roles.fetch();
-    const roles = guild.roles.cache
-      .filter(r => r.name !== '@everyone' && !r.managed)
-      .map(r => ({ id: r.id, name: r.name, color: r.hexColor, position: r.position, mentionable: r.mentionable }))
-      .sort((a, b) => b.position - a.position); // du plus haut au plus bas
-    res.json({ ok: true, roles });
+    const allGuilds = await client.guilds.fetch(); // OAuth2Guild collection
+    const allRoles = [];
+    for (const [, partial] of allGuilds) {
+      try {
+        const guild = await partial.fetch();
+        await guild.roles.fetch();
+        guild.roles.cache.forEach(r => {
+          if (r.name === '@everyone' || r.managed) return;
+          allRoles.push({
+            id:       r.id,
+            name:     r.name,
+            color:    r.hexColor,
+            position: r.position,
+            mentionable: r.mentionable,
+            guildId:  guild.id,
+            guildName: guild.name,
+          });
+        });
+      } catch(e) {
+        console.warn(`roles fetch guild ${partial?.name || partial?.id} :`, e.message);
+      }
+    }
+    // Tri : par nom de serveur, puis par position descendante
+    allRoles.sort((a, b) =>
+      a.guildName.localeCompare(b.guildName) || (b.position - a.position)
+    );
+    res.json({ ok: true, roles: allRoles });
   } catch(e) {
     console.error('roles :', e.message);
     res.status(500).json({ ok: false, error: e.message });
