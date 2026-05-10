@@ -171,15 +171,17 @@ app.get('/', (req, res) => {
 
 // ── ROUTE : Poster une annonce ────────────────────────────────────────────────
 // Body attendu :
-//   { channelId: "123...", message: "texte...", secret: "..." }
+//   { channelId: "123...", message?: "texte...", embeds?: [Discord embed objects] }
+// Au moins un de message/embeds doit être fourni.
 app.post('/post-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
-  const { channelId, message } = req.body;
+  const { channelId, message, embeds } = req.body;
 
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
-  if (!message)   return res.status(400).json({ ok: false, error: 'message manquant' });
-  if (message.length > 2000)
+  if (!message && !(Array.isArray(embeds) && embeds.length))
+    return res.status(400).json({ ok: false, error: 'message ou embeds manquant' });
+  if (message && message.length > 2000)
     return res.status(400).json({ ok: false, error: `Message trop long (${message.length}/2000 caractères)` });
 
   try {
@@ -187,8 +189,11 @@ app.post('/post-announce', async (req, res) => {
     if (!channel?.isTextBased())
       return res.status(400).json({ ok: false, error: 'Channel introuvable ou non textuel' });
 
-    await channel.send(message);
-    console.log(`📢 Annonce postée dans #${channel.name} (${channelId})`);
+    const payload = {};
+    if (message) payload.content = message;
+    if (Array.isArray(embeds) && embeds.length) payload.embeds = embeds;
+    await channel.send(payload);
+    console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}`);
     res.json({ ok: true, channel: channel.name });
 
   } catch (e) {
