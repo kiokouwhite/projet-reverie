@@ -189,9 +189,21 @@ app.post('/post-announce', async (req, res) => {
     if (!channel?.isTextBased())
       return res.status(400).json({ ok: false, error: 'Channel introuvable ou non textuel' });
 
+    // Résolution des `:name:` shorthand → `<:name:id>` pour les Application
+    // Emojis du bot (qui ne sont PAS auto-résolus par Discord côté serveur
+    // contrairement à ce qui se passe quand un utilisateur tape).
+    const emojiMap = await getAppEmojiMap();
     const payload = {};
-    if (message) payload.content = message;
-    if (Array.isArray(embeds) && embeds.length) payload.embeds = embeds;
+    if (message) payload.content = substituteAppEmojis(message, emojiMap);
+    if (Array.isArray(embeds) && embeds.length) {
+      payload.embeds = embeds.map(e => {
+        const out = { ...e };
+        if (out.title)       out.title       = substituteAppEmojis(out.title, emojiMap);
+        if (out.description) out.description = substituteAppEmojis(out.description, emojiMap);
+        if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
+        return out;
+      });
+    }
     await channel.send(payload);
     console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}`);
     res.json({ ok: true, channel: channel.name });
@@ -407,6 +419,39 @@ const EMBED_COLORS = [0x9b59b6, 0x3498db, 0xe91e8c];
 // Détecte si c'est un nom d'emoji custom (ex: "16h") ou un emoji Unicode (ex: "🕐")
 function isCustomEmojiName(str) {
   return /^[a-zA-Z0-9_]+$/.test(str || '');
+}
+
+// Récupère la map { name → emoji } des Application Emojis du bot.
+// Les Application Emojis sont utilisables dans tous les serveurs où le bot
+// poste, contrairement aux emojis de guild qui sont locaux.
+async function getAppEmojiMap() {
+  try {
+    const collection = await client.application.emojis.fetch();
+    const map = new Map();
+    collection.forEach(e => map.set(e.name, e));
+    return map;
+  } catch (e) {
+    console.error('getAppEmojiMap :', e.message);
+    return new Map();
+  }
+}
+
+// Remplace les `:name:` shortcuts par leur markdown Discord complet
+// (`<:name:id>` ou `<a:name:id>` pour les animés) en utilisant la map
+// d'Application Emojis fournie. Les `<:x:id>` déjà valides sont préservés.
+// Les `:name:` non reconnus sont laissés tels quels (peuvent être des
+// shortcodes Unicode comme :smile: que Discord gère côté client).
+function substituteAppEmojis(text, emojiMap) {
+  if (!text || !emojiMap || !emojiMap.size) return text;
+  // L'alternance commence par les tags complets, donc ils sont matchés
+  // d'abord et passés tels quels (group 1 = nom seul → undefined ici).
+  const RE = /<a?:[a-zA-Z0-9_]+:\d+>|:([a-zA-Z0-9_]+):/g;
+  return text.replace(RE, (full, name) => {
+    if (!name) return full; // tag complet déjà formé
+    const e = emojiMap.get(name);
+    if (!e) return full;
+    return `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`;
+  });
 }
 
 // Résout un nom d'emoji custom : Application Emojis du bot d'abord
