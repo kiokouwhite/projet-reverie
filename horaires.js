@@ -65,6 +65,37 @@ function hrInit() {
   if (hrSel && hrSel.options.length <= 1) {
     hrLoadChannels(true);
   }
+  // Restaurer l'état du panneau gauche (collapsed / visible) depuis la session précédente
+  hrRestoreLeftPanelState();
+}
+
+// Bascule l'état "panneau gauche masqué". L'état est persisté en localStorage
+// pour qu'un reload ou une navigation entre onglets ne casse pas la préférence.
+function hrToggleLeftPanel() {
+  const page = document.getElementById('hrPage');
+  const btn  = document.getElementById('hrCollapseBtn');
+  if (!page) return;
+  page.classList.toggle('hr-left-collapsed');
+  const collapsed = page.classList.contains('hr-left-collapsed');
+  if (btn) {
+    btn.textContent = collapsed ? '›' : '‹';
+    btn.setAttribute('aria-label', collapsed ? 'Afficher le panneau gauche' : 'Masquer le panneau gauche');
+  }
+  try { localStorage.setItem('hr_left_collapsed', collapsed ? '1' : '0'); } catch {}
+}
+
+function hrRestoreLeftPanelState() {
+  let saved = '0';
+  try { saved = localStorage.getItem('hr_left_collapsed') || '0'; } catch {}
+  if (saved === '1') {
+    const page = document.getElementById('hrPage');
+    const btn  = document.getElementById('hrCollapseBtn');
+    if (page) page.classList.add('hr-left-collapsed');
+    if (btn) {
+      btn.textContent = '›';
+      btn.setAttribute('aria-label', 'Afficher le panneau gauche');
+    }
+  }
 }
 
 // Charge HR_EMOJIS (app emojis du bot + emojis du serveur) en parallèle.
@@ -1494,13 +1525,22 @@ function hrEscJS(str) {
 // Retourne un tableau de { id, name }
 function hrGetAllVoters() {
   if (!HR.lastResults) return [];
-  const all = new Map(); // name → { id, name }
+  const all = new Map(); // name → { id, name, toFG, toSmash }
   HR.lastResults.forEach(qRes => {
     (qRes.reactions || []).forEach(r => {
       (r.users || []).forEach(u => {
-        const name = typeof u === 'object' ? u.name : u;
-        const id   = typeof u === 'object' ? u.id   : null;
-        if (!all.has(name)) all.set(name, { id, name });
+        if (typeof u === 'object') {
+          if (!all.has(u.name)) {
+            all.set(u.name, { id: u.id || null, name: u.name, toFG: !!u.toFG, toSmash: !!u.toSmash });
+          } else {
+            // Mergeer les flags TO si une autre réaction de la même personne les expose
+            const existing = all.get(u.name);
+            existing.toFG    = existing.toFG    || !!u.toFG;
+            existing.toSmash = existing.toSmash || !!u.toSmash;
+          }
+        } else if (!all.has(u)) {
+          all.set(u, { id: null, name: u, toFG: false, toSmash: false });
+        }
       });
     });
   });
@@ -1570,17 +1610,167 @@ function hrBuildPlanningUI() {
   hrRenderPlanningRoles();
 }
 
-// Rend les cartes de rôles avec leurs chips. Drag-and-drop entre pool et rôles.
+// Détermine l'équipe d'un user pour la coloration du Mii.
+//   - toSmash true (et toFG false) → 'smash' (bleu, sprite source non teinté)
+//   - toFG true (et toSmash false ou inconnu) → 'fg' (rouge, hue-rotate)
+//   - les deux ou aucun → 'fg' par défaut (l'utilisateur peut toujours réorganiser)
+function hrMiiTeamOf(user) {
+  if (!user) return 'fg';
+  if (user.toSmash && !user.toFG) return 'smash';
+  if (user.toFG && !user.toSmash) return 'fg';
+  if (user.toSmash) return 'smash'; // multi-rôle : Smash en priorité
+  return 'fg';
+}
+
+// Détermine le rôle visuel (uniforme) selon le VOTE DE PRIORITÉ (Q3) de la
+// personne — pas selon le slot où elle est draguée. Logique : le sprite reflète
+// "ce pour quoi elle s'est portée volontaire" donc elle garde le même look où
+// qu'on la place dans le planning.
+//
+// On lit la config Q3 (HR.questions[2].options) pour savoir QUEL emoji
+// représente "accueil" et "régie", parce que l'utilisateur peut avoir customisé
+// les emojis (ex : 🏠 au lieu du string 'accueil'). Match par label de l'option,
+// fallback par index (seeding=0, accueil=1, regie=2 dans la config par défaut).
+function hrMiiGetPriorityEmojis() {
+  const q3opts = HR.questions?.[2]?.options || [];
+  let accueilEmoji = null;
+  let regieEmoji   = null;
+  for (const opt of q3opts) {
+    const label = (opt.label || '').toLowerCase();
+    if (!accueilEmoji && /accueil/.test(label)) accueilEmoji = opt.emoji;
+    if (!regieEmoji   && /r[ée]gie/.test(label)) regieEmoji   = opt.emoji;
+  }
+  // Fallback par index si les labels ont été modifiés
+  if (!accueilEmoji && q3opts[1]) accueilEmoji = q3opts[1].emoji;
+  if (!regieEmoji   && q3opts[2]) regieEmoji   = q3opts[2].emoji;
+  return { accueilEmoji, regieEmoji };
+}
+
+//   - a voté l'emoji régie   → 'regie'   (uniforme régie)
+//   - a voté l'emoji accueil → 'accueil' (robe + tablier)
+//   - sinon                  → null      (Mii t-shirt normal)
+// Si la personne a voté plusieurs priorités, régie l'emporte sur accueil
+// (plus spécifique). Stratégies multiples pour gérer le fait que les Q3
+// emojis peuvent être :
+//   - des strings ('accueil', 'regie')          → match par nom
+//   - des unicode customisés ('🏠', '🖥️')        → match par config OU par
+//                                                 unicode connu
+//   - des emojis custom Discord (':teamhall:')  → match par nom partiel
+// Sets de codepoints unicode pour la stratégie 3. Set est utilisé au lieu
+// d'une regex range parce que certains moteurs (vu en debug) ne matchent pas
+// `[\u{1F3E0}-\u{1F3EC}]` comme attendu — Set évite toute ambiguïté de syntaxe.
+const HR_MII_REGIE_CP = new Set([
+  0x1F5A5, // 🖥 DESKTOP COMPUTER
+  0x1F4BB, // 💻 LAPTOP COMPUTER
+  0x2328,  // ⌨ KEYBOARD
+  0x1F5B1, // 🖱 COMPUTER MOUSE
+]);
+const HR_MII_ACCUEIL_CP = new Set([
+  0x1F3E0, // 🏠 HOUSE BUILDING
+  0x1F3E1, // 🏡 HOUSE WITH GARDEN
+  0x1F3E2, // 🏢 OFFICE BUILDING
+  0x1F3E5, // 🏥 HOSPITAL
+  0x1F3E8, // 🏨 HOTEL
+  0x1F3E9, // 🏩 LOVE HOTEL
+  0x1F3EA, // 🏪 CONVENIENCE STORE
+  0x1F3EB, // 🏫 SCHOOL (cas de l'utilisateur)
+  0x1F3EC, // 🏬 DEPARTMENT STORE
+  0x1F6AA, // 🚪 DOOR
+]);
+
+// Vérifie si la string emoji contient au moins un codepoint du Set.
+function hrMiiHasCp(str, set) {
+  for (const ch of String(str)) {
+    if (set.has(ch.codePointAt(0))) return true;
+  }
+  return false;
+}
+
+function hrMiiPriorityRoleFromEmojis(emojis, priorityMap) {
+  if (!emojis || !emojis.length) return null;
+  const emojiStrs = emojis.map(e => String(e));
+
+  // Stratégie 1 : match exact contre l'emoji de l'option Q3 dont le label
+  //   contient "régie" / "accueil" (via hrMiiGetPriorityEmojis).
+  if (priorityMap?.regieEmoji   && emojiStrs.includes(priorityMap.regieEmoji))   return 'regie';
+  if (priorityMap?.accueilEmoji && emojiStrs.includes(priorityMap.accueilEmoji)) return 'accueil';
+
+  // Stratégie 2 : match par nom (emoji = string 'regie'/'accueil' ou nom
+  //   custom Discord du type ':regie_v2:' / ':frontdesk_accueil:').
+  if (emojiStrs.some(e => /r[ée]gie/i.test(e)))  return 'regie';
+  if (emojiStrs.some(e => /accueil/i.test(e)))   return 'accueil';
+
+  // Stratégie 3 : codepoints unicode bien connus, dernier filet de sécurité.
+  //   Vérifié via Set au lieu de regex pour fiabilité cross-engine.
+  if (emojiStrs.some(e => hrMiiHasCp(e, HR_MII_REGIE_CP)))   return 'regie';
+  if (emojiStrs.some(e => hrMiiHasCp(e, HR_MII_ACCUEIL_CP))) return 'accueil';
+
+  return null;
+}
+
+// Construit le HTML d'une carte Mii pour un user dans un slot donné.
+// `visualRole` ('accueil' | 'regie' | null) est dérivé du vote de priorité Q3
+// par l'appelant (cf. hrMiiPriorityRoleFromEmojis) — passé en argument plutôt
+// que recalculé ici pour éviter de re-traverser les Q3 par carte.
+function hrMiiCardHTML(user, fromRoleId, visualRole) {
+  const team = hrMiiTeamOf(user);
+  const useUniform = visualRole === 'accueil' || visualRole === 'regie';
+  // Filtre teinte : 'none' pour Smash (couleur source) ou si on porte un uniforme
+  // (qui a ses propres couleurs et ne doit pas être teinté).
+  const tintFilter = (team === 'fg' && !useUniform)
+    ? 'hue-rotate(155deg) saturate(1.25) brightness(0.92)'
+    : 'none';
+
+  const bodySrc = visualRole === 'regie'   ? 'mii/body-regie.png'
+                : visualRole === 'accueil' ? 'mii/body-accueil.png'
+                                            : 'mii/body.png';
+  const armLSrc = visualRole === 'regie'   ? 'mii/arm-left-regie.png'
+                : visualRole === 'accueil' ? 'mii/arm-left-accueil.png'
+                                            : 'mii/arm-left.png';
+  const armRSrc = visualRole === 'regie'   ? 'mii/arm-right-regie.png'
+                : visualRole === 'accueil' ? 'mii/arm-right-accueil.png'
+                                            : 'mii/arm-right.png';
+
+  // Pour accueil/régie, les bras passent DERRIÈRE le corps (l'uniforme recouvre
+  // la pointe d'épaule). Pour le Mii normal, les bras passent DEVANT.
+  const armsHTML = `
+    <img class="hr-mii-part hr-mii-arm-left"  src="${armLSrc}" style="filter:${useUniform ? 'none' : tintFilter}" draggable="false">
+    <img class="hr-mii-part hr-mii-arm-right" src="${armRSrc}" style="filter:${useUniform ? 'none' : tintFilter}" draggable="false">`;
+
+  const fromAttr = hrEscJS(fromRoleId || 'pool');
+  return `
+    <div class="hr-mii-card" data-name="${escHR(user.name)}" data-from="${fromAttr}"
+         onpointerdown="hrMiiDragStart(event)"
+         onpointermove="hrMiiDragMove(event)"
+         onpointerup="hrMiiDragEnd(event)"
+         onpointercancel="hrMiiDragEnd(event)">
+      <div class="hr-mii-frame">
+        <div class="hr-mii-stack">
+          <img class="hr-mii-part hr-mii-hair-back" src="mii/hair-back.png" draggable="false">
+          ${useUniform ? armsHTML : ''}
+          <img class="hr-mii-part hr-mii-body" src="${bodySrc}" style="filter:${useUniform ? 'none' : tintFilter}" draggable="false">
+          ${!useUniform ? armsHTML : ''}
+          <img class="hr-mii-part hr-mii-face" src="mii/face.png" draggable="false">
+        </div>
+      </div>
+      <button class="hr-mii-name" tabindex="-1" type="button">${escHR(user.name)}</button>
+    </div>`;
+}
+
+// Rend les cartes de rôles avec des personnages Mii draggables. Pool des non
+// assignés splitté en 2 colonnes (TO Smash, TO FG) suivant le design "mii-name".
 function hrRenderPlanningRoles() {
   const wrap = document.getElementById('hrPlanningRoles');
   if (!wrap) return;
 
-  const allVoters   = hrGetAllVoters(); // [{ id, name }]
+  const allVoters   = hrGetAllVoters(); // [{ id, name, toFG, toSmash }]
   const assignedNames = new Set(HR.planRoles.flatMap(r => r.users.map(u => u.name || u)));
   const unassigned  = allVoters.filter(u => !assignedNames.has(u.name));
+  const smashUnassigned = unassigned.filter(u => hrMiiTeamOf(u) === 'smash');
+  const fgUnassigned    = unassigned.filter(u => hrMiiTeamOf(u) === 'fg');
 
-  // Map nom → emojis votés en Q3 (priorité tâche), pour les afficher à côté
-  // du pseudo dans le planning.
+  // Map nom → emojis votés en Q3 (priorité tâche), pour affichage discret en
+  // overlay sur le badge nom du Mii.
   const userPriorityEmojis = new Map();
   const q3 = HR.lastResults?.[2];
   if (q3?.reactions) {
@@ -1592,7 +1782,10 @@ function hrRenderPlanningRoles() {
       });
     });
   }
-  const renderUserEmojis = (name) => {
+
+  // Pour les Mii on garde les emojis prio mais en overlay-bulle au-dessus du
+  // bouton nom, pour ne pas casser le rendu du badge style Mii Maker.
+  const prioBubble = (name) => {
     const emojis = userPriorityEmojis.get(name) || [];
     if (!emojis.length) return '';
     const html = emojis.map(em => {
@@ -1601,59 +1794,74 @@ function hrRenderPlanningRoles() {
       if (found && found.url) return `<img src="${escHR(found.url)}" alt=":${escHR(em)}:" class="hr-plan-prio-img" title=":${escHR(em)}:">`;
       return `<span class="hr-plan-prio-name">:${escHR(em)}:</span>`;
     }).join('');
-    return ` <span class="hr-plan-prio-wrap">${html}</span>`;
+    return `<span class="hr-mii-prio">${html}</span>`;
   };
 
-  // Helpers DnD : encodent source dans dataTransfer
-  // ondragstart sur un chip : on enregistre 'name' + 'from' (id du rôle ou 'pool')
-  // ondragover sur la zone : preventDefault pour autoriser le drop
-  // ondrop : appelle hrPlanDrop(toRoleId|null) qui décode et déplace
-  const chipDragAttrs = (name, fromRoleId) =>
-    `draggable="true" ondragstart="hrPlanDragStart(event,'${hrEscJS(name)}','${hrEscJS(fromRoleId || 'pool')}')"`;
-  const dropZoneAttrs = (toRoleId) =>
-    `ondragover="hrPlanDragOver(event,this)" ondragleave="hrPlanDragLeave(this)" ondrop="hrPlanDrop(event,this,'${hrEscJS(toRoleId || '')}')"`;
+  // Pré-calcule QUEL emoji représente "accueil" vs "régie" dans la config
+  // Q3 actuelle (peut être custom). Une seule fois pour tout le render.
+  const priorityMap = hrMiiGetPriorityEmojis();
+
+  // Helper : carte Mii enrichie avec la bulle priorité dans le coin haut-droit
+  // du cadre, indépendante du badge nom Mii Maker. Le visualRole (uniforme)
+  // est dérivé du vote Q3 de la personne — donc reste constant peu importe
+  // où elle est draguée dans le planning.
+  const card = (user, fromRoleId) => {
+    const visualRole = hrMiiPriorityRoleFromEmojis(userPriorityEmojis.get(user.name), priorityMap);
+    const html = hrMiiCardHTML(user, fromRoleId, visualRole);
+    const prio = prioBubble(user.name);
+    return prio ? html.replace('<div class="hr-mii-frame">', `<div class="hr-mii-frame">${prio}`) : html;
+  };
 
   let html = '';
 
-  // Pool des non assignés (drop zone aussi : drop = retirer d'un rôle)
-  html += `<div class="hr-plan-pool" ${dropZoneAttrs('')}>
-    <span class="hr-plan-pool-label">Non assignés :</span>
-    ${unassigned.length
-      ? unassigned.map(u =>
-          `<span class="hr-plan-pool-chip" ${chipDragAttrs(u.name, 'pool')}>${escHR(u.name)}${renderUserEmojis(u.name)}</span>`
-        ).join('')
-      : '<span class="hr-plan-empty" style="margin-left:6px;">Personne</span>'}
+  // ── Pool des non assignés — 2 colonnes Smash / FG ────────────────────────
+  html += `<div class="hr-mii-roster">
+    <div class="hr-mii-roster-team">
+      <div class="hr-mii-roster-head">
+        <div class="hr-mii-roster-title"><span class="hr-mii-team-dot hr-mii-team-smash"></span>TO Smash</div>
+        <div class="hr-mii-roster-meta">${smashUnassigned.length} / ${allVoters.filter(u => hrMiiTeamOf(u) === 'smash').length}</div>
+      </div>
+      <div class="hr-mii-roster-tray" data-dropzone="">
+        ${smashUnassigned.length
+          ? smashUnassigned.map(u => card(u, 'pool')).join('')
+          : '<div class="hr-mii-empty">Tous assignés.</div>'}
+      </div>
+    </div>
+    <div class="hr-mii-roster-team">
+      <div class="hr-mii-roster-head">
+        <div class="hr-mii-roster-title"><span class="hr-mii-team-dot hr-mii-team-fg"></span>TO FG</div>
+        <div class="hr-mii-roster-meta">${fgUnassigned.length} / ${allVoters.filter(u => hrMiiTeamOf(u) === 'fg').length}</div>
+      </div>
+      <div class="hr-mii-roster-tray" data-dropzone="">
+        ${fgUnassigned.length
+          ? fgUnassigned.map(u => card(u, 'pool')).join('')
+          : '<div class="hr-mii-empty">Tous assignés.</div>'}
+      </div>
+    </div>
   </div>`;
 
-  // Cartes de rôles (drop zones)
+  // ── Cartes de rôles ──────────────────────────────────────────────────────
   html += `<div class="hr-plan-roles-grid">` + HR.planRoles.map(role => {
-    const chipsHtml = role.users.length
-      ? role.users.map(u => {
-          const name = u.name || u;
-          return `
-          <span class="hr-plan-chip" ${chipDragAttrs(name, role.id)}>
-            ${escHR(name)}${renderUserEmojis(name)}
-            <button class="hr-plan-chip-del" onclick="hrPlanRemoveUser('${hrEscJS(role.id)}','${hrEscJS(name)}')" title="Retirer">×</button>
-          </span>`;
-        }).join('')
-      : '<span class="hr-plan-empty">Personne — glisse un nom ici</span>';
+    const cardsHtml = role.users.length
+      ? role.users.map(u => card(u.name ? u : { id: null, name: u, toFG: false, toSmash: false }, role.id)).join('')
+      : '<div class="hr-mii-empty hr-mii-empty-slot">Déposer ici…</div>';
 
     const headerLabel = role.slot
       ? `<span class="hr-plan-title">${role.title}</span><span class="hr-plan-slot">${role.slot}</span>`
       : `<span class="hr-plan-title">${role.title}</span>`;
 
-    // datalist avec tous les votants (fallback texte)
     const datalist = `<datalist id="hrPlanDL_${role.id}">
       ${allVoters.map(u => `<option value="${escHR(u.name)}">`).join('')}
     </datalist>`;
 
     return `
-      <div class="hr-plan-role" ${dropZoneAttrs(role.id)}>
+      <div class="hr-plan-role" data-dropzone="${hrEscJS(role.id)}">
         <div class="hr-plan-role-header">
           <span class="hr-plan-icon">${role.icon}</span>
           ${headerLabel}
+          <span class="hr-plan-count">${role.users.length}</span>
         </div>
-        <div class="hr-plan-chips">${chipsHtml}</div>
+        <div class="hr-plan-chips">${cardsHtml}</div>
         <div class="hr-plan-add-row">
           <input class="hr-plan-add-input" id="hrPlanAdd_${role.id}" type="text"
             placeholder="Ajouter…" list="hrPlanDL_${role.id}"
@@ -1665,49 +1873,184 @@ function hrRenderPlanningRoles() {
   }).join('') + `</div>`;
 
   wrap.innerHTML = html;
+  // Lancer la boucle physique (idempotente) maintenant que des cartes existent.
+  hrMiiEnsureLoop();
   hrUpdatePlanMsg();
 }
 
-// ── Drag-and-drop du planning ────────────────────────────────────────────────
-function hrPlanDragStart(e, name, fromRoleId) {
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', JSON.stringify({ name, fromRoleId }));
-}
-function hrPlanDragOver(e, el) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  el.classList.add('hr-plan-dragover');
-}
-function hrPlanDragLeave(el) {
-  el.classList.remove('hr-plan-dragover');
-}
-function hrPlanDrop(e, el, toRoleId) {
-  e.preventDefault();
-  el.classList.remove('hr-plan-dragover');
-  let payload;
-  try { payload = JSON.parse(e.dataTransfer.getData('text/plain')); }
-  catch { return; }
-  const { name, fromRoleId } = payload;
-  if (!name) return;
-  if (fromRoleId === (toRoleId || 'pool')) return; // déposé sur sa source
+// ──────────────────────────────────────────────────────────────────────────────
+// DRAG + PHYSIQUE PENDULAIRE DES MIIS
+// Porte le système du design "mii-name" : chaque carte a son propre état de
+// pendule (bras gauche, bras droit, cheveux) entraîné par l'accélération du
+// corps. Un seul RAF global itère toutes les cartes visibles.
+// ──────────────────────────────────────────────────────────────────────────────
 
-  // Retirer de la source si rôle (le pool n'a pas besoin, on récupère via "non assignés")
+// Paramètres de pendule (souples, faiblement amortis → les bras swinguent
+// après un coup sec). Asymétrie volontaire G/D pour casser l'effet miroir.
+const HR_MII_ARM_L = { k: 0.018, d: 0.06,  drive: 1.4, max: 45 };
+const HR_MII_ARM_R = { k: 0.020, d: 0.065, drive: 1.4, max: 45 };
+const HR_MII_HAIR  = { k: 0.05,  d: 0.12,  drive: 0.45, max: 18 };
+
+let hrMiiRafId = null;
+let hrMiiDragState = null; // { card, lastX, lastY }
+
+function hrMiiInitPhys(card) {
+  card._phys = {
+    pos:    { x: 0, y: 0 },
+    bodyVel:{ x: 0, y: 0 },
+    bodyAccX: 0,
+    armL:   { a: 0, v: 0 },
+    armR:   { a: 0, v: 0 },
+    hair:   { a: 0, v: 0 },
+    jiggle: 0,
+    dragging: false,
+  };
+}
+
+function hrMiiStep(limb, cfg, drive) {
+  const f = -cfg.k * limb.a - cfg.d * limb.v + cfg.drive * drive;
+  limb.v += f;
+  limb.a += limb.v;
+  if (limb.a >  cfg.max) { limb.a =  cfg.max; limb.v *= -0.3; }
+  if (limb.a < -cfg.max) { limb.a = -cfg.max; limb.v *= -0.3; }
+}
+
+function hrMiiWriteFrame(card) {
+  const s = card._phys;
+  if (!s) return;
+  card.style.setProperty('--tx', s.pos.x + 'px');
+  card.style.setProperty('--ty', s.pos.y + 'px');
+  const stack = card.querySelector('.hr-mii-stack');
+  if (!stack) return;
+  const bobY = s.dragging ? Math.sin(s.jiggle * 1.6) * 2.2 : Math.sin(s.jiggle * 0.7) * 1.0;
+  const tilt = s.bodyVel.x * -3.5 + (s.dragging ? Math.sin(s.jiggle * 2.2) * 0.7 : 0);
+  stack.style.transform = `translateY(${bobY.toFixed(2)}px) rotate(${tilt.toFixed(2)}deg)`;
+  const hair = stack.querySelector('.hr-mii-hair-back');
+  const armL = stack.querySelector('.hr-mii-arm-left');
+  const armR = stack.querySelector('.hr-mii-arm-right');
+  // On écrase complètement le transform pour éviter de cumuler le filtre
+  // d'origine (qui n'est pas sur transform mais sur filter, donc ok).
+  if (hair) hair.style.transform = `rotate(${s.hair.a.toFixed(2)}deg)`;
+  if (armL) armL.style.transform = `rotate(${s.armL.a.toFixed(2)}deg)`;
+  if (armR) armR.style.transform = `rotate(${s.armR.a.toFixed(2)}deg)`;
+}
+
+function hrMiiTick() {
+  const cards = document.querySelectorAll('.hr-mii-card');
+  cards.forEach(card => {
+    if (!card._phys) hrMiiInitPhys(card);
+    const s = card._phys;
+    const prevVx = s.bodyVel.x;
+    s.bodyVel.x *= 0.82;
+    s.bodyVel.y *= 0.82;
+    s.bodyAccX  = s.bodyVel.x - prevVx;
+    hrMiiStep(s.armL, HR_MII_ARM_L, -s.bodyAccX * 6.0);
+    hrMiiStep(s.armR, HR_MII_ARM_R, -s.bodyAccX * 6.0);
+    hrMiiStep(s.hair, HR_MII_HAIR,  -s.bodyAccX * 2.4);
+    s.jiggle += 0.06;
+    hrMiiWriteFrame(card);
+  });
+  hrMiiRafId = requestAnimationFrame(hrMiiTick);
+}
+
+function hrMiiEnsureLoop() {
+  if (hrMiiRafId == null) hrMiiRafId = requestAnimationFrame(hrMiiTick);
+}
+
+function hrMiiDragStart(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  e.preventDefault();
+  const card = e.currentTarget;
+  if (!card._phys) hrMiiInitPhys(card);
+  card._phys.dragging = true;
+  card.classList.add('hr-mii-dragging');
+  card.setPointerCapture?.(e.pointerId);
+  hrMiiDragState = { card, lastX: e.clientX, lastY: e.clientY };
+}
+
+function hrMiiDragMove(e) {
+  if (!hrMiiDragState || hrMiiDragState.card !== e.currentTarget) return;
+  const s = e.currentTarget._phys;
+  const dx = e.clientX - hrMiiDragState.lastX;
+  const dy = e.clientY - hrMiiDragState.lastY;
+  hrMiiDragState.lastX = e.clientX;
+  hrMiiDragState.lastY = e.clientY;
+  s.pos.x += dx;
+  s.pos.y += dy;
+  s.bodyVel.x += dx * 0.08;
+  s.bodyVel.y += dy * 0.08;
+
+  // Feedback visuel sur la dropzone survolée
+  const els = document.elementsFromPoint(e.clientX, e.clientY);
+  const zone = els.find(el => el.dataset && el.dataset.dropzone !== undefined);
+  document.querySelectorAll('.hr-mii-roster-tray.hr-plan-dragover, .hr-plan-role.hr-plan-dragover')
+    .forEach(el => { if (el !== zone) el.classList.remove('hr-plan-dragover'); });
+  if (zone) zone.classList.add('hr-plan-dragover');
+}
+
+function hrMiiDragEnd(e) {
+  if (!hrMiiDragState || hrMiiDragState.card !== e.currentTarget) return;
+  const card = e.currentTarget;
+  const s = card._phys;
+  s.dragging = false;
+  card.classList.remove('hr-mii-dragging');
+  card.releasePointerCapture?.(e.pointerId);
+
+  // Impulsion aléatoire au lâcher pour que les bras continuent d'osciller
+  s.armL.v += (Math.random() - 0.5) * 4;
+  s.armR.v += (Math.random() - 0.5) * 4;
+
+  // Détecter la dropzone sous le pointeur
+  const els = document.elementsFromPoint(e.clientX, e.clientY);
+  const zone = els.find(el => el.dataset && el.dataset.dropzone !== undefined);
+  const toRoleId = zone ? zone.dataset.dropzone : null;
+
+  document.querySelectorAll('.hr-plan-dragover').forEach(el => el.classList.remove('hr-plan-dragover'));
+  hrMiiDragState = null;
+
+  // Settle l'offset visuel (le re-render va replacer la carte dans le DOM)
+  const settle = () => {
+    s.pos.x *= 0.7;
+    s.pos.y *= 0.7;
+    hrMiiWriteFrame(card);
+    if (Math.abs(s.pos.x) + Math.abs(s.pos.y) > 0.5) requestAnimationFrame(settle);
+    else { s.pos.x = 0; s.pos.y = 0; hrMiiWriteFrame(card); }
+  };
+  requestAnimationFrame(settle);
+
+  // Effectuer le déplacement dans HR.planRoles (logique inchangée du DnD HTML5)
+  const name = card.dataset.name;
+  const fromRoleId = card.dataset.from;
+  hrMiiCommitMove(name, fromRoleId, toRoleId);
+}
+
+// Identique à l'ancien hrPlanDrop mais paramétrée pour être appelée depuis le
+// nouveau système pointer + le drop sur la même source ne fait rien.
+function hrMiiCommitMove(name, fromRoleId, toRoleId) {
+  if (!name) return;
+  // Si pas de dropzone détectée OU drop sur la source → no-op
+  if (toRoleId === null) return;
+  if (fromRoleId === (toRoleId || 'pool')) return;
+
   if (fromRoleId && fromRoleId !== 'pool') {
     const fromRole = HR.planRoles.find(r => r.id === fromRoleId);
     if (fromRole) fromRole.users = fromRole.users.filter(u => (u.name || u) !== name);
   }
-
-  // Ajouter à la cible si rôle (sinon = drop sur le pool = juste retirer)
   if (toRoleId) {
     const toRole = HR.planRoles.find(r => r.id === toRoleId);
     if (toRole && !toRole.users.some(u => (u.name || u) === name)) {
       const known = hrGetAllVoters().find(v => v.name === name);
-      toRole.users.push(known || { id: null, name });
+      toRole.users.push(known || { id: null, name, toFG: false, toSmash: false });
     }
   }
-
   hrRenderPlanningRoles();
 }
+
+// ── Anciens wrappers DnD HTML5 conservés au cas où du code legacy les appelle ─
+function hrPlanDragStart(e, name, fromRoleId) { /* noop : remplacé par pointer */ }
+function hrPlanDragOver(e, el) { e.preventDefault?.(); }
+function hrPlanDragLeave(el) {}
+function hrPlanDrop(e, el, toRoleId) {}
 
 // Retirer un utilisateur d'un rôle
 function hrPlanRemoveUser(roleId, username) {

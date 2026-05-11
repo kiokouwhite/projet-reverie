@@ -408,7 +408,12 @@
 
   <!-- ── PAGE HORAIRES ── -->
   <div id="pageHoraires" class="page-section" style="display:none;">
-    <div class="hr-page">
+    <div class="hr-page" id="hrPage">
+
+      <!-- Bouton de masquage / restauration de la colonne gauche -->
+      <button id="hrCollapseBtn" class="hr-collapse-btn" type="button"
+              onclick="hrToggleLeftPanel()" aria-label="Masquer le panneau gauche"
+              title="Masquer / afficher le panneau gauche">‹</button>
 
       <!-- ── COLONNE GAUCHE (TAROT CAROUSEL) ── -->
       <div class="hr-left">
