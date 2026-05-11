@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projet Reverie — Générateur de résultats</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Anton&family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Oswald:wght@400;600;700&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Squada+One&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Permanent+Marker&family=Exo+2:wght@400;700;800;900&family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-logo-wrap">
+      <img src="logo-reverie.svg" alt="Projet Reverie" class="header-logo">
+    </div>
+    <nav class="header-nav">
+      <button class="nav-tab nav-tab-active" onclick="liquidSwitchTab('top8')" id="tabTop8">
+        <span class="nav-tab-label">TOP8 GENERATOR</span>
+      </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('discord')" id="tabDiscord">
+        <span class="nav-tab-icon">💬</span>
+        <span class="nav-tab-label">Annonce Discord</span>
+        <span class="nav-wip">WIP</span>
+      </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('horaires')" id="tabHoraires">
+        <span class="nav-tab-icon">📅</span>
+        <span class="nav-tab-label">Horaires</span>
+      </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('vod')" id="tabVod">
+        <span class="nav-tab-icon">🎬</span>
+        <span class="nav-tab-label">Publication VOD</span>
+        <span class="nav-wip">WIP</span>
+      </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('startgg')" id="tabStartgg">
+        <span class="nav-tab-icon">🏟️</span>
+        <span class="nav-tab-label">Tournoi start.gg</span>
+      </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('config')" id="tabConfig">
+        <span class="nav-tab-icon">⚙️</span>
+        <span class="nav-tab-label">Configuration</span>
+      </button>
+    </nav>
+    <div class="header-right"></div>
+  </header>
+
+  <!-- ── PAGE TOP 8 ── -->
+  <div id="pageTop8" class="page-section">
+  <div class="main">
+
+    <!-- PANNEAU GAUCHE -->
+    <div class="panel panel-left">
+
+      <!-- ── TAROT NAV ── -->
+      <div class="tc-nav">
+        <button class="tc-arrow" id="tcPrev" onclick="tcNavigate(-1)" disabled aria-label="Carte précédente">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="tc-tabs" id="tcTabs"></div>
+        <button class="tc-arrow" id="tcNext" onclick="tcNavigate(1)" aria-label="Carte suivante">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <!-- ── SIGIL ── -->
+      <div class="tc-sigil-area">
+        <div class="tc-sigil-ring" id="tcSigilRing">
+          <span class="tc-sigil-star tc-sigil-star-top"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+          <span class="tc-sigil-star tc-sigil-star-bot"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+          <div class="tc-sigil-icon" id="tcSigilIcon"></div>
+        </div>
+        <div class="tc-sigil-title" id="tcSigilTitle">I · La Source</div>
+      </div>
+
+      <!-- ── STAGE ── -->
+      <div class="tc-stage">
+        <div class="tc-stack-shadow"></div>
+        <div class="tc-ghost tc-ghost-b"></div>
+        <div class="tc-ghost tc-ghost-a"></div>
+
+        <!-- Carte principale -->
+        <div class="tc-card" id="tcMainCard">
+          <div class="tc-gold-border"></div>
+          <!-- Les coins sont injectés par JS -->
+          <div class="left-slides-wrap" id="leftSlidesWrap">
+
+            <!-- Slide 0 : Import start.gg -->
+            <div class="left-slide" id="leftSlide0">
+              <!-- Champ clé API caché (synchronisé via l'onglet Configuration) -->
+              <div style="display:none;">
+                <input type="password" id="apiKey" autocomplete="off" oninput="saveApiKey()">
+              </div>
+              <label class="field-label" style="margin-top:0;">Lien du tournoi</label>
+              <div style="display:flex;gap:6px;margin-bottom:8px;">
+                <input type="text" id="startggUrl" placeholder="https://start.gg/tournament/..." style="flex:1;">
+                <button class="btn" onclick="importAllEvents()" id="loadEventsBtn" style="white-space:nowrap;">🔍 Chercher</button>
+              </div>
+              <div id="eventSelectorWrap" style="display:none;margin-bottom:8px;">
+                <label class="field-label">Sélectionne l'événement</label>
+                <select id="eventSelect" style="width:100%;margin-bottom:8px;" onchange="onEventSelected()">
+                  <option value="">-- Choisir un événement --</option>
+                </select>
+              </div>
+              <button class="btn btn-startgg" onclick="fetchFromStartGG()" id="fetchBtn" style="display:none;">⬇ Importer les résultats</button>
+              <div id="fetchStatus" style="display:none;" class="status-msg"></div>
+            </div>
+
+            <!-- Slide 1 : Paramètres -->
+            <div class="left-slide" id="leftSlide1">
+              <label class="field-label">Jeu</label>
+              <select id="gameSelect" onchange="updateGame()" style="width:100%;margin-bottom:8px;">
+                <optgroup label="🎮 Avec layout">
+                  <option value="ssbu">Super Smash Bros. Ultimate</option>
+                  <option value="ggst">Guilty Gear -Strive-</option>
+                  <option value="tekken8">Tekken 8</option>
+                  <option value="2xko">2XKO</option>
+                  <option value="sf6">Street Fighter 6</option>
+                </optgroup>
+                <optgroup label="🔓 Sans layout">
+                  <option value="dbfz">Dragon Ball FighterZ</option>
+                </optgroup>
+                <optgroup label="🎨 Mes layouts" id="lmCustomOptGroup"></optgroup>
+              </select>
+              <div id="noLayoutSection" class="nolayout-section" style="display:none;margin-bottom:12px;">
+                <div class="section-title" style="font-size:11px;">⚠️ Jeux sans layout</div>
+                <div class="nolayout-warning">Ces jeux ne comportent pas encore de layout. Crée un layout custom pour les utiliser !</div>
+                <div id="noLayoutList" class="nolayout-list"></div>
+              </div>
+              <label class="field-label">Nom du tournoi</label>
+              <input type="text" id="tournamentName" value="Lorem Ipsum" style="width:100%;">
+            </div>
+
+            <!-- Slide 2 : Fond -->
+            <div class="left-slide" id="leftSlide2">
+              <div class="upload-zone" onclick="document.getElementById('bgFile').click()">
+                <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="loadBg(event)">
+                <div id="uploadContent">Clique pour charger ton image de fond<br><span style="font-size:11px;opacity:0.6;">Interchangeable à chaque tournoi</span></div>
+              </div>
+            </div>
+
+            <!-- Slide 3 : Joueurs & Personnages -->
+            <div class="left-slide" id="leftSlide3">
+              <div class="slots-grid" id="slotsGrid"></div>
+            </div>
+
+            <!-- Slide 4 : Layouts Custom -->
+            <div class="left-slide" id="leftSlide4">
+              <div class="left-slide-coffre">
+                <button class="btn-chest" onclick="openCoffre()">
+                  <div class="chest-lid">
+                    <div class="chest-lock"><span class="chest-keyhole"></span></div>
+                    <div class="chest-hinge chest-hinge-l"></div>
+                    <div class="chest-hinge chest-hinge-r"></div>
+                  </div>
+                  <div class="chest-body">
+                    <div class="chest-band"></div>
+                    <span class="chest-label">Layouts Custom</span>
+                  </div>
+                </button>
+                <p class="left-slide-coffre-hint">Ouvre le coffre pour gérer<br>tes layouts personnalisés</p>
+              </div>
+            </div>
+
+          </div><!-- /left-slides-wrap -->
+        </div><!-- /tc-card -->
+
+        <!-- Carte entrante (animation) -->
+        <div class="tc-incoming" id="tcIncoming">
+          <div class="tc-in-back">
+            <div class="tc-back-b1"></div>
+            <div class="tc-back-b2"></div>
+            <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 100 150" fill="none" stroke="#d4b66a" stroke-width="0.7" opacity="0.8">
+              <circle cx="50" cy="75" r="22"/><circle cx="50" cy="75" r="14"/>
+              <line x1="50" y1="61" x2="50" y2="47"/><line x1="59.9" y1="64.9" x2="69.7" y2="55.1"/>
+              <line x1="64" y1="75" x2="78" y2="75"/><line x1="59.9" y1="85.1" x2="69.7" y2="94.9"/>
+              <line x1="50" y1="89" x2="50" y2="103"/><line x1="40.1" y1="85.1" x2="30.3" y2="94.9"/>
+              <line x1="36" y1="75" x2="22" y2="75"/><line x1="40.1" y1="64.9" x2="30.3" y2="55.1"/>
+              <path d="M50 9 L 56 15 L 50 21 L 44 15 Z"/><path d="M30 9 L 34 13 L 30 17 L 26 13 Z"/><path d="M70 9 L 74 13 L 70 17 L 66 13 Z"/>
+              <path d="M50 129 L 56 135 L 50 141 L 44 135 Z"/><path d="M30 129 L 34 133 L 30 137 L 26 133 Z"/><path d="M70 129 L 74 133 L 70 137 L 66 133 Z"/>
+            </svg>
+          </div>
+          <div class="tc-in-face">
+            <div class="tc-gold-border"></div>
+            <!-- coins injectés par JS -->
+            <div class="tc-in-content" id="tcInContent"></div>
+          </div>
+        </div>
+
+      </div><!-- /tc-stage -->
+
+      <!-- ── FOOTER FIXE ── -->
+      <div class="left-panel-footer">
+        <button class="btn btn-primary btn-full" onclick="generatePreview()">↻ Générer l'aperçu</button>
+      </div>
+
+    </div>
+
+    <!-- PANNEAU DROIT -->
+    <div class="panel panel-right">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <button class="btn btn-editor" onclick="openEditorModal()">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="display:inline-block;vertical-align:middle;margin-right:6px;filter:drop-shadow(0 1px 1px rgba(255,255,255,0.5))"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Éditer
+        </button>
+        <div id="multiNav" style="display:none;align-items:center;gap:4px;">
+          <button class="btn btn-nav" id="prevBtn" onclick="prevGraph()">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span id="graphCounter"></span>
+          <button class="btn btn-nav" id="nextBtn" onclick="nextGraph()">
+            <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+
+      <label class="field-label" style="margin-top:14px;">Message Twitter (modifiable)</label>
+      <textarea id="tweetText" rows="4"></textarea>
+      <div class="preview-actions">
+        <button class="btn btn-secondary" onclick="generatePreview()">↻ Rafraîchir</button>
+        <button class="btn btn-primary" onclick="downloadImage()">⬇ Télécharger</button>
+        <button class="btn-aquarium" onclick="postThreadToTwitter()">Poster sur X</button>
+        <button class="btn btn-instagram" onclick="postToInstagram()">📷 Poster sur Instagram</button>
+      </div>
+      <div class="twitter-hint" id="twitterHint" style="display:none;">
+        ✅ Image téléchargée ! Twitter s'est ouvert avec le texte pré-rempli.<br>
+        <strong>Attache l'image téléchargée</strong> au tweet et poste !
+      </div>
+      <div class="instagram-hint" id="instaHint" style="display:none;">
+        ✅ Image téléchargée et texte copié !<br>
+        Ouvre Instagram → <strong>+</strong> → choisis l'image → colle le texte (<kbd>Ctrl+V</kbd>).
+      </div>
+    </div>
+
+  </div>
+  </div><!-- /pageTop8 -->
+
+  <!-- ── PAGE DISCORD ── -->
+  <div id="pageDiscord" class="page-section" style="display:none;">
+    <div class="dc-page">
+
+      <!-- ── COLONNE GAUCHE : PARAMÈTRES (TAROT CAROUSEL) ── -->
+      <div class="dc-left">
+
+        <!-- ── TAROT NAV ── -->
+        <div class="tc-nav">
+          <button class="tc-arrow" id="dcTcPrev" onclick="dcTcNavigate(-1)" disabled aria-label="Carte précédente">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="tc-tabs" id="dcTcTabs"></div>
+          <button class="tc-arrow" id="dcTcNext" onclick="dcTcNavigate(1)" aria-label="Carte suivante">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- ── SIGIL ── -->
+        <div class="tc-sigil-area">
+          <div class="tc-sigil-ring" id="dcTcSigilRing">
+            <span class="tc-sigil-star tc-sigil-star-top"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+            <span class="tc-sigil-star tc-sigil-star-bot"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+            <div class="tc-sigil-icon" id="dcTcSigilIcon"></div>
+          </div>
+          <div class="tc-sigil-title" id="dcTcSigilTitle">I · La Source</div>
+        </div>
+
+        <!-- ── STAGE ── -->
+        <div class="tc-stage">
+          <div class="tc-stack-shadow"></div>
+          <div class="tc-ghost tc-ghost-b"></div>
+          <div class="tc-ghost tc-ghost-a"></div>
+
+          <!-- Carte principale -->
+          <div class="tc-card" id="dcTcMainCard">
+            <div class="tc-gold-border"></div>
+            <!-- coins injectés par JS -->
+            <div class="left-slides-wrap">
+
+              <!-- Slide 0 : URL start.gg -->
+              <div class="left-slide" id="dcSlide0">
+                <div class="dc-url-row">
+                  <input type="text" id="dcUrl" class="dc-url-input"
+                    placeholder="https://start.gg/tournament/mon-tournoi/details"
+                    oninput="dcGenerate && dcGenerate()">
+                  <button id="dcFetchBtn" class="btn btn-primary dc-fetch-btn" onclick="dcFetch()">✨ Générer</button>
+                </div>
+                <div id="dcStatus" class="dc-status" style="display:none;"></div>
+              </div>
+
+              <!-- Slide 1 : Réglages + Événements -->
+              <div class="left-slide" id="dcSlide1">
+                <div class="dc-field-row">
+                  <label>Preset</label>
+                  <select id="dcPresetSelect" class="dc-text-input" onchange="dcApplyPreset(this.value)">
+                    <option value="lorem_smash">Lorem Ipsum — Smash Strasbourg</option>
+                    <option value="lorem_strasfighter">Lorem Ipsum — Stras'Fighter</option>
+                    <option value="magna">Magna Arena — Stras'Fighters</option>
+                  </select>
+                </div>
+                <div class="dc-field-row">
+                  <label>Emoji du tournoi</label>
+                  <div class="dc-emoji-preview-wrap">
+                    <span class="dc-emoji-colon">:</span>
+                    <input type="text" id="dcTourneyEmoji" class="dc-emoji-input" placeholder="lorem" oninput="dcGenerate()">
+                    <span class="dc-emoji-colon">:</span>
+                  </div>
+                </div>
+                <div class="dc-field-row">
+                  <label>Lieu</label>
+                  <input type="text" id="dcVenue" class="dc-text-input" placeholder="ex: Gallia" oninput="dcGenerate()">
+                </div>
+                <div class="dc-field-row">
+                  <label>Phrase de clôture</label>
+                  <input type="text" id="dcClosing" class="dc-text-input" value="Venez écrire l'histoire !" oninput="dcGenerate()">
+                </div>
+                <!-- Événements (visibles après fetch) -->
+                <div id="dcEventsBlock" style="display:none;margin-top:14px;">
+                  <div class="section-title" style="margin-top:4px;">🎮 Événements</div>
+                  <div class="dc-events-hint">Coche "Side Event" pour le déplacer dans la section Side Events. Pour pinguer un rôle, clique <strong>🔄 Charger les rôles</strong>.</div>
+                  <button class="dc-add-sched-btn" style="margin-bottom:8px;" onclick="dcLoadRoles()">🔄 Charger les rôles du serveur</button>
+                  <div id="dcEventsWrap"></div>
+                </div>
+              </div>
+
+              <!-- Slide 2 : Horaires -->
+              <div class="left-slide" id="dcSlide2">
+                <div id="dcScheduleWrap"></div>
+                <button class="dc-add-sched-btn" onclick="dcAddSchedule()">+ Ajouter une ligne</button>
+              </div>
+
+              <!-- Slide 3 : Bot Discord -->
+              <div class="left-slide" id="dcSlide3">
+                <!-- URL bot + secret cachés : configurés depuis l'onglet ⚙️ Configuration -->
+                <div style="display:none;">
+                  <input type="text" id="dcBotUrl" oninput="dcSaveBotSettings()">
+                  <input type="password" id="dcBotSecret" oninput="dcSaveBotSettings()">
+                </div>
+                <p class="dc-api-hint" style="margin-bottom:10px;">💡 URL bot et secret se configurent dans l'onglet <strong>⚙️ Configuration</strong>.</p>
+                <div class="dc-field-row" style="align-items:flex-start;">
+                  <label style="padding-top:6px;">Salon</label>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                    <!-- Input ID caché : conservé pour le code legacy qui lit dcChannelId.value -->
+                    <input type="text" id="dcChannelId" style="display:none;">
+                    <select id="dcChannelSelect" class="dc-text-input"></select>
+                    <button class="dc-add-sched-btn" onclick="dcLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
+                  </div>
+                </div>
+                <div id="dcPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
+                <button id="dcPostBtn" class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="dcPost()">🤖 Poster maintenant</button>
+                <div class="dc-schedule-block">
+                  <div class="dc-schedule-block-title">🕐 Programmer l'envoi</div>
+                  <div class="dc-field-row">
+                    <label>Date et heure</label>
+                    <input type="datetime-local" id="dcScheduleAt" class="dc-datetime-input">
+                  </div>
+                  <button id="dcScheduleBtn" class="btn btn-secondary" style="width:100%;margin-top:6px;" onclick="dcSchedule()">🕐 Programmer l'envoi</button>
+                  <div id="dcScheduledList" class="dc-scheduled-list"></div>
+                </div>
+                <div class="dc-api-hint" style="margin-top:8px;">💡 Clic droit sur le salon dans Discord → <strong>Copier l'identifiant</strong></div>
+              </div>
+
+            </div>
+          </div><!-- /tc-card -->
+
+          <!-- Carte entrante (animation) -->
+          <div class="tc-incoming" id="dcTcIncoming">
+            <div class="tc-in-back">
+              <div class="tc-back-b1"></div>
+              <div class="tc-back-b2"></div>
+              <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 100 150" fill="none" stroke="#d4b66a" stroke-width="0.7" opacity="0.8">
+                <circle cx="50" cy="75" r="22"/><circle cx="50" cy="75" r="14"/>
+                <line x1="50" y1="61" x2="50" y2="47"/><line x1="59.9" y1="64.9" x2="69.7" y2="55.1"/>
+                <line x1="64" y1="75" x2="78" y2="75"/><line x1="59.9" y1="85.1" x2="69.7" y2="94.9"/>
+                <line x1="50" y1="89" x2="50" y2="103"/><line x1="40.1" y1="85.1" x2="30.3" y2="94.9"/>
+                <line x1="36" y1="75" x2="22" y2="75"/><line x1="40.1" y1="64.9" x2="30.3" y2="55.1"/>
+                <path d="M50 9 L 56 15 L 50 21 L 44 15 Z"/><path d="M30 9 L 34 13 L 30 17 L 26 13 Z"/><path d="M70 9 L 74 13 L 70 17 L 66 13 Z"/>
+                <path d="M50 129 L 56 135 L 50 141 L 44 135 Z"/><path d="M30 129 L 34 133 L 30 137 L 26 133 Z"/><path d="M70 129 L 74 133 L 70 137 L 66 133 Z"/>
+              </svg>
+            </div>
+            <div class="tc-in-face">
+              <div class="tc-gold-border"></div>
+              <!-- coins injectés par JS -->
+              <div class="tc-in-content" id="dcTcInContent"></div>
+            </div>
+          </div>
+
+        </div><!-- /tc-stage -->
+
+      </div>
+
+      <!-- ── COLONNE DROITE : PRÉVISUALISATION ── -->
+      <div class="dc-right">
+        <div class="dc-preview-header">
+          <span class="dc-preview-label">💬 Aperçu du message Discord</span>
+        </div>
+        <div class="dc-preview-wrap">
+          <!-- Élément masqué : conserve le contenu markdown pour le code legacy
+               (window._dcMessage est lu par dcCopy/dcPost). -->
+          <pre id="dcPreview" class="dc-preview" style="display:none;"></pre>
+          <div id="dcDiscordPreview" class="dc-discord-preview"><div class="dc-dp-empty">← Colle une URL start.gg et clique sur Générer</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PAGE HORAIRES ── -->
+  <div id="pageHoraires" class="page-section" style="display:none;">
+    <div class="hr-page">
+
+      <!-- ── COLONNE GAUCHE (TAROT CAROUSEL) ── -->
+      <div class="hr-left">
+
+        <!-- ── TAROT NAV ── -->
+        <div class="tc-nav">
+          <button class="tc-arrow" id="hrTcPrev" onclick="hrTcNavigate(-1)" disabled aria-label="Carte précédente">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="tc-tabs" id="hrTcTabs"></div>
+          <button class="tc-arrow" id="hrTcNext" onclick="hrTcNavigate(1)" aria-label="Carte suivante">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- ── SIGIL ── -->
+        <div class="tc-sigil-area">
+          <div class="tc-sigil-ring" id="hrTcSigilRing">
+            <span class="tc-sigil-star tc-sigil-star-top"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+            <span class="tc-sigil-star tc-sigil-star-bot"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M5 0 L 6 4 L 10 5 L 6 6 L 5 10 L 4 6 L 0 5 L 4 4 Z" fill="#d4b66a"/></svg></span>
+            <div class="tc-sigil-icon" id="hrTcSigilIcon"></div>
+          </div>
+          <div class="tc-sigil-title" id="hrTcSigilTitle">I · Le Messager</div>
+        </div>
+
+        <!-- ── STAGE ── -->
+        <div class="tc-stage">
+          <div class="tc-stack-shadow"></div>
+          <div class="tc-ghost tc-ghost-b"></div>
+          <div class="tc-ghost tc-ghost-a"></div>
+
+          <!-- Carte principale -->
+          <div class="tc-card" id="hrTcMainCard">
+            <div class="tc-gold-border"></div>
+            <!-- coins injectés par JS -->
+            <div class="left-slides-wrap">
+
+              <!-- Slide 0 : Bot Discord -->
+              <div class="left-slide" id="hrSlide0">
+                <!-- URL bot + secret cachés : configurés depuis l'onglet ⚙️ Configuration -->
+                <div style="display:none;">
+                  <input type="url" id="hrBotUrl" oninput="hrSaveBotSettings()">
+                  <input type="password" id="hrBotSecret" oninput="hrSaveBotSettings()">
+                </div>
+                <p class="dc-api-hint" style="margin-bottom:10px;">💡 URL bot et secret se configurent dans l'onglet <strong>⚙️ Configuration</strong>.</p>
+                <div class="dc-field-row" style="margin-top:8px;">
+                  <label>Salon</label>
+                  <!-- Input ID caché : conservé pour le code legacy qui lit hrChannelId.value -->
+                  <input type="text" id="hrChannelId" style="display:none;">
+                </div>
+                <select id="hrChannelSelect" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;"></select>
+                <button class="dc-add-sched-btn" style="margin-top:8px;" onclick="hrLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
+                <div id="hrChannelStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+              </div>
+
+              <!-- Slide 1 : Questions -->
+              <div class="left-slide" id="hrSlide1">
+                <div id="hrQuestionsWrap"></div>
+              </div>
+
+              <!-- Slide 2 : Programmation hebdomadaire -->
+              <div class="left-slide" id="hrSlide2">
+                <div class="dc-field-row">
+                  <label>Jour</label>
+                  <select id="hrDay" style="flex:1;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;">
+                    <option value="0">Dimanche</option>
+                    <option value="1">Lundi</option>
+                    <option value="2">Mardi</option>
+                    <option value="3">Mercredi</option>
+                    <option value="4">Jeudi</option>
+                    <option value="5" selected>Vendredi</option>
+                    <option value="6">Samedi</option>
+                  </select>
+                </div>
+                <div class="dc-field-row" style="margin-top:8px;">
+                  <label>Heure</label>
+                  <input type="time" id="hrTime" value="17:00" class="dc-datetime-input" style="flex:1;">
+                </div>
+                <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="hrSetWeekly()">🔁 Activer l'envoi hebdomadaire</button>
+                <button class="btn" style="width:100%;margin-top:6px;background:rgba(220,53,69,0.2);color:#ff6b7a;border:1px solid rgba(220,53,69,0.3);" onclick="hrCancelWeekly()">✕ Désactiver</button>
+                <div id="hrWeeklyStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+              </div>
+
+              <!-- Slide 3 : Actions -->
+              <div class="left-slide" id="hrSlide3">
+                <div id="hrPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
+                <button class="btn btn-primary" style="width:100%;" onclick="hrPost()">📨 Poster les sondages maintenant</button>
+                <button class="btn btn-secondary" style="width:100%;margin-top:8px;" onclick="hrFetchResults()" id="hrFetchBtn">📊 Voir les résultats</button>
+                <div id="hrResultsStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+              </div>
+
+            </div>
+          </div><!-- /tc-card -->
+
+          <!-- Carte entrante (animation) -->
+          <div class="tc-incoming" id="hrTcIncoming">
+            <div class="tc-in-back">
+              <div class="tc-back-b1"></div>
+              <div class="tc-back-b2"></div>
+              <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 100 150" fill="none" stroke="#d4b66a" stroke-width="0.7" opacity="0.8">
+                <circle cx="50" cy="75" r="22"/><circle cx="50" cy="75" r="14"/>
+                <line x1="50" y1="61" x2="50" y2="47"/><line x1="59.9" y1="64.9" x2="69.7" y2="55.1"/>
+                <line x1="64" y1="75" x2="78" y2="75"/><line x1="59.9" y1="85.1" x2="69.7" y2="94.9"/>
+                <line x1="50" y1="89" x2="50" y2="103"/><line x1="40.1" y1="85.1" x2="30.3" y2="94.9"/>
+                <line x1="36" y1="75" x2="22" y2="75"/><line x1="40.1" y1="64.9" x2="30.3" y2="55.1"/>
+                <path d="M50 9 L 56 15 L 50 21 L 44 15 Z"/><path d="M30 9 L 34 13 L 30 17 L 26 13 Z"/><path d="M70 9 L 74 13 L 70 17 L 66 13 Z"/>
+                <path d="M50 129 L 56 135 L 50 141 L 44 135 Z"/><path d="M30 129 L 34 133 L 30 137 L 26 133 Z"/><path d="M70 129 L 74 133 L 70 137 L 66 133 Z"/>
+              </svg>
+            </div>
+            <div class="tc-in-face">
+              <div class="tc-gold-border"></div>
+              <!-- coins injectés par JS -->
+              <div class="tc-in-content" id="hrTcInContent"></div>
+            </div>
+          </div>
+
+        </div><!-- /tc-stage -->
+
+      </div>
+
+      <!-- ── COLONNE DROITE ── -->
+      <div class="hr-right">
+        <div class="hr-results-header">
+          <span class="hr-results-title">📊 Résultats</span>
+        </div>
+        <div id="hrResults" class="hr-results-wrap">
+          <p class="hr-results-empty">Poste les sondages puis clique sur "Voir les résultats"</p>
+        </div>
+
+        <!-- ── PLANNING ── -->
+        <div id="hrPlanningSection" style="display:none;">
+          <div class="hr-results-header" style="margin-top:18px;">
+            <span class="hr-results-title">📋 Planning</span>
+            <button class="hr-small-btn" onclick="hrBuildPlanningUI()">🔄 Regénérer</button>
+          </div>
+          <div id="hrPlanningRoles"></div>
+          <label class="hr-plan-msg-label">Message Discord (texte brut, pour copie/référence) :</label>
+          <textarea id="hrPlanningMsg" class="hr-planning-textarea" rows="6" spellcheck="false"></textarea>
+          <div id="hrPlanningPreview" class="hr-embed-preview" style="display:none;"></div>
+          <div class="hr-planning-btns">
+            <button class="btn btn-secondary" onclick="hrCopyPlanning()">📋 Copier</button>
+            <button class="btn btn-secondary" id="hrPreviewBtn" onclick="hrTogglePlanningPreview()">👁️ Aperçu</button>
+            <button class="btn btn-primary" id="hrPostPlanBtn" onclick="hrPostPlanning()">📨 Poster dans Discord</button>
+          </div>
+          <div id="hrPlanningStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PAGE VOD WIP ── -->
+  <div id="pageVod" class="page-section" style="display:none;">
+    <div class="wip-page">
+      <div class="wip-glow wip-glow-vod"></div>
+      <div class="wip-content">
+        <div class="wip-icon">🎬</div>
+        <h2 class="wip-title">Publication de VOD Automatisé</h2>
+        <p class="wip-desc">
+          Publie et organise les VODs de tes sets automatiquement<br>
+          sur YouTube, Twitch ou un Google Drive — titres générés,<br>
+          miniatures créées et playlist mise à jour en un clic.
+        </p>
+        <div class="wip-badge">
+          <span class="wip-badge-dot"></span>
+          En cours de développement
+        </div>
+        <div class="wip-features">
+          <div class="wip-feature">📺 Upload YouTube automatique</div>
+          <div class="wip-feature">🎞️ Génération de miniatures</div>
+          <div class="wip-feature">📂 Organisation en playlists</div>
+          <div class="wip-feature">✍️ Titres & descriptions auto</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE TOURNOI START.GG ── -->
+  <div id="pageStartgg" class="page-section" style="display:none;">
+    <div class="sgg-page">
+
+      <!-- Colonne gauche : config -->
+      <div class="sgg-left">
+        <h2 class="sgg-section-title">🏟️ Créer un tournoi start.gg</h2>
+
+        <!-- Token (réutilisé depuis Top 8) -->
+        <div id="sggNoTokenWarn" class="sgg-status sgg-status-error" style="display:none;">
+          ⚠️ Aucune clé API start.gg détectée — saisis-la dans l'onglet <strong>⚙️ Configuration</strong>.
+        </div>
+
+        <!-- Étape 1 : source -->
+        <div class="sgg-card">
+          <div class="sgg-card-title">① 📋 Semaine précédente (référence)</div>
+          <p class="sgg-hint">Le tournoi de la semaine passée — utilisé pour détecter la semaine A/B et afficher la référence.</p>
+          <div class="sgg-row">
+            <input type="text" id="sggSourceUrl" class="sgg-input sgg-input-grow"
+              placeholder="https://www.start.gg/tournament/mon-tournoi">
+            <button class="sgg-btn-primary" onclick="sggLoad()">Charger</button>
+          </div>
+        </div>
+
+        <!-- Étape 2 : cible -->
+        <div class="sgg-card" id="sggTargetCard">
+          <div class="sgg-card-title">② 🎯 Tournoi cible (déjà dupliqué sur start.gg)</div>
+          <p class="sgg-hint">
+            Va sur ton tournoi précédent → <strong>Dupliquer</strong>, puis colle ici l'URL du nouveau tournoi vide.
+          </p>
+          <div class="sgg-row">
+            <input type="text" id="sggTargetUrl" class="sgg-input sgg-input-grow"
+              placeholder="https://www.start.gg/tournament/mon-tournoi-copy">
+            <button class="sgg-btn-primary" onclick="sggLoadTarget()">Charger</button>
+          </div>
+          <div id="sggTargetInfo" style="display:none;" class="sgg-target-info"></div>
+        </div>
+
+        <!-- Status -->
+        <div id="sggStatus" class="sgg-status" style="display:none;"></div>
+        <div id="sggResultLink"></div>
+
+        <!-- Formulaire (caché jusqu'au chargement de la cible) -->
+        <div id="sggForm" style="display:none;">
+
+          <!-- Présélections semaine A/B -->
+          <div class="sgg-card">
+            <div class="sgg-card-title">📅 Présélections semaine</div>
+            <p class="sgg-hint">Configure les jeux <strong>Main Event</strong> de chaque semaine, puis applique en un clic.</p>
+            <div class="sgg-week-cols">
+
+              <div class="sgg-week-col">
+                <div class="sgg-week-col-header week-a">🅰️ Semaine A</div>
+                <div id="sggWeekATags" class="sgg-week-tags"></div>
+                <div class="sgg-game-search-wrap">
+                  <input type="text" class="sgg-week-add-input" placeholder="+ Ajouter un jeu…" autocomplete="off"
+                    oninput="sggSearchWeekGame('A', this)"
+                    onfocus="sggSearchWeekGame('A', this)"
+                    onblur="setTimeout(()=>sggCloseWeekDropdown('A'),150)"
+                    onkeydown="if(event.key==='Enter')sggAddWeekGameFromInput('A',this)">
+                  <div class="sgg-game-dropdown" id="sggWeekDropA" style="display:none;"></div>
+                </div>
+              </div>
+
+              <div class="sgg-week-col">
+                <div class="sgg-week-col-header week-b">🅱️ Semaine B</div>
+                <div id="sggWeekBTags" class="sgg-week-tags"></div>
+                <div class="sgg-game-search-wrap">
+                  <input type="text" class="sgg-week-add-input" placeholder="+ Ajouter un jeu…" autocomplete="off"
+                    oninput="sggSearchWeekGame('B', this)"
+                    onfocus="sggSearchWeekGame('B', this)"
+                    onblur="setTimeout(()=>sggCloseWeekDropdown('B'),150)"
+                    onkeydown="if(event.key==='Enter')sggAddWeekGameFromInput('B',this)">
+                  <div class="sgg-game-dropdown" id="sggWeekDropB" style="display:none;"></div>
+                </div>
+              </div>
+
+            </div>
+            <div class="sgg-week-apply-row">
+              <button class="sgg-week-apply-btn week-a" onclick="sggApplyWeek('A')">
+                ✅ Appliquer Semaine A
+              </button>
+              <button class="sgg-week-apply-btn week-b" onclick="sggApplyWeek('B')">
+                ✅ Appliquer Semaine B
+              </button>
+            </div>
+          </div>
+
+          <!-- Restrictions passes -->
+          <div class="sgg-card">
+            <div class="sgg-card-title">🎫 Restrictions passes</div>
+            <p class="sgg-hint">Définit quels passes sont autorisés pour chaque type d'event.</p>
+            <div class="sgg-pass-cols">
+              <div class="sgg-pass-col">
+                <div class="sgg-pass-col-header main">⭐ Main Event</div>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassMainFreeplay" onchange="sggSavePassConfig()"> Freeplay Pass</label>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassMainStudent"  onchange="sggSavePassConfig()" checked> Student Pass</label>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassMainStandard" onchange="sggSavePassConfig()" checked> Standard Pass</label>
+              </div>
+              <div class="sgg-pass-col">
+                <div class="sgg-pass-col-header side">🔸 Side Event</div>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassSideFreeplay" onchange="sggSavePassConfig()" checked> Freeplay Pass</label>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassSideStudent"  onchange="sggSavePassConfig()" checked> Student Pass</label>
+                <label class="sgg-pass-check"><input type="checkbox" id="sggPassSideStandard" onchange="sggSavePassConfig()" checked> Standard Pass</label>
+              </div>
+            </div>
+            <p class="sgg-hint sgg-pass-note">ℹ️ Les restrictions sont appliquées automatiquement à chaque event créé — le script récupère l'option/value de chaque event depuis la réponse de <code>/event/create</code>, plus besoin de saisir un Option ID.</p>
+          </div>
+
+          <!-- Events -->
+          <div class="sgg-card">
+            <div class="sgg-card-title">🎮 Events</div>
+            <div id="sggEventsList" class="sgg-events-list"></div>
+            <button class="sgg-btn-add" onclick="sggAddEvent()">+ Ajouter un event</button>
+          </div>
+
+          <!-- Console script -->
+          <div class="sgg-card sgg-console-card">
+            <div class="sgg-card-title">⚡ Script console start.gg</div>
+            <p class="sgg-hint">
+              Colle ce script dans la console F12 sur <strong>la page admin de ton tournoi cible</strong> sur start.gg.
+              Il supprime les anciens events et crée les nouveaux automatiquement grâce à ta session déjà connectée.
+            </p>
+            <div id="sggScriptWarnings" style="display:none;" class="sgg-script-warnings"></div>
+
+            <div class="sgg-script-wrap">
+              <pre class="sgg-script-box" id="sggAutoScriptBox">// Charge le tournoi cible (étape ②) et applique une semaine A ou B d'abord</pre>
+              <button class="sgg-script-copy-btn" onclick="sggCopyScript('sggAutoScriptBox')">📋 Copier</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Colonne droite : preview -->
+      <div class="sgg-right">
+        <!-- Semaine précédente (référence) -->
+        <div id="sggPreviousWeek" class="sgg-prevweek-card" style="display:none;"></div>
+
+        <div class="sgg-preview-card">
+          <div class="sgg-card-title">👁️ Aperçu des events</div>
+          <div id="sggPreview" class="sgg-preview-list">
+            <p class="sgg-hint" style="text-align:center;padding:30px 0;">
+              Charge un tournoi source pour<br>voir l'aperçu ici.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PAGE CONFIGURATION ── -->
+  <div id="pageConfig" class="page-section" style="display:none;">
+    <div class="cfg-page">
+      <div class="cfg-header">
+        <h2 class="cfg-title">⚙️ Configuration</h2>
+        <p class="cfg-subtitle">Tes identifiants sont synchronisés sur tous les onglets — remplis-les ici une seule fois.</p>
+      </div>
+
+      <div class="cfg-card">
+        <div class="cfg-card-title">🏟️ start.gg</div>
+        <div class="cfg-field">
+          <label for="cfgStartggKey">Clé API</label>
+          <input type="password" id="cfgStartggKey" autocomplete="off" oninput="cfgSaveAll()" placeholder="eyJ0eXAiOiJKV1Q…">
+          <small>Pour importer les Top 8 et créer/modifier des tournois. Trouve-la sur <a href="https://start.gg/admin/profile/developer" target="_blank">start.gg → Developer Settings</a>.</small>
+        </div>
+      </div>
+
+      <div class="cfg-card">
+        <div class="cfg-card-title">🤖 Bot Discord (Railway)</div>
+        <div class="cfg-field">
+          <label for="cfgBotUrl">URL du bot</label>
+          <input type="text" id="cfgBotUrl" autocomplete="off" oninput="cfgSaveAll()" placeholder="https://projet-reverie-production.up.railway.app">
+        </div>
+        <div class="cfg-field">
+          <label for="cfgBotSecret">Mot secret (APP_SECRET)</label>
+          <input type="password" id="cfgBotSecret" autocomplete="off" oninput="cfgSaveAll()">
+          <small>Ce que tu as défini comme variable <code>APP_SECRET</code> sur Railway. Utilisé pour authentifier l'app web auprès du bot.</small>
+        </div>
+      </div>
+
+      <div id="cfgStatus" class="cfg-status"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALE ÉDITEUR
+════════════════════════════════════════════════════════════ -->
+<div id="editorModal" class="editor-modal-bg" style="display:none;" onclick="onEditorBgClick(event)">
+  <div class="editor-modal">
+
+    <!-- HEADER MODALE -->
+    <div class="editor-modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:18px;">✏️</span>
+        <span>Éditeur</span>
+        <span id="editorGameBadge" class="editor-game-badge"></span>
+      </div>
+      <button class="btn btn-icon" onclick="closeEditorModal()">✕</button>
+    </div>
+
+    <!-- CORPS : gauche controls · droite preview -->
+    <div class="editor-modal-body">
+
+      <!-- ── COLONNE GAUCHE ── -->
+      <div class="editor-controls">
+
+        <!-- PSEUDOS -->
+        <div class="editor-block">
+          <div class="editor-block-title">👤 Pseudos</div>
+          <div id="nameEditorSlots"></div>
+        </div>
+
+        <!-- FOND -->
+        <div class="editor-block">
+          <div class="editor-block-title">🖼️ Fond</div>
+          <div class="upload-zone" onclick="document.getElementById('bgFileEditor').click()" style="padding:10px 12px;font-size:12px;">
+            <input type="file" id="bgFileEditor" accept="image/*" style="display:none" onchange="loadBgEditor(event)">
+            <div id="uploadContentEditor">Clique pour changer le fond</div>
+          </div>
+        </div>
+
+        <!-- LIGNE 1 -->
+        <div class="editor-block">
+          <div class="editor-block-title">Ligne 1 — Nom du tournoi</div>
+          <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="t1x" oninput="syncTitle()"><input type="number" id="t1x_n" min="100" max="1350" oninput="syncTitleNum('t1x','t1x_n')"></div>
+          <div class="title-row"><span>Y</span><input type="range" min="30"  max="400"  id="t1y" oninput="syncTitle()"><input type="number" id="t1y_n" min="30"  max="400"  oninput="syncTitleNum('t1y','t1y_n')"></div>
+          <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="t1s" oninput="syncTitle()"><input type="number" id="t1s_n" min="12" max="100" oninput="syncTitleNum('t1s','t1s_n')"></div>
+          <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="t1l" oninput="syncTitle()"><input type="number" id="t1l_n" min="0" max="30" step="0.5" oninput="syncTitleNum('t1l','t1l_n')"></div>
+          <div class="title-row"><span>Couleur</span><input type="color" id="t1color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour couleur</span><input type="color" id="t1strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t1strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t1strokew').value=this.value;syncTitle()"></div>
+        </div>
+
+        <!-- LIGNE 2 -->
+        <div class="editor-block">
+          <div class="editor-block-title">Ligne 2 — Jeu</div>
+          <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="t2x" oninput="syncTitle()"><input type="number" id="t2x_n" min="100" max="1350" oninput="syncTitleNum('t2x','t2x_n')"></div>
+          <div class="title-row"><span>Y</span><input type="range" min="30"  max="500"  id="t2y" oninput="syncTitle()"><input type="number" id="t2y_n" min="30"  max="500"  oninput="syncTitleNum('t2y','t2y_n')"></div>
+          <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="t2s" oninput="syncTitle()"><input type="number" id="t2s_n" min="12" max="100" oninput="syncTitleNum('t2s','t2s_n')"></div>
+          <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="t2l" oninput="syncTitle()"><input type="number" id="t2l_n" min="0" max="30" step="0.5" oninput="syncTitleNum('t2l','t2l_n')"></div>
+          <div class="title-row"><span>Couleur</span><input type="color" id="t2color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour couleur</span><input type="color" id="t2strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t2strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t2strokew').value=this.value;syncTitle()"></div>
+        </div>
+
+        <!-- LIGNE 3 -->
+        <div class="editor-block">
+          <div class="editor-block-title">Ligne 3 — Sous-titre</div>
+          <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="t3x" oninput="syncTitle()"><input type="number" id="t3x_n" min="100" max="1350" oninput="syncTitleNum('t3x','t3x_n')"></div>
+          <div class="title-row"><span>Y</span><input type="range" min="30"  max="600"  id="t3y" oninput="syncTitle()"><input type="number" id="t3y_n" min="30"  max="600"  oninput="syncTitleNum('t3y','t3y_n')"></div>
+          <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="t3s" oninput="syncTitle()"><input type="number" id="t3s_n" min="12" max="100" oninput="syncTitleNum('t3s','t3s_n')"></div>
+          <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="t3l" oninput="syncTitle()"><input type="number" id="t3l_n" min="0" max="30" step="0.5" oninput="syncTitleNum('t3l','t3l_n')"></div>
+          <div class="title-row"><span>Couleur</span><input type="color" id="t3color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour couleur</span><input type="color" id="t3strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
+          <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t3strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t3strokew').value=this.value;syncTitle()"></div>
+        </div>
+
+        <button class="btn" onclick="manualSaveTitleConfig()" style="width:100%;margin-top:4px;">💾 Sauvegarder les titres</button>
+        <button class="btn btn-secondary" onclick="resetTitleEditor()" style="width:100%;margin-top:4px;">↩ Réinitialiser</button>
+      </div>
+
+      <!-- ── COLONNE DROITE : PREVIEW ── -->
+      <div class="editor-preview-col">
+        <div class="editor-preview-header">
+          <div class="editor-preview-label">Aperçu en direct</div>
+          <div class="editor-bg-quick">
+            <input type="file" id="bgFileEditorQuick" accept="image/*" style="display:none" onchange="loadBgEditor(event)">
+            <button class="btn editor-btn-bg" onclick="document.getElementById('bgFileEditorQuick').click()">🖼️ Changer le fond</button>
+            <span id="editorBgLabel" class="editor-bg-label">Fond par défaut</span>
+          </div>
+        </div>
+        <div class="editor-canvas-wrap">
+          <canvas id="editorCanvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PERSONNAGE -->
+<div id="charModal" class="modal-bg" onclick="closeModal(event)" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="modalTitle">Choisir un personnage</span>
+      <button class="btn btn-icon" onclick="document.getElementById('charModal').style.display='none'">✕</button>
+    </div>
+    <input type="text" id="charSearch" placeholder="Rechercher un personnage..." oninput="filterChars()" style="width:100%;margin-bottom:10px;padding:8px;border-radius:6px;border:1px solid #ccc;">
+    <div class="char-grid" id="charGrid"></div>
+  </div>
+</div>
+
+<!-- MODAL AJUSTEMENT CROP -->
+<div id="cropModal" class="modal-bg" style="display:none;">
+  <div class="modal" style="width:320px;">
+    <div class="modal-header">
+      <span>🎯 Ajuster le cadrage</span>
+      <button class="btn btn-icon" onclick="closeCropModal()">✕</button>
+    </div>
+    <div style="font-size:11px;color:#888;margin-bottom:8px;" id="cropSource"></div>
+    <p style="font-size:12px;color:#888;margin-bottom:10px;">
+      Glisse l'image pour repositionner · Ajuste le zoom
+    </p>
+    <canvas id="cropCanvas" style="border-radius:8px;cursor:grab;display:block;margin:0 auto 12px;"></canvas>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <label style="font-size:12px;color:#666;white-space:nowrap;">Zoom :</label>
+      <input type="range" id="zoomSlider" min="0.3" max="4.0" step="0.1" value="2.0"
+             oninput="updateCropZoom(this.value)" style="flex:1;">
+      <span id="zoomVal" style="font-size:12px;font-weight:600;width:28px;">2.0</span>
+    </div>
+    <div style="margin-bottom:14px;">
+      <button id="flipBtn" class="btn" onclick="toggleCropFlip()"
+              style="width:100%;font-size:12px;gap:6px;">
+        ↔ Retourner l'image
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;">
+      <button class="btn" onclick="resetCropToAuto()" style="font-size:11px;">↩ Reset auto</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="closeCropModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveCropAdjust()">✅ Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL THREAD TWITTER -->
+<div id="threadModal" class="modal-bg" style="display:none;" onclick="if(event.target===this)closeThreadModal()">
+  <div class="modal" style="width:520px;max-width:95vw;">
+    <div class="modal-header">
+      <span>𝕏 Poster le thread sur X</span>
+      <button class="btn btn-icon" onclick="closeThreadModal()">✕</button>
+    </div>
+
+    <!-- État : chargement -->
+    <div id="threadLoading" style="text-align:center;padding:24px 0;">
+      <div class="thread-spinner"></div>
+      <div id="threadLoadingMsg" style="margin-top:12px;font-size:13px;color:#888;">Génération des images...</div>
+    </div>
+
+    <!-- État : prêt -->
+    <div id="threadReady" style="display:none;">
+      <p style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.5;">
+        Pour chaque tweet : clique <strong>🖼️ Copier image</strong>, puis <strong>𝕏 Ouvrir</strong>, et fais <kbd>Ctrl+V</kbd> dans la fenêtre X.
+      </p>
+
+      <!-- Photos Discord : lit directement les N dernières images d'un canal -->
+      <div id="discordPhotosPanel" style="background:#f0f9ff;border:1px solid #c5e0f8;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+          <div style="font-size:12px;font-weight:700;color:#3d6fb8;">📷 Photos Discord</div>
+          <button onclick="loadDiscordPhotos()" style="font-size:11px;background:#fff;border:1px solid #c5e0f8;border-radius:6px;padding:4px 8px;color:#3d6fb8;cursor:pointer;">↻ Charger</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+          <label style="font-size:11px;color:#888;white-space:nowrap;">Canal :</label>
+          <select id="discordPhotoChannel" onchange="saveDiscordPhotoChannel()" style="flex:1;font-size:11px;padding:4px 6px;border:1px solid #c5e0f8;border-radius:6px;">
+            <option value="">— Charger la liste des canaux —</option>
+          </select>
+          <button onclick="loadDiscordChannels()" title="Recharger la liste des canaux" style="font-size:11px;background:#fff;border:1px solid #c5e0f8;border-radius:6px;padding:4px 8px;color:#3d6fb8;cursor:pointer;">↻</button>
+        </div>
+        <div id="discordPhotosStatus" style="font-size:11px;color:#888;margin-bottom:6px;">Choisis un canal puis ↻ Charger pour voir les photos.</div>
+        <div id="discordPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;"></div>
+      </div>
+
+      <button id="tweetTemplateToggle" type="button" onclick="toggleTweetTemplateEditor()"
+              style="font-size:12px;background:none;border:1px solid #d8c5f8;border-radius:8px;padding:6px 10px;color:#7a5fca;cursor:pointer;margin-bottom:10px;">
+        ⚙️ Format du tweet
+      </button>
+      <div id="tweetTemplateEditor" style="display:none;background:#f6efff;border-radius:8px;padding:10px;margin-bottom:14px;">
+        <textarea id="tweetTemplateInput" rows="6" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px;border:1px solid #d8c5f8;border-radius:6px;padding:6px;box-sizing:border-box;"></textarea>
+        <div style="font-size:11px;color:#888;margin:6px 0;line-height:1.5;">
+          Variables : <code>{tournament}</code> <code>{game}</code> <code>{tag}</code> <code>{idx}</code> <code>{total}</code> <code>{suffix}</code> <code>{top}</code> <code>{1er}</code> <code>{2eme}</code> <code>{3eme}</code>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="applyTweetTemplateFromEditor()" style="font-size:12px;background:#7a5fca;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;">Appliquer</button>
+          <button onclick="resetTweetTemplate()" style="font-size:12px;background:none;border:1px solid #d8c5f8;border-radius:6px;padding:6px 12px;color:#7a5fca;cursor:pointer;">Réinitialiser</button>
+        </div>
+      </div>
+
+      <div id="threadList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALE LAYOUT MAKER (Wizard 7 étapes)
+════════════════════════════════════════════════════════════ -->
+<div id="lmModal" class="lm-modal-bg" style="display:none;" onclick="if(event.target===this)closeLayoutMaker()">
+  <div class="lm-modal">
+
+    <!-- HEADER -->
+    <div class="lm-modal-header">
+      <div class="lm-header-left">
+        <span class="lm-logo">✦ LAYOUT MAKER</span>
+        <span id="lmStepTitle" class="lm-step-title">Étape 1/7 — Fond du layout</span>
+      </div>
+      <div class="lm-dots">
+        <div class="lm-dot lm-dot-active" onclick="lmGoTo(1)" title="Image du jeu">🎮</div>
+        <div class="lm-dot" onclick="lmGoTo(2)" title="Fond">2</div>
+        <div class="lm-dot" onclick="lmGoTo(3)" title="Police">3</div>
+        <div class="lm-dot" onclick="lmGoTo(4)" title="Titres">4</div>
+        <div class="lm-dot" onclick="lmGoTo(5)" title="Formes">5</div>
+        <div class="lm-dot" onclick="lmGoTo(6)" title="Personnages">6</div>
+        <div class="lm-dot" onclick="lmGoTo(7)" title="Noms">7</div>
+        <div class="lm-dot" onclick="lmGoTo(8)" title="Rangs">8</div>
+        <div class="lm-dot" onclick="lmGoTo(9)" title="Sauvegarder">🎉</div>
+      </div>
+      <button class="btn btn-icon lm-close-x" onclick="closeLayoutMaker()">✕</button>
+    </div>
+
+    <!-- BODY -->
+    <div class="lm-modal-body">
+
+      <!-- ── COLONNE GAUCHE ── -->
+      <div class="lm-controls">
+
+        <!-- Nom du jeu -->
+        <div class="lm-block lm-game-name-block">
+          <label class="lm-label">🎮 Nom du jeu</label>
+          <input type="text" id="lmGameNameInput" placeholder="Ex: Mortal Kombat 1..." style="width:100%;" oninput="LM.gameName=this.value;lmRenderPreview()">
+        </div>
+
+        <!-- ── STEP 1 : IMAGE DU JEU ── -->
+        <div class="lm-step-panel lm-step-active" data-step="1">
+          <div class="lm-block">
+            <div class="lm-block-title">🎮 Image du jeu</div>
+            <div id="lmGIStatus" style="font-size:11px;color:#9b7fb8;margin-bottom:8px;min-height:16px;">📂 Aucune image chargée</div>
+
+            <!-- Upload perso -->
+            <input type="file" id="lmGIFile" accept="image/*" style="display:none" onchange="lmLoadGameImg(event)">
+            <button class="btn lm-overlay-replace-btn" style="margin-bottom:10px;" onclick="document.getElementById('lmGIFile').click()">📁 Importer une image</button>
+
+            <!-- Visibilité -->
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--purple-deep);cursor:pointer;margin-bottom:10px;">
+              <input type="checkbox" id="lmGIVisible" checked onchange="lmToggleGameImgVisible(this)">
+              Afficher l'image du jeu
+            </label>
+          </div>
+
+          <!-- Réglages de position / taille -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">📐 Position & taille</div>
+            <div class="title-row">
+              <span>Centre X</span>
+              <input type="range" min="0" max="1400" id="lmGICx" value="179" oninput="lmSyncGameImg()">
+              <input type="number" min="0" max="1400" value="179" style="width:58px;" oninput="document.getElementById('lmGICx').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+            <div class="title-row">
+              <span>Centre Y</span>
+              <input type="range" min="0" max="1400" id="lmGICy" value="1218" oninput="lmSyncGameImg()">
+              <input type="number" min="0" max="1400" value="1218" style="width:58px;" oninput="document.getElementById('lmGICy').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+            <div class="title-row">
+              <span>Largeur</span>
+              <input type="range" min="20" max="700" id="lmGIW" value="131" oninput="lmSyncGameImg()">
+              <input type="number" min="20" max="700" value="131" style="width:58px;" oninput="document.getElementById('lmGIW').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+            <div class="title-row">
+              <span>Hauteur</span>
+              <input type="range" min="20" max="700" id="lmGIH" value="132" oninput="lmSyncGameImg()">
+              <input type="number" min="20" max="700" value="132" style="width:58px;" oninput="document.getElementById('lmGIH').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+            <div class="title-row">
+              <span>Radius</span>
+              <input type="range" min="0" max="200" id="lmGIRadius" value="52" oninput="lmSyncGameImg()">
+              <input type="number" min="0" max="200" value="52" style="width:58px;" oninput="document.getElementById('lmGIRadius').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+          </div>
+
+          <!-- Réglages de cadrage -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">🔍 Cadrage de l'image</div>
+            <div class="title-row">
+              <span>Zoom</span>
+              <input type="range" min="20" max="400" id="lmGIZoom" value="100" oninput="lmSyncGameImg()">
+              <input type="number" min="20" max="400" value="100" style="width:58px;" oninput="document.getElementById('lmGIZoom').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+            <div class="title-row">
+              <span>Pan X</span>
+              <input type="range" min="0" max="100" id="lmGIPanX" value="50" oninput="lmSyncGameImg()">
+              <input type="number" min="0" max="100" value="50" style="width:58px;" oninput="document.getElementById('lmGIPanX').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+            <div class="title-row">
+              <span>Pan Y</span>
+              <input type="range" min="0" max="100" id="lmGIPanY" value="50" oninput="lmSyncGameImg()">
+              <input type="number" min="0" max="100" value="50" style="width:58px;" oninput="document.getElementById('lmGIPanY').value=this.value;lmSyncGameImg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── STEP 2 : FOND ── -->
+        <div class="lm-step-panel" data-step="2">
+
+          <!-- Upload fond -->
+          <div class="lm-block">
+            <div class="lm-block-title">🖼️ Image de fond</div>
+            <div class="lm-drop-zone" onclick="document.getElementById('lmBgFile').click()">
+              <input type="file" id="lmBgFile" accept="image/*" style="display:none" onchange="lmLoadBg(event)">
+              <img id="lmBgThumb" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px;">
+              <div id="lmBgDropHint" class="lm-drop-hint">
+                <div style="font-size:36px;margin-bottom:8px;">🖼️</div>
+                <div style="font-weight:700;">Clique pour charger ton fond</div>
+                <div style="font-size:11px;opacity:0.6;margin-top:4px;">PNG, JPG, WEBP — toujours affiché en 1400×1400</div>
+              </div>
+              <div id="lmBgOk" class="lm-drop-ok" style="display:none;">✅ Fond chargé !</div>
+            </div>
+          </div>
+
+          <!-- Réglages du fond -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">🎛️ Réglages du fond</div>
+            <div class="title-row">
+              <span>Position X</span>
+              <input type="range" min="0" max="100" id="lmBgPanX" value="50" oninput="lmSyncBg()">
+              <input type="number" min="0" max="100" value="50" style="width:52px;" oninput="document.getElementById('lmBgPanX').value=this.value;lmSyncBg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+            <div class="title-row">
+              <span>Position Y</span>
+              <input type="range" min="0" max="100" id="lmBgPanY" value="50" oninput="lmSyncBg()">
+              <input type="number" min="0" max="100" value="50" style="width:52px;" oninput="document.getElementById('lmBgPanY').value=this.value;lmSyncBg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+            <div class="title-row">
+              <span>Zoom</span>
+              <input type="range" min="50" max="300" id="lmBgZoom" value="100" oninput="lmSyncBg()">
+              <input type="number" min="50" max="300" value="100" style="width:52px;" oninput="document.getElementById('lmBgZoom').value=this.value;lmSyncBg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+            <div class="title-row">
+              <span>Flou</span>
+              <input type="range" min="0" max="40" id="lmBgBlur" value="0" oninput="lmSyncBg()">
+              <input type="number" min="0" max="40" value="0" style="width:52px;" oninput="document.getElementById('lmBgBlur').value=this.value;lmSyncBg()">
+              <span style="font-size:10px;color:var(--text-soft);">px</span>
+            </div>
+            <div class="title-row">
+              <span>Assombrir</span>
+              <input type="range" min="0" max="90" id="lmBgDarken" value="0" oninput="lmSyncBg()">
+              <input type="number" min="0" max="90" value="0" style="width:52px;" oninput="document.getElementById('lmBgDarken').value=this.value;lmSyncBg()">
+              <span style="font-size:10px;color:var(--text-soft);">%</span>
+            </div>
+          </div>
+
+          <!-- Calque PNG superposé -->
+          <div class="lm-block lm-overlay-block" style="margin-top:8px;">
+            <div class="lm-block-title">📌 Calque superposé <span class="lm-overlay-badge">toujours actif</span></div>
+            <div class="lm-overlay-default-info">
+              <span class="lm-overlay-default-icon">✅</span>
+              <div>
+                <div style="font-weight:800;font-size:12px;color:#c8b8ff;">Template Projet Reverie actif</div>
+                <div style="font-size:10px;color:#9b7fb8;margin-top:2px;">Affiché par-dessus le fond et les cartes joueurs, en 1400×1400</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;">
+              <input type="file" id="lmOverlayFile" accept="image/png,image/webp" style="display:none" onchange="lmLoadOverlay(event)">
+              <button class="btn lm-overlay-replace-btn" onclick="document.getElementById('lmOverlayFile').click()">🔄 Remplacer par un autre PNG</button>
+              <span id="lmOverlayCustomName" style="font-size:10px;color:#9b7fb8;display:none;margin-left:8px;font-style:italic;"></span>
+              <button id="lmOverlayResetBtn" class="btn" style="display:none;font-size:11px;margin-left:6px;" onclick="lmRemoveOverlay()">↩ Remettre l'original</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── STEP 2 : POLICE ── -->
+        <div class="lm-step-panel" data-step="2">
+          <div class="lm-block">
+            <div class="lm-block-title">🔤 Choix de la police</div>
+            <div id="lmFontGrid" class="lm-font-grid"></div>
+          </div>
+          <div class="lm-block" style="margin-top:10px;">
+            <div class="lm-block-title">⚖️ Graisse</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="lm-weight-btn" data-w="400" onclick="lmSetFontWeight('400')">Regular</button>
+              <button class="lm-weight-btn" data-w="600" onclick="lmSetFontWeight('600')">Semi-Bold</button>
+              <button class="lm-weight-btn" data-w="700" onclick="lmSetFontWeight('700')">Bold</button>
+              <button class="lm-weight-btn lm-selected" data-w="800" onclick="lmSetFontWeight('800')">Extra-Bold</button>
+              <button class="lm-weight-btn" data-w="900" onclick="lmSetFontWeight('900')">Black</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── STEP 3 : TITRES ── -->
+        <div class="lm-step-panel" data-step="3">
+          <!-- T1 -->
+          <div class="lm-block">
+            <div class="lm-block-title">Ligne 1 — Nom du tournoi</div>
+            <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="lmT1x" value="903" oninput="lmSyncTitle('T1')"><input type="number" min="100" max="1350" value="903" style="width:52px;" oninput="document.getElementById('lmT1x').value=this.value;lmSyncTitle('T1')"></div>
+            <div class="title-row"><span>Y</span><input type="range" min="30" max="400" id="lmT1y" value="95" oninput="lmSyncTitle('T1')"><input type="number" min="30" max="400" value="95" style="width:52px;" oninput="document.getElementById('lmT1y').value=this.value;lmSyncTitle('T1')"></div>
+            <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="lmT1size" value="46" oninput="lmSyncTitle('T1')"><input type="number" min="12" max="100" value="46" style="width:52px;" oninput="document.getElementById('lmT1size').value=this.value;lmSyncTitle('T1')"></div>
+            <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="lmT1sp" value="3" oninput="lmSyncTitle('T1')"><input type="number" min="0" max="30" step="0.5" value="3" style="width:52px;" oninput="document.getElementById('lmT1sp').value=this.value;lmSyncTitle('T1')"></div>
+            <div class="title-row"><span>Couleur</span><input type="color" id="lmT1col" value="#ffffff" oninput="lmSyncTitle('T1')" class="color-pick"></div>
+            <div class="title-row"><span>Contour</span><input type="color" id="lmT1sc" value="#000000" oninput="lmSyncTitle('T1')" class="color-pick"><input type="range" min="0" max="20" step="0.5" id="lmT1sw" value="0" style="flex:1;" oninput="lmSyncTitle('T1')"><span id="lmT1swV" style="width:28px;font-size:12px;font-weight:700;">0</span></div>
+          </div>
+          <!-- T2 -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">Ligne 2 — Nom du jeu</div>
+            <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="lmT2x" value="901" oninput="lmSyncTitle('T2')"><input type="number" min="100" max="1350" value="901" style="width:52px;" oninput="document.getElementById('lmT2x').value=this.value;lmSyncTitle('T2')"></div>
+            <div class="title-row"><span>Y</span><input type="range" min="30" max="500" id="lmT2y" value="165" oninput="lmSyncTitle('T2')"><input type="number" min="30" max="500" value="165" style="width:52px;" oninput="document.getElementById('lmT2y').value=this.value;lmSyncTitle('T2')"></div>
+            <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="lmT2size" value="43" oninput="lmSyncTitle('T2')"><input type="number" min="12" max="100" value="43" style="width:52px;" oninput="document.getElementById('lmT2size').value=this.value;lmSyncTitle('T2')"></div>
+            <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="lmT2sp" value="11.5" oninput="lmSyncTitle('T2')"><input type="number" min="0" max="30" step="0.5" value="11.5" style="width:52px;" oninput="document.getElementById('lmT2sp').value=this.value;lmSyncTitle('T2')"></div>
+            <div class="title-row"><span>Couleur</span><input type="color" id="lmT2col" value="#ffffff" oninput="lmSyncTitle('T2')" class="color-pick"></div>
+            <div class="title-row"><span>Contour</span><input type="color" id="lmT2sc" value="#000000" oninput="lmSyncTitle('T2')" class="color-pick"><input type="range" min="0" max="20" step="0.5" id="lmT2sw" value="0" style="flex:1;" oninput="lmSyncTitle('T2')"><span style="width:28px;font-size:12px;font-weight:700;">0</span></div>
+          </div>
+          <!-- T3 -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">Ligne 3 — Sous-titre</div>
+            <div class="title-row"><span>X</span><input type="range" min="100" max="1350" id="lmT3x" value="905" oninput="lmSyncTitle('T3')"><input type="number" min="100" max="1350" value="905" style="width:52px;" oninput="document.getElementById('lmT3x').value=this.value;lmSyncTitle('T3')"></div>
+            <div class="title-row"><span>Y</span><input type="range" min="30" max="600" id="lmT3y" value="229" oninput="lmSyncTitle('T3')"><input type="number" min="30" max="600" value="229" style="width:52px;" oninput="document.getElementById('lmT3y').value=this.value;lmSyncTitle('T3')"></div>
+            <div class="title-row"><span>Taille</span><input type="range" min="12" max="100" id="lmT3size" value="40" oninput="lmSyncTitle('T3')"><input type="number" min="12" max="100" value="40" style="width:52px;" oninput="document.getElementById('lmT3size').value=this.value;lmSyncTitle('T3')"></div>
+            <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="lmT3sp" value="13" oninput="lmSyncTitle('T3')"><input type="number" min="0" max="30" step="0.5" value="13" style="width:52px;" oninput="document.getElementById('lmT3sp').value=this.value;lmSyncTitle('T3')"></div>
+            <div class="title-row"><span>Couleur</span><input type="color" id="lmT3col" value="#ffffff" oninput="lmSyncTitle('T3')" class="color-pick"></div>
+            <div class="title-row"><span>Contour</span><input type="color" id="lmT3sc" value="#000000" oninput="lmSyncTitle('T3')" class="color-pick"><input type="range" min="0" max="20" step="0.5" id="lmT3sw" value="0" style="flex:1;" oninput="lmSyncTitle('T3')"><span style="width:28px;font-size:12px;font-weight:700;">0</span></div>
+          </div>
+        </div>
+
+        <!-- ── STEP 4 : FORMES ── -->
+        <div class="lm-step-panel" data-step="4">
+          <div class="lm-block">
+            <div class="lm-block-title">🎴 Forme des cartes</div>
+            <div id="lmShapeGrid" class="lm-shape-grid"></div>
+          </div>
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">🎨 Style des contours</div>
+            <div class="title-row"><span>Couleur</span><input type="color" id="lmShapeStrokeColor" value="#7769DD" oninput="lmSyncShape()" class="color-pick"></div>
+            <div class="title-row"><span>Épaisseur</span><input type="range" min="0" max="20" step="0.5" id="lmShapeStrokeWidth" value="5" oninput="lmSyncShape()"><input type="number" min="0" max="20" step="0.5" value="5" style="width:52px;" oninput="document.getElementById('lmShapeStrokeWidth').value=this.value;lmSyncShape()"></div>
+            <div class="title-row"><span>Fond carte</span><input type="color" id="lmShapeFillColor" value="#00000050" oninput="lmSyncShape()" class="color-pick"></div>
+          </div>
+          <!-- Conditional controls -->
+          <div class="lm-block" id="lmCtrlRadius" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">
+            <div class="lm-block-title">⭕ Arrondi des coins</div>
+            <div class="title-row"><span>Rayon</span><input type="range" min="0" max="120" id="lmRadius" value="24" oninput="lmSyncShape()"><input type="number" min="0" max="120" value="24" style="width:52px;" oninput="document.getElementById('lmRadius').value=this.value;lmSyncShape()"></div>
+          </div>
+          <div class="lm-block" id="lmCtrlSkew" style="display:none;flex-direction:column;gap:4px;margin-top:8px;">
+            <div class="lm-block-title">↗️ Inclinaison</div>
+            <div class="title-row"><span>Skew (px)</span><input type="range" min="-100" max="100" id="lmSkew" value="30" oninput="lmSyncShape()"><input type="number" min="-100" max="100" value="30" style="width:52px;" oninput="document.getElementById('lmSkew').value=this.value;lmSyncShape()"></div>
+          </div>
+          <div class="lm-block" id="lmCtrlTrap" style="display:none;flex-direction:column;gap:4px;margin-top:8px;">
+            <div class="lm-block-title">⏢ Ratio trapèze</div>
+            <div class="title-row"><span>Largeur haut %</span><input type="range" min="20" max="150" id="lmTrapRatio" value="75" oninput="lmSyncShape()"><input type="number" min="20" max="150" value="75" style="width:52px;" oninput="document.getElementById('lmTrapRatio').value=this.value;lmSyncShape()"></div>
+          </div>
+
+          <!-- Position des 3 cartes -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">📐 Position des cartes</div>
+
+            <!-- Slot 0 — 1er -->
+            <div class="lm-slot-pos-header">🥇 1<sup>er</sup></div>
+            <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx0" value="910" oninput="lmSyncSlot(0)"><input type="number" min="200" max="1350" value="910" style="width:52px;" oninput="document.getElementById('lmSlotCx0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy0" value="510" oninput="lmSyncSlot(0)"><input type="number" min="100" max="1300" value="510" style="width:52px;" oninput="document.getElementById('lmSlotCy0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW0" value="380" oninput="lmSyncSlot(0)"><input type="number" min="80" max="700" value="380" style="width:52px;" oninput="document.getElementById('lmSlotW0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Hauteur</span><input type="range" min="80" max="800" id="lmSlotH0" value="450" oninput="lmSyncSlot(0)"><input type="number" min="80" max="800" value="450" style="width:52px;" oninput="document.getElementById('lmSlotH0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Nom Y</span><input type="range" min="100" max="1380" id="lmSlotNameY0" value="790" oninput="lmSyncSlot(0)"><input type="number" min="100" max="1380" value="790" style="width:52px;" oninput="document.getElementById('lmSlotNameY0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Rang X</span><input type="range" min="50" max="1350" id="lmSlotRankX0" value="685" oninput="lmSyncSlot(0)"><input type="number" min="50" max="1350" value="685" style="width:52px;" oninput="document.getElementById('lmSlotRankX0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Rang Y</span><input type="range" min="50" max="1350" id="lmSlotRankY0" value="290" oninput="lmSyncSlot(0)"><input type="number" min="50" max="1350" value="290" style="width:52px;" oninput="document.getElementById('lmSlotRankY0').value=this.value;lmSyncSlot(0)"></div>
+            <div class="title-row"><span>Rang taille</span><input type="range" min="20" max="160" id="lmSlotRankS0" value="90" oninput="lmSyncSlot(0)"><input type="number" min="20" max="160" value="90" style="width:52px;" oninput="document.getElementById('lmSlotRankS0').value=this.value;lmSyncSlot(0)"></div>
+
+            <!-- Slot 1 — 2e -->
+            <div class="lm-slot-pos-header" style="margin-top:10px;">🥈 2<sup>e</sup></div>
+            <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx1" value="660" oninput="lmSyncSlot(1)"><input type="number" min="200" max="1350" value="660" style="width:52px;" oninput="document.getElementById('lmSlotCx1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy1" value="970" oninput="lmSyncSlot(1)"><input type="number" min="100" max="1300" value="970" style="width:52px;" oninput="document.getElementById('lmSlotCy1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW1" value="295" oninput="lmSyncSlot(1)"><input type="number" min="80" max="700" value="295" style="width:52px;" oninput="document.getElementById('lmSlotW1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Hauteur</span><input type="range" min="80" max="800" id="lmSlotH1" value="350" oninput="lmSyncSlot(1)"><input type="number" min="80" max="800" value="350" style="width:52px;" oninput="document.getElementById('lmSlotH1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Nom Y</span><input type="range" min="100" max="1380" id="lmSlotNameY1" value="1175" oninput="lmSyncSlot(1)"><input type="number" min="100" max="1380" value="1175" style="width:52px;" oninput="document.getElementById('lmSlotNameY1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Rang X</span><input type="range" min="50" max="1350" id="lmSlotRankX1" value="490" oninput="lmSyncSlot(1)"><input type="number" min="50" max="1350" value="490" style="width:52px;" oninput="document.getElementById('lmSlotRankX1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Rang Y</span><input type="range" min="50" max="1350" id="lmSlotRankY1" value="800" oninput="lmSyncSlot(1)"><input type="number" min="50" max="1350" value="800" style="width:52px;" oninput="document.getElementById('lmSlotRankY1').value=this.value;lmSyncSlot(1)"></div>
+            <div class="title-row"><span>Rang taille</span><input type="range" min="20" max="160" id="lmSlotRankS1" value="70" oninput="lmSyncSlot(1)"><input type="number" min="20" max="160" value="70" style="width:52px;" oninput="document.getElementById('lmSlotRankS1').value=this.value;lmSyncSlot(1)"></div>
+
+            <!-- Slot 2 — 3e -->
+            <div class="lm-slot-pos-header" style="margin-top:10px;">🥉 3<sup>e</sup></div>
+            <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx2" value="1155" oninput="lmSyncSlot(2)"><input type="number" min="200" max="1350" value="1155" style="width:52px;" oninput="document.getElementById('lmSlotCx2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy2" value="970" oninput="lmSyncSlot(2)"><input type="number" min="100" max="1300" value="970" style="width:52px;" oninput="document.getElementById('lmSlotCy2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW2" value="295" oninput="lmSyncSlot(2)"><input type="number" min="80" max="700" value="295" style="width:52px;" oninput="document.getElementById('lmSlotW2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Hauteur</span><input type="range" min="80" max="800" id="lmSlotH2" value="350" oninput="lmSyncSlot(2)"><input type="number" min="80" max="800" value="350" style="width:52px;" oninput="document.getElementById('lmSlotH2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Nom Y</span><input type="range" min="100" max="1380" id="lmSlotNameY2" value="1175" oninput="lmSyncSlot(2)"><input type="number" min="100" max="1380" value="1175" style="width:52px;" oninput="document.getElementById('lmSlotNameY2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Rang X</span><input type="range" min="50" max="1350" id="lmSlotRankX2" value="985" oninput="lmSyncSlot(2)"><input type="number" min="50" max="1350" value="985" style="width:52px;" oninput="document.getElementById('lmSlotRankX2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Rang Y</span><input type="range" min="50" max="1350" id="lmSlotRankY2" value="800" oninput="lmSyncSlot(2)"><input type="number" min="50" max="1350" value="800" style="width:52px;" oninput="document.getElementById('lmSlotRankY2').value=this.value;lmSyncSlot(2)"></div>
+            <div class="title-row"><span>Rang taille</span><input type="range" min="20" max="160" id="lmSlotRankS2" value="70" oninput="lmSyncSlot(2)"><input type="number" min="20" max="160" value="70" style="width:52px;" oninput="document.getElementById('lmSlotRankS2').value=this.value;lmSyncSlot(2)"></div>
+          </div>
+        </div>
+
+        <!-- ── STEP 5 : PERSONNAGES ── -->
+        <div class="lm-step-panel" data-step="5">
+          <div class="lm-block">
+            <div class="lm-block-title">👤 Images par joueur</div>
+            <p style="font-size:12px;color:#9b7fb8;margin-bottom:12px;line-height:1.5;">
+              Upload une image par joueur. Glisse pour repositionner, molette pour zoomer.
+            </p>
+            <!-- Joueur 1 -->
+            <div class="lm-char-slot">
+              <div class="lm-char-rank lm-rank-1">🥇</div>
+              <div class="lm-char-content">
+                <div class="lm-char-drop" onclick="document.getElementById('lmCharFile0').click()">
+                  <input type="file" id="lmCharFile0" accept="image/*" style="display:none" onchange="lmLoadChar(event,0)">
+                  <img id="lmCharThumb0" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:6px;">
+                  <div id="lmCharHint0" class="lm-char-hint">+ Charger image</div>
+                </div>
+                <div class="lm-crop-zone">
+                  <canvas id="lmCropCanvas0" width="160" height="160" class="lm-crop-canvas" onclick="lmOpenCrop(0)"></canvas>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                    <span style="font-size:10px;color:#9b7fb8;">Zoom</span>
+                    <input type="range" min="0.5" max="5" step="0.1" value="2" style="flex:1;" oninput="lmUpdateCropZoom(0,this.value)">
+                    <span id="lmCropZoomVal0" style="font-size:11px;font-weight:700;width:24px;">2.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Joueur 2 -->
+            <div class="lm-char-slot">
+              <div class="lm-char-rank lm-rank-2">🥈</div>
+              <div class="lm-char-content">
+                <div class="lm-char-drop" onclick="document.getElementById('lmCharFile1').click()">
+                  <input type="file" id="lmCharFile1" accept="image/*" style="display:none" onchange="lmLoadChar(event,1)">
+                  <img id="lmCharThumb1" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:6px;">
+                  <div id="lmCharHint1" class="lm-char-hint">+ Charger image</div>
+                </div>
+                <div class="lm-crop-zone">
+                  <canvas id="lmCropCanvas1" width="160" height="160" class="lm-crop-canvas" onclick="lmOpenCrop(1)"></canvas>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                    <span style="font-size:10px;color:#9b7fb8;">Zoom</span>
+                    <input type="range" min="0.5" max="5" step="0.1" value="2" style="flex:1;" oninput="lmUpdateCropZoom(1,this.value)">
+                    <span id="lmCropZoomVal1" style="font-size:11px;font-weight:700;width:24px;">2.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Joueur 3 -->
+            <div class="lm-char-slot">
+              <div class="lm-char-rank lm-rank-3">🥉</div>
+              <div class="lm-char-content">
+                <div class="lm-char-drop" onclick="document.getElementById('lmCharFile2').click()">
+                  <input type="file" id="lmCharFile2" accept="image/*" style="display:none" onchange="lmLoadChar(event,2)">
+                  <img id="lmCharThumb2" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:6px;">
+                  <div id="lmCharHint2" class="lm-char-hint">+ Charger image</div>
+                </div>
+                <div class="lm-crop-zone">
+                  <canvas id="lmCropCanvas2" width="160" height="160" class="lm-crop-canvas" onclick="lmOpenCrop(2)"></canvas>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                    <span style="font-size:10px;color:#9b7fb8;">Zoom</span>
+                    <input type="range" min="0.5" max="5" step="0.1" value="2" style="flex:1;" oninput="lmUpdateCropZoom(2,this.value)">
+                    <span id="lmCropZoomVal2" style="font-size:11px;font-weight:700;width:24px;">2.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── STEP 6 : NOMS ── -->
+        <div class="lm-step-panel" data-step="6">
+          <!-- Per-player name blocks -->
+          <div class="lm-block">
+            <div class="lm-block-title">💬 Noms des joueurs</div>
+            <!-- Player 1 -->
+            <div class="lm-name-player-block">
+              <div class="lm-name-player-header">
+                <span class="lm-name-rank lm-rank-1">🥇</span>
+                <input type="text" id="lmPlayerName0" placeholder="Nom du 1er..." style="flex:1;" oninput="lmSyncNames()">
+                <input type="color" id="lmNameColor0" value="#ffffff" oninput="lmSyncNames()" class="color-pick lm-name-color-pick" title="Couleur du nom">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmNameX0" value="910" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="910" style="width:60px;" oninput="document.getElementById('lmNameX0').value=this.value;lmSyncNames()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmNameY0" value="790" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="790" style="width:60px;" oninput="document.getElementById('lmNameY0').value=this.value;lmSyncNames()">
+              </div>
+            </div>
+            <!-- Player 2 -->
+            <div class="lm-name-player-block">
+              <div class="lm-name-player-header">
+                <span class="lm-name-rank lm-rank-2">🥈</span>
+                <input type="text" id="lmPlayerName1" placeholder="Nom du 2e..." style="flex:1;" oninput="lmSyncNames()">
+                <input type="color" id="lmNameColor1" value="#ffffff" oninput="lmSyncNames()" class="color-pick lm-name-color-pick" title="Couleur du nom">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmNameX1" value="660" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="660" style="width:60px;" oninput="document.getElementById('lmNameX1').value=this.value;lmSyncNames()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmNameY1" value="1175" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="1175" style="width:60px;" oninput="document.getElementById('lmNameY1').value=this.value;lmSyncNames()">
+              </div>
+            </div>
+            <!-- Player 3 -->
+            <div class="lm-name-player-block">
+              <div class="lm-name-player-header">
+                <span class="lm-name-rank lm-rank-3">🥉</span>
+                <input type="text" id="lmPlayerName2" placeholder="Nom du 3e..." style="flex:1;" oninput="lmSyncNames()">
+                <input type="color" id="lmNameColor2" value="#ffffff" oninput="lmSyncNames()" class="color-pick lm-name-color-pick" title="Couleur du nom">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmNameX2" value="1155" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="1155" style="width:60px;" oninput="document.getElementById('lmNameX2').value=this.value;lmSyncNames()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmNameY2" value="1175" oninput="lmSyncNames()">
+                <input type="number" min="0" max="1400" value="1175" style="width:60px;" oninput="document.getElementById('lmNameY2').value=this.value;lmSyncNames()">
+              </div>
+            </div>
+          </div>
+          <!-- Global name style -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">🎨 Style global des noms</div>
+            <div class="title-row"><span>Taille</span><input type="range" min="12" max="120" id="lmNsSize" value="34" oninput="lmSyncNames()"><input type="number" min="12" max="120" value="34" style="width:52px;" oninput="document.getElementById('lmNsSize').value=this.value;lmSyncNames()"></div>
+            <div class="title-row"><span>Graisse</span>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="lm-nw-btn" data-w="400" onclick="lmSetNameWeight('400')">400</button>
+                <button class="lm-nw-btn" data-w="600" onclick="lmSetNameWeight('600')">600</button>
+                <button class="lm-nw-btn" data-w="700" onclick="lmSetNameWeight('700')">700</button>
+                <button class="lm-nw-btn lm-selected" data-w="800" onclick="lmSetNameWeight('800')">800</button>
+                <button class="lm-nw-btn" data-w="900" onclick="lmSetNameWeight('900')">900</button>
+              </div>
+            </div>
+            <div class="title-row"><span>Couleur base</span><input type="color" id="lmNsColor" value="#ffffff" oninput="lmSyncNames()" class="color-pick" title="Couleur par défaut (écrasée par les couleurs individuelles)"></div>
+            <div class="title-row"><span>Espacement</span><input type="range" min="0" max="30" step="0.5" id="lmNsSp" value="4" oninput="lmSyncNames()"><input type="number" min="0" max="30" step="0.5" value="4" style="width:52px;" oninput="document.getElementById('lmNsSp').value=this.value;lmSyncNames()"></div>
+            <div class="title-row"><span>Contour</span><input type="color" id="lmNsSc" value="#000000" oninput="lmSyncNames()" class="color-pick"><input type="range" min="0" max="20" step="0.5" id="lmNsSw" value="0" style="flex:1;" oninput="lmSyncNames()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('lmNsSw').value=this.value;lmSyncNames()"></div>
+          </div>
+        </div>
+
+        <!-- ── STEP 7 : CLASSEMENTS ── -->
+        <div class="lm-step-panel" data-step="7">
+          <!-- Global rank style -->
+          <div class="lm-block">
+            <div class="lm-block-title">🏅 Style des classements</div>
+            <div class="title-row">
+              <span>Nombres seulement</span>
+              <label class="lm-toggle-wrap">
+                <input type="checkbox" id="lmRankNumbersOnly" onchange="lmSyncRanks()">
+                <span class="lm-toggle-track"><span class="lm-toggle-thumb"></span></span>
+              </label>
+              <span style="font-size:11px;color:var(--text-soft);">1 / 2 / 3 (sans suffixe)</span>
+            </div>
+            <div class="title-row"><span>Graisse</span>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="lm-rw-btn" data-w="400" onclick="lmSetRankWeight('400')">400</button>
+                <button class="lm-rw-btn" data-w="600" onclick="lmSetRankWeight('600')">600</button>
+                <button class="lm-rw-btn" data-w="700" onclick="lmSetRankWeight('700')">700</button>
+                <button class="lm-rw-btn" data-w="800" onclick="lmSetRankWeight('800')">800</button>
+                <button class="lm-rw-btn lm-selected" data-w="900" onclick="lmSetRankWeight('900')">900</button>
+              </div>
+            </div>
+            <div class="title-row"><span>Contour</span><input type="color" id="lmRankSc" value="#000000" oninput="lmSyncRanks()" class="color-pick"><input type="range" min="0" max="20" step="0.5" id="lmRankSw" value="0" style="flex:1;" oninput="lmSyncRanks()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('lmRankSw').value=this.value;lmSyncRanks()"></div>
+          </div>
+          <!-- Per-rank controls -->
+          <div class="lm-block" style="margin-top:8px;">
+            <div class="lm-block-title">🎯 Réglages par rang</div>
+            <!-- Rank 1 -->
+            <div class="lm-rank-player-block">
+              <div class="lm-rank-player-header">
+                <span class="lm-name-rank lm-rank-1">🥇</span>
+                <span style="font-size:13px;font-weight:700;min-width:48px;">1er</span>
+                <span id="lmRankLabelPreview0" class="lm-rank-preview">1ER</span>
+                <input type="text" id="lmRankLabel0" value="1ER" maxlength="6" style="width:80px;" oninput="lmSyncRanks()" placeholder="1ER">
+                <input type="color" id="lmRankColor0" value="#C87DD4" oninput="lmSyncRanks()" class="color-pick" title="Couleur">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmRankX0" value="685" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="685" style="width:60px;" oninput="document.getElementById('lmRankX0').value=this.value;lmSyncRanks()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmRankY0" value="290" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="290" style="width:60px;" oninput="document.getElementById('lmRankY0').value=this.value;lmSyncRanks()">
+              </div>
+              <div class="title-row"><span>Taille</span><input type="range" min="20" max="200" id="lmRankSize0" value="90" oninput="lmSyncRanks()"><input type="number" min="20" max="200" value="90" style="width:52px;" oninput="document.getElementById('lmRankSize0').value=this.value;lmSyncRanks()"></div>
+            </div>
+            <!-- Rank 2 -->
+            <div class="lm-rank-player-block">
+              <div class="lm-rank-player-header">
+                <span class="lm-name-rank lm-rank-2">🥈</span>
+                <span style="font-size:13px;font-weight:700;min-width:48px;">2ème</span>
+                <span id="lmRankLabelPreview1" class="lm-rank-preview">2ÈME</span>
+                <input type="text" id="lmRankLabel1" value="2ÈME" maxlength="6" style="width:80px;" oninput="lmSyncRanks()" placeholder="2ÈME">
+                <input type="color" id="lmRankColor1" value="#F5C842" oninput="lmSyncRanks()" class="color-pick" title="Couleur">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmRankX1" value="490" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="490" style="width:60px;" oninput="document.getElementById('lmRankX1').value=this.value;lmSyncRanks()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmRankY1" value="800" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="800" style="width:60px;" oninput="document.getElementById('lmRankY1').value=this.value;lmSyncRanks()">
+              </div>
+              <div class="title-row"><span>Taille</span><input type="range" min="20" max="200" id="lmRankSize1" value="70" oninput="lmSyncRanks()"><input type="number" min="20" max="200" value="70" style="width:52px;" oninput="document.getElementById('lmRankSize1').value=this.value;lmSyncRanks()"></div>
+            </div>
+            <!-- Rank 3 -->
+            <div class="lm-rank-player-block">
+              <div class="lm-rank-player-header">
+                <span class="lm-name-rank lm-rank-3">🥉</span>
+                <span style="font-size:13px;font-weight:700;min-width:48px;">3ème</span>
+                <span id="lmRankLabelPreview2" class="lm-rank-preview">3ÈME</span>
+                <input type="text" id="lmRankLabel2" value="3ÈME" maxlength="6" style="width:80px;" oninput="lmSyncRanks()" placeholder="3ÈME">
+                <input type="color" id="lmRankColor2" value="#F5C842" oninput="lmSyncRanks()" class="color-pick" title="Couleur">
+              </div>
+              <div class="lm-name-pos-row">
+                <span class="lm-pos-label">X</span>
+                <input type="range" min="0" max="1400" id="lmRankX2" value="985" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="985" style="width:60px;" oninput="document.getElementById('lmRankX2').value=this.value;lmSyncRanks()">
+                <span class="lm-pos-label" style="margin-left:6px;">Y</span>
+                <input type="range" min="0" max="1400" id="lmRankY2" value="800" oninput="lmSyncRanks()">
+                <input type="number" min="0" max="1400" value="800" style="width:60px;" oninput="document.getElementById('lmRankY2').value=this.value;lmSyncRanks()">
+              </div>
+              <div class="title-row"><span>Taille</span><input type="range" min="20" max="200" id="lmRankSize2" value="70" oninput="lmSyncRanks()"><input type="number" min="20" max="200" value="70" style="width:52px;" oninput="document.getElementById('lmRankSize2').value=this.value;lmSyncRanks()"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── STEP 8 : FINALISER ── -->
+        <div class="lm-step-panel" data-step="8">
+          <div class="lm-block lm-final-block">
+            <div style="text-align:center;padding:10px 0 16px;">
+              <div style="font-size:40px;margin-bottom:8px;">🎉</div>
+              <div style="font-size:17px;font-weight:800;color:#7654c4;margin-bottom:6px;">Ton layout est prêt !</div>
+              <div style="font-size:13px;color:#9b7fb8;line-height:1.5;">Donne-lui un nom et sauvegarde-le dans ton coffre pour l'utiliser à tout moment.</div>
+            </div>
+            <img id="lmFinalThumb" style="display:none;width:100%;border-radius:12px;margin-bottom:12px;border:3px solid var(--border);box-shadow:0 4px 16px rgba(130,80,220,0.2);">
+            <label class="lm-label">📛 Nom du layout</label>
+            <input type="text" id="lmLayoutNameInput" placeholder="Ex: Mortal Kombat 1 — FightClub..." style="width:100%;margin-bottom:8px;">
+          </div>
+        </div>
+
+      </div><!-- /lm-controls -->
+
+      <!-- ── COLONNE DROITE : PREVIEW ── -->
+      <div class="lm-preview-col">
+        <div class="lm-preview-label">✦ Aperçu en direct</div>
+        <div class="lm-bg-quick-change">
+          <input type="file" id="lmBgFileQuick" accept="image/*" style="display:none" onchange="lmLoadBg(event)">
+          <button class="btn lm-btn-bg-quick" onclick="document.getElementById('lmBgFileQuick').click()">🖼️ Changer le fond</button>
+          <span id="lmBgQuickLabel" class="lm-bg-quick-label">Aucun fond chargé</span>
+        </div>
+        <div class="lm-canvas-wrap">
+          <canvas id="lmPreviewCanvas" width="500" height="500"></canvas>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:10px;font-size:12px;" onclick="lmDownloadCurrent()">⬇ Télécharger l'aperçu</button>
+      </div>
+
+    </div><!-- /lm-body -->
+
+    <!-- FOOTER NAV -->
+    <div class="lm-footer">
+      <button id="lmPrevBtn" class="btn lm-nav-btn" onclick="lmPrev()" disabled>← Précédent</button>
+      <div class="lm-step-dots-mini">
+        <span class="lm-mini-dot lm-mini-active"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+        <span class="lm-mini-dot"></span>
+      </div>
+      <button id="lmNextBtn" class="btn btn-primary lm-nav-btn" onclick="lmNext()">Suivant →</button>
+    </div>
+
+  </div><!-- /lm-modal -->
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALE CÉLÉBRATION
+════════════════════════════════════════════════════════════ -->
+<div id="lmCelebModal" class="lm-celeb-bg" style="display:none;" onclick="if(event.target===this)lmCloseCelebration()">
+  <div id="lmConfettiWrap" class="lm-confetti-wrap" aria-hidden="true"></div>
+  <div class="lm-celeb-card">
+    <div class="lm-celeb-emoji">🎊</div>
+    <div class="lm-celeb-title">Layout sauvegardé !</div>
+    <div class="lm-celeb-name" id="lmCelebName">Mon Layout</div>
+    <img id="lmCelebThumb" style="width:180px;height:180px;object-fit:cover;border-radius:16px;border:3px solid var(--border);margin:16px auto;display:block;box-shadow:0 8px 24px rgba(130,80,220,0.3);">
+    <p style="font-size:13px;color:#9b7fb8;margin-bottom:20px;line-height:1.6;">
+      Ton layout est dans le coffre. Tu peux l'appliquer à n'importe quel tournoi !
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button class="btn btn-primary" onclick="lmCloseCelebration()">📦 Voir le coffre</button>
+      <button class="btn" onclick="document.getElementById('lmCelebModal').style.display='none';openLayoutMaker()">✨ Nouveau layout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALE COFFRE
+════════════════════════════════════════════════════════════ -->
+<div id="coffreModal" class="lm-modal-bg" style="display:none;" onclick="if(event.target===this)closeCoffre()">
+  <div class="coffre-modal">
+    <div class="coffre-modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">📦</span>
+        <span>Mon coffre de layouts</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-primary" style="font-size:12px;" onclick="closeCoffre();openLayoutMaker()">✨ Nouveau layout</button>
+        <button class="btn btn-icon" onclick="closeCoffre()">✕</button>
+      </div>
+    </div>
+    <div id="coffreGrid" class="coffre-grid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- POLYGON EDITOR MODAL                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="lmPolyModal" class="lm-poly-modal-bg" style="display:none;" onclick="if(event.target===this)lmPolyClose()">
+  <div class="lm-poly-editor">
+
+    <!-- Header -->
+    <div class="lm-poly-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">✏️</span>
+        <span class="lm-poly-title">Éditeur de polygone</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn lm-poly-apply-btn" onclick="lmPolyApply()">✅ Appliquer sans sauver</button>
+        <button class="btn btn-icon" onclick="lmPolyClose()">✕</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="lm-poly-body">
+
+      <!-- LEFT: canvas + controls -->
+      <div class="lm-poly-left">
+        <div class="lm-poly-hint">
+          <span>🖱️ <strong>Glisse</strong> les points</span>
+          <span>·</span>
+          <span>🖱️ <strong>Clic sur un côté</strong> pour ajouter</span>
+          <span>·</span>
+          <span>🖱️ <strong>Double-clic</strong> pour supprimer</span>
+        </div>
+
+        <!-- Presets -->
+        <div class="lm-poly-presets">
+          <span class="lm-poly-presets-label">Présets :</span>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('square')">⬜ Carré</button>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('triangle')">△ Triangle</button>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('diamond')">◇ Losange</button>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('hexagon')">⬡ Hexagone</button>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('arrow')">➤ Flèche</button>
+          <button class="lm-preset-btn" onclick="lmPolyPreset('star')">★ Étoile</button>
+          <button class="lm-preset-btn lm-preset-reset" onclick="lmPolyReset()">↩ Reset</button>
+        </div>
+
+        <!-- Canvas -->
+        <div class="lm-poly-canvas-wrap">
+          <canvas id="lmPolyCanvas" width="380" height="380"></canvas>
+        </div>
+
+        <!-- Save row -->
+        <div class="lm-poly-save-row">
+          <input type="text" id="lmPolyNameInput" placeholder="Nom de la forme..." value="Ma forme" class="lm-poly-name-input">
+          <button class="btn btn-primary lm-poly-save-btn" onclick="lmPolySave()">💾 Enregistrer la forme</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: saved shapes -->
+      <div class="lm-poly-right">
+        <div class="lm-poly-saved-title">📁 Formes sauvegardées</div>
+        <div id="lmPeSavedList" class="lm-pe-saved-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tab) {
+  localStorage.setItem('active_tab', tab);
+  // Pages
+  // Utiliser 'flex' (pas 'block') pour conserver la chaîne flex du viewport-fit
+  document.getElementById('pageTop8').style.display      = tab === 'top8'     ? 'flex' : 'none';
+  document.getElementById('pageDiscord').style.display   = tab === 'discord'   ? 'flex' : 'none';
+  document.getElementById('pageHoraires').style.display  = tab === 'horaires'  ? 'flex' : 'none';
+  document.getElementById('pageVod').style.display       = tab === 'vod'       ? 'flex' : 'none';
+  document.getElementById('pageStartgg').style.display   = tab === 'startgg'   ? 'flex' : 'none';
+  const pageConfigEl = document.getElementById('pageConfig');
+  if (pageConfigEl) pageConfigEl.style.display = tab === 'config' ? 'flex' : 'none';
+  // Tabs
+  document.getElementById('tabTop8').classList.toggle('nav-tab-active',     tab === 'top8');
+  document.getElementById('tabDiscord').classList.toggle('nav-tab-active',  tab === 'discord');
+  document.getElementById('tabHoraires').classList.toggle('nav-tab-active', tab === 'horaires');
+  document.getElementById('tabVod').classList.toggle('nav-tab-active',      tab === 'vod');
+  document.getElementById('tabStartgg').classList.toggle('nav-tab-active',  tab === 'startgg');
+  const tabConfigEl = document.getElementById('tabConfig');
+  if (tabConfigEl) tabConfigEl.classList.toggle('nav-tab-active', tab === 'config');
+  // Init pages on first open
+  if (tab === 'discord'  && typeof dcInit  === 'function') dcInit();
+  if (tab === 'horaires' && typeof hrInit  === 'function') hrInit();
+  if (tab === 'startgg'  && typeof sggInit === 'function') sggInit();
+  if (tab === 'config'   && typeof cfgInit === 'function') cfgInit();
+  // Remove WIP badge on Discord tab
+  const discordWip = document.querySelector('#tabDiscord .nav-wip');
+  if (discordWip) discordWip.remove();
+}
+
+// Restaurer le dernier onglet visité — appel SYNC pour éviter le flash visuel
+// des pages au chargement (toggle display:flex/none immédiat).
+switchTab(localStorage.getItem('active_tab') || 'top8');
+
+// Re-appel post-DOMContentLoaded : les scripts externes (horaires.js,
+// discord.js, startgg.js) sont alors chargés, donc les fonctions hrInit /
+// dcInit / sggInit sont définies. switchTab les appellera. Les *Init utilisent
+// un flag *InitDone pour être idempotents.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    switchTab(localStorage.getItem('active_tab') || 'top8');
+  });
+}
+
+// ── Liquid wave transition ──
+function liquidSwitchTab(tab) {
+  if (window._liqAnimating) return;
+  const currentTab = document.querySelector('.nav-tab-active')?.id?.replace('tab','')?.toLowerCase();
+  if (tab === currentTab) return;
+  window._liqAnimating = true;
+  // Cacher le menu après la sélection d'un onglet
+  if (window._headerHide) window._headerHide();
+
+  const overlay     = document.getElementById('liquidOverlay');
+  const svg         = document.getElementById('liquidSvg');
+  const waveMain    = document.getElementById('liqWaveMain');
+  const waveBack    = document.getElementById('liqWaveBack');
+  const bubbleLayer = document.getElementById('liqBubbles');
+
+  function buildWavePath(fill, phase, amplitude, segments) {
+    segments = segments || 48;
+    const W = 1000, H = 1000;
+    const surfaceY = H - fill * (H + amplitude * 2) + amplitude;
+    let d = 'M 0 ' + H + ' L 0 ' + surfaceY + ' ';
+    for (let i = 0; i <= segments; i++) {
+      const x = (i / segments) * W;
+      const y = surfaceY
+        + Math.sin((i / segments) * Math.PI * 4 + phase) * amplitude
+        + Math.sin((i / segments) * Math.PI * 2.3 + phase * 1.4) * amplitude * 0.5;
+      d += 'L ' + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    }
+    return d + 'L ' + W + ' ' + H + ' Z';
+  }
+
+  function spawnBubble() {
+    const b = document.createElement('div');
+    b.className = 'liq-bubble';
+    const size = 6 + Math.random() * 20;
+    b.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + (Math.random() * 100) + '%;bottom:' + (Math.random() * 40) + '%';
+    bubbleLayer.appendChild(b);
+    const dur = 800 + Math.random() * 1200;
+    const drift = (Math.random() - 0.5) * 60, rise = 40 + Math.random() * 120;
+    b.animate([
+      { transform: 'translate(0,0)', opacity: 0 },
+      { transform: 'translate(' + (drift * 0.3) + 'px,-' + (rise * 0.3) + 'px)', opacity: 0.85, offset: 0.3 },
+      { transform: 'translate(' + drift + 'px,-' + rise + 'px)', opacity: 0 }
+    ], { duration: dur, easing: 'cubic-bezier(0.2,0.6,0.4,1)' });
+    setTimeout(function() { b.remove(); }, dur);
+  }
+
+  const easeOutCubic = function(t) { return 1 - Math.pow(1 - t, 3); };
+  const easeInOut    = function(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; };
+
+  function animFill(opts) {
+    return new Promise(function(resolve) {
+      const start = performance.now();
+      (function frame(now) {
+        const t = Math.min(1, (now - start) / opts.duration);
+        opts.onUpdate(opts.from + (opts.to - opts.from) * opts.ease(t), (now - start) / 1000 * 2.4);
+        if (t < 1) requestAnimationFrame(frame); else resolve();
+      })(performance.now());
+    });
+  }
+
+  async function run() {
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'all';
+    let bubTimer = setInterval(spawnBubble, 70);
+
+    // Phase 1 — fill
+    await animFill({
+      from: 0, to: 1.05, duration: 650, ease: easeOutCubic,
+      onUpdate: function(fill, phase) {
+        const amp = Math.max(8, 30 * (1 - Math.min(1, fill)));
+        waveMain.setAttribute('d', buildWavePath(fill, phase, amp));
+        waveBack.setAttribute('d', buildWavePath(fill - 0.06, phase + 0.7, amp + 4));
+      }
+    });
+    clearInterval(bubTimer);
+
+    // Phase 2 — swap content while covered
+    await new Promise(function(r) { setTimeout(r, 150); });
+    switchTab(tab);
+
+    // Phase 3 — cards emerge + liquid dissolves
+    const pageMap = { top8: 'pageTop8', discord: 'pageDiscord', horaires: 'pageHoraires', vod: 'pageVod', startgg: 'pageStartgg' };
+    const pageEl   = document.getElementById(pageMap[tab]);
+    const container = pageEl && pageEl.firstElementChild;
+    const cards     = container ? Array.from(container.children) : [];
+
+    bubTimer = setInterval(spawnBubble, 140);
+
+    const cardAnims = cards.map(function(card, i) {
+      const delay = i * 100, startY = 170 + i * 12, startScale = Math.max(0.18, 0.52 - i * 0.02);
+      return card.animate([
+        { transform: 'translateY(' + startY + 'px) scale(' + startScale + ')', opacity: 0, filter: 'blur(18px) saturate(0.4) brightness(0.55)' },
+        { transform: 'translateY(' + (startY * 0.6) + 'px) scale(' + (startScale + 0.15) + ')', opacity: 0.2, filter: 'blur(12px) saturate(0.55) brightness(0.7)', offset: 0.3 },
+        { transform: 'translateY(' + (startY * 0.25) + 'px) scale(' + ((startScale + 1) / 2) + ')', opacity: 0.6, filter: 'blur(5px) saturate(0.85) brightness(0.9)', offset: 0.62 },
+        { transform: 'translateY(-5px) scale(1.015)', opacity: 1, filter: 'blur(0) saturate(1.05) brightness(1.02)', offset: 0.9 },
+        { transform: 'translateY(0) scale(1)', opacity: 1, filter: 'blur(0) saturate(1) brightness(1)' }
+      ], { duration: 1500, delay: delay, easing: 'cubic-bezier(0.16,0.85,0.3,1)', fill: 'both' });
+    });
+
+    const dissolveStart = performance.now(), dissolveDur = 1300;
+    (function dissolve(now) {
+      const t = Math.min(1, (now - dissolveStart) / dissolveDur);
+      const e = easeInOut(t);
+      const f = 1.05 - 0.13 * e;
+      const phase = (now - dissolveStart) / 1000 * 1.6;
+      const amp = 6 + 10 * (1 - e);
+      waveMain.setAttribute('d', buildWavePath(f, phase, amp));
+      waveBack.setAttribute('d', buildWavePath(f - 0.05, phase + 0.5, amp + 3));
+      overlay.style.opacity = String(1 - e);
+      svg.style.filter = 'blur(' + (e * 7) + 'px) saturate(' + (1 - e * 0.5) + ')';
+      if (t < 1) requestAnimationFrame(dissolve);
+    })(performance.now());
+
+    await Promise.all(cardAnims.map(function(a) { return a.finished.catch(function() {}); }));
+    await new Promise(function(r) { setTimeout(r, Math.max(0, dissolveDur - 200)); });
+    clearInterval(bubTimer);
+
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    svg.style.filter = '';
+    waveMain.setAttribute('d', buildWavePath(0, 0, 0));
+    waveBack.setAttribute('d', buildWavePath(0, 0, 0));
+    window._liqAnimating = false;
+  }
+
+  run().catch(function() { window._liqAnimating = false; overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none'; });
+}
+</script>
+<!-- ── LIQUID TRANSITION OVERLAY ── -->
+<div id="liquidOverlay" aria-hidden="true" style="position:fixed;inset:0;pointer-events:none;z-index:85;overflow:hidden;opacity:0;">
+  <svg id="liquidSvg" preserveAspectRatio="none" viewBox="0 0 1000 1000"
+    style="position:absolute;left:0;right:0;bottom:0;width:100%;height:100%;display:block;">
+    <defs>
+      <linearGradient id="liqGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#e8d4ff" stop-opacity="0.85"/>
+        <stop offset="40%" stop-color="#c9a8ff" stop-opacity="0.95"/>
+        <stop offset="100%" stop-color="#9b7edb" stop-opacity="1"/>
+      </linearGradient>
+      <linearGradient id="liqGrad2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#f3a7d8" stop-opacity="0.5"/>
+      </linearGradient>
+      <filter id="liqGoo">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b"/>
+        <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/>
+      </filter>
+    </defs>
+    <g filter="url(#liqGoo)">
+      <path id="liqWaveBack" fill="url(#liqGrad2)" d="M 0 1000 L 1000 1000 L 1000 1000 L 0 1000 Z"/>
+      <path id="liqWaveMain" fill="url(#liqGrad)"  d="M 0 1000 L 1000 1000 L 1000 1000 L 0 1000 Z"/>
+    </g>
+  </svg>
+  <div id="liqBubbles" style="position:absolute;inset:0;pointer-events:none;"></div>
+</div>
+
+<!-- ── DAY/NIGHT SLIDER WIDGET ── -->
+<div class="dn-widget">
+  <div id="dnSlider" class="dn-slider" role="switch" aria-checked="false"
+       aria-label="Toggle day or night" tabindex="0" style="--t:0">
+    <div class="dn-bg"></div>
+    <div class="dn-scene">
+      <div class="dn-day">
+        <div class="dn-cloud dn-c1"></div>
+        <div class="dn-cloud dn-c2"></div>
+        <div class="dn-cloud dn-c3"></div>
+      </div>
+      <div class="dn-night">
+        <div class="dn-ncloud dn-nc1"></div>
+        <div class="dn-ncloud dn-nc2"></div>
+        <div class="dn-stars">
+          <div class="dn-star dn-s1"></div>
+          <div class="dn-star dn-s2"></div>
+          <div class="dn-star dn-s3"></div>
+          <div class="dn-star dn-s4"></div>
+          <div class="dn-star dn-s5"></div>
+          <div class="dn-star dn-s6"></div>
+          <div class="dn-dot dn-d1"></div>
+          <div class="dn-dot dn-d2"></div>
+          <div class="dn-dot dn-d3"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dn-sheen"></div>
+    <div class="dn-rim"></div>
+    <div class="dn-knob">
+      <div class="dn-halo dn-halo-sun"></div>
+      <div class="dn-halo dn-halo-moon"></div>
+      <div class="dn-knob-sun"></div>
+      <div class="dn-knob-moon"></div>
+      <div class="dn-crater dn-cr1"></div>
+      <div class="dn-crater dn-cr2"></div>
+      <div class="dn-crater dn-cr3"></div>
+      <div class="dn-shine"></div>
+    </div>
+  </div>
+  <div class="dn-caption">
+    <span id="dnLblDay" class="dn-label active">Jour</span>
+    <span class="dn-dot-sep"></span>
+    <span id="dnLblNight" class="dn-label">Nuit</span>
+  </div>
+</div>
+
+<script src="layouts.js"></script>
+<script src="multi.js"></script>
+<script src="data.js"></script>
+<script src="discord.js"></script>
+<script src="horaires.js"></script>
+<script src="startgg.js"></script>
+<script src="crop.js"></script>
+<script src="layout-maker.js"></script>
+<script src="config.js"></script>
+<!-- Modal : Emojis customs (Application emojis du bot) -->
+<div id="appEmojisModal" class="modal-bg" style="display:none;" onclick="if(event.target===this)dcCloseAppEmojis()">
+  <div class="modal" style="width:560px;max-width:95vw;">
+    <div class="modal-header">
+      <span>😀 Emojis customs du bot</span>
+      <button class="btn btn-icon" onclick="dcCloseAppEmojis()">✕</button>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">
+      Les emojis attachés à l'application Discord (cross-server). Clique sur un emoji pour copier son code <code>&lt;:nom:id&gt;</code>, puis colle-le dans le champ "<em>Override emoji</em>" d'un event ou directement dans ton message.<br>
+      <span style="color:#aaa;">Ajout d'emojis : <strong>Discord Developer Portal → ton app → onglet Emojis</strong>.</span>
+    </p>
+    <div style="margin-bottom:10px;">
+      <input type="text" id="appEmojiSearch" placeholder="🔎 Filtrer par nom…"
+        oninput="dcFilterAppEmojis(this.value)"
+        style="width:100%;padding:6px 10px;border:1px solid #d8c5f8;border-radius:8px;font-size:12px;">
+    </div>
+    <div id="appEmojisStatus" style="font-size:12px;color:#888;margin-bottom:10px;">Clique sur ↻ pour charger les emojis du bot.</div>
+    <div id="appEmojisGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;max-height:400px;overflow-y:auto;"></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px;">
+      <button class="btn btn-secondary" onclick="dcLoadAppEmojis()">↻ Charger / Rafraîchir</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="aquarium-button.js"></script>
+
+</body>
+</html>

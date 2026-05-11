@@ -1,0 +1,22 @@
+# ── Assets lourds (servis via CDN jsDelivr depuis un repo séparé) ──────────
+# Cf. ASSETS_BASE_URL dans layouts.js.
+# Ces dossiers existent en local pour le dev hors-ligne, mais sont exclus
+# du repo principal pour rester sous la limite GitHub Pages de 1 GB.
+characters/
+backgrounds/
+
+# ── Bot Discord ─────────────────────────────────────────────────────────────
+bot/.env
+bot/node_modules/
+
+# ── Outils dev ──────────────────────────────────────────────────────────────
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Build / temp ────────────────────────────────────────────────────────────
+node_modules/
+*.log
+*.tmp
