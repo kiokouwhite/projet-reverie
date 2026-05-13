@@ -25,6 +25,28 @@ function twInit() {
   // Push immédiat au bot pour re-synchroniser après un éventuel redéploiement
   // Railway (la config bot est en mémoire et peut être perdue).
   twPushToBot();
+  // Auto-charge la liste des salons depuis le bot — épargne le clic manuel
+  // sur "Charger les salons". Best-effort : si le bot n'est pas configuré
+  // ou ne répond pas, on garde le placeholder.
+  twAutoLoadChannelsIfPossible();
+}
+
+// Auto-charge les channels si le bot est configuré. Silencieux : pas
+// d'erreur visible si le bot n'est pas dispo (l'user peut cliquer le
+// bouton manuel comme fallback).
+async function twAutoLoadChannelsIfPossible() {
+  // Skip si déjà chargé (ex. user retourne sur l'onglet Configuration après
+  // avoir navigué ailleurs — pas la peine de re-fetch à chaque visite).
+  if (_twChannelsCache.length) return;
+  const botUrl = (localStorage.getItem('dc_bot_url') || localStorage.getItem('hr_bot_url') || '').trim().replace(/\/+$/, '');
+  const secret = (localStorage.getItem('dc_bot_secret') || localStorage.getItem('hr_bot_secret') || '').trim();
+  if (!botUrl || !secret) return; // pas de bot config, on ne fait rien
+  try {
+    await twLoadChannels();
+  } catch (e) {
+    // Silencieux : l'utilisateur peut toujours cliquer manuellement
+    console.warn('[TW] Auto-load channels échoué :', e.message);
+  }
 }
 
 // ── CONFIG LOCAL (localStorage) ─────────────────────────────────────────────
