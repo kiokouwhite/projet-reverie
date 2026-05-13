@@ -845,6 +845,42 @@
         </div>
       </div>
 
+      <!-- ── Détection de tournois start.gg ─────────────────────────────────
+           Le bot surveille les channels listés. Quand un message contient
+           un lien start.gg dont le slug match un des mots-clés (Lorem,
+           Magna…), il poste un embed avec 2 boutons pour proposer
+           d'enregistrer le tournoi. Une fois enregistré, le bot poste à
+           la fin du tournoi un lien deep-import vers le générateur Top 8.
+      -->
+      <div class="cfg-card">
+        <div class="cfg-card-title">🎯 Détection de tournois start.gg</div>
+        <p class="cfg-card-desc" style="font-size:12px;color:var(--text-soft);margin:0 0 12px;">
+          Le bot surveillera les salons sélectionnés. Quand un lien start.gg dont
+          le slug contient un des mots-clés est posté, il propose d'enregistrer
+          le tournoi et postera automatiquement un lien d'import à la fin de l'event.
+        </p>
+        <div class="cfg-field">
+          <label>Mots-clés à détecter (dans l'URL du tournoi)</label>
+          <input type="text" id="cfgTwKeywords" autocomplete="off"
+                 oninput="twSaveConfig()" placeholder="Lorem, Magna"
+                 value="Lorem, Magna">
+          <small>Séparés par des virgules. Insensible à la casse. Match si le slug d'URL contient l'un de ces mots.</small>
+        </div>
+        <div class="cfg-field">
+          <label>Salons à surveiller</label>
+          <div id="cfgTwChannelsWrap" style="display:flex;flex-direction:column;gap:6px;">
+            <div id="cfgTwChannelsList" style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--panel);">
+              <div style="font-size:12px;color:var(--text-soft);font-style:italic;">Clique sur « Charger les salons » pour récupérer la liste.</div>
+            </div>
+            <button type="button" class="btn dc-add-sched-btn" onclick="twLoadChannels()" style="align-self:flex-start;">
+              🔄 Charger les salons
+            </button>
+          </div>
+          <small>Sélectionne un ou plusieurs salons. La liste vient du bot — vérifie qu'il est connecté à ton serveur.</small>
+        </div>
+        <div id="cfgTwStatus" class="cfg-status" style="display:none;"></div>
+      </div>
+
       <div id="cfgStatus" class="cfg-status"></div>
     </div>
   </div>
@@ -1762,6 +1798,7 @@ function switchTab(tab) {
   if (tab === 'horaires' && typeof hrInit  === 'function') hrInit();
   if (tab === 'startgg'  && typeof sggInit === 'function') sggInit();
   if (tab === 'config'   && typeof cfgInit === 'function') cfgInit();
+  if (tab === 'config'   && typeof twInit  === 'function') twInit();
   // Remove WIP badge on Discord tab
   const discordWip = document.querySelector('#tabDiscord .nav-wip');
   if (discordWip) discordWip.remove();
@@ -1993,6 +2030,7 @@ function liquidSwitchTab(tab) {
 <script src="crop.js"></script>
 <script src="layout-maker.js"></script>
 <script src="config.js"></script>
+<script src="tournament-watch.js"></script>
 <!-- Modal : Emojis customs (Application emojis du bot) -->
 <div id="appEmojisModal" class="modal-bg" style="display:none;" onclick="if(event.target===this)dcCloseAppEmojis()">
   <div class="modal" style="width:560px;max-width:95vw;">

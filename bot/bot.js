@@ -6,7 +6,10 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const { Client, GatewayIntentBits, EmbedBuilder, Partials, AttachmentBuilder } = require('discord.js');
+const {
+  Client, GatewayIntentBits, EmbedBuilder, Partials, AttachmentBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+} = require('discord.js');
 
 const app    = express();
 const client = new Client({
@@ -148,6 +151,99 @@ client.once('ready', () => {
   }
 });
 
+// ── LISTENER DÉTECTION DE TOURNOIS START.GG ─────────────────────────────────
+// Écoute tous les messages des channels surveillés (tournamentWatchConfig).
+// Si un lien start.gg est trouvé et que son slug contient un keyword, le bot
+// reply avec un embed proposant 2 boutons : "Enregistrer" / "Ignorer".
+// L'enregistrement est traité par le handler interactionCreate ci-dessous.
+client.on('messageCreate', async (msg) => {
+  try {
+    if (msg.author?.bot || !msg.guild) return;
+    const cfg = tournamentWatchConfig;
+    if (!cfg.channels || !cfg.channels.length || !cfg.channels.includes(msg.channelId)) return;
+    if (!cfg.keywords || !cfg.keywords.length) return;
+
+    const urlMatch = msg.content.match(/https?:\/\/(?:www\.)?start\.gg\/tournament\/([^\s/?#]+)/i);
+    if (!urlMatch) return;
+    const slug = urlMatch[1];
+    const slugLower = slug.toLowerCase();
+    const matchedKw = cfg.keywords.find(kw => slugLower.includes(String(kw).toLowerCase()));
+    if (!matchedKw) return;
+
+    // Évite de proposer 2x le même tournoi (déjà enregistré ou popup actif)
+    if (tournamentRegistered.has(slug)) return;
+
+    const embed = new EmbedBuilder()
+      .setTitle('🎯 Tournoi détecté')
+      .setDescription(
+        `Mot-clé **${matchedKw}** repéré dans :\n` +
+        `[\`${slug}\`](https://start.gg/tournament/${slug})\n\n` +
+        `Veux-tu enregistrer ce tournoi ? À la fin de l'event, je posterai automatiquement un lien pour générer le Top 8 dans ce salon.`
+      )
+      .setColor(0xd80018)
+      .setURL(`https://start.gg/tournament/${slug}`)
+      .setTimestamp(new Date());
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`twreg:${slug}`).setLabel('Enregistrer').setStyle(ButtonStyle.Success).setEmoji('✅'),
+      new ButtonBuilder().setCustomId(`twign:${slug}`).setLabel('Ignorer').setStyle(ButtonStyle.Secondary).setEmoji('❌'),
+    );
+    await msg.reply({ embeds: [embed], components: [row], allowedMentions: { repliedUser: false } });
+    console.log(`🎯 [TW] Tournoi détecté dans #${msg.channel?.name} : ${slug} (kw=${matchedKw})`);
+  } catch (e) {
+    console.warn('[TW] messageCreate handler error :', e.message);
+  }
+});
+
+// ── HANDLER BOUTONS ENREGISTRER / IGNORER ───────────────────────────────────
+client.on('interactionCreate', async (interaction) => {
+  try {
+    if (!interaction.isButton()) return;
+    const id = interaction.customId || '';
+    if (id.startsWith('twreg:')) {
+      const slug = id.slice('twreg:'.length);
+      if (tournamentRegistered.has(slug)) {
+        await interaction.reply({ content: '⚠️ Ce tournoi est déjà enregistré.', ephemeral: true });
+        return;
+      }
+      tournamentRegistered.set(slug, {
+        slug,
+        channelId:    interaction.channelId,
+        messageId:    interaction.message?.id,
+        registeredBy: interaction.user?.id,
+        registeredAt: Date.now(),
+        endAt:        null, // Phase 3 : query start.gg pour récupérer endAt
+      });
+      await interaction.update({
+        embeds: [new EmbedBuilder()
+          .setTitle('✅ Tournoi enregistré')
+          .setDescription(
+            `[\`${slug}\`](https://start.gg/tournament/${slug})\n\n` +
+            `Je posterai automatiquement le lien d'import dans ce salon à la fin de l'event.`
+          )
+          .setColor(0x46d18f)
+          .setFooter({ text: `Enregistré par ${interaction.user?.username || 'un utilisateur'}` })
+          .setTimestamp(new Date())
+        ],
+        components: [],
+      });
+      console.log(`✅ [TW] Tournoi enregistré : ${slug} (par ${interaction.user?.tag})`);
+    } else if (id.startsWith('twign:')) {
+      const slug = id.slice('twign:'.length);
+      await interaction.update({
+        embeds: [new EmbedBuilder()
+          .setTitle('❌ Ignoré')
+          .setDescription(`Pas d'enregistrement pour [\`${slug}\`](https://start.gg/tournament/${slug}).`)
+          .setColor(0x808080)
+        ],
+        components: [],
+      });
+      console.log(`❌ [TW] Tournoi ignoré : ${slug} (par ${interaction.user?.tag})`);
+    }
+  } catch (e) {
+    console.warn('[TW] interactionCreate handler error :', e.message);
+  }
+});
+
 client.login(process.env.DISCORD_TOKEN).catch(err => {
   console.error('❌ Impossible de se connecter à Discord :', err.message);
   process.exit(1);
@@ -170,6 +266,34 @@ app.get('/', (req, res) => {
     status: 'Bot en ligne',
     bot:    client.user?.tag || 'Connexion en cours...',
   });
+});
+
+// ── DÉTECTION TOURNOIS START.GG ─────────────────────────────────────────────
+// Config envoyée par l'app web depuis l'onglet Configuration :
+//   { channels: [discordChannelId, ...], keywords: ['Lorem', 'Magna'] }
+// Le bot écoute les messages dans ces channels et, si un lien start.gg
+// est posté dont le slug contient un mot-clé, propose un embed avec 2
+// boutons (Enregistrer / Ignorer). Phase 2 ajoute le listener Discord.
+let tournamentWatchConfig = { channels: [], keywords: ['Lorem', 'Magna'] };
+const tournamentRegistered = new Map(); // slug → { slug, channelId, registeredAt, endAt, ... }
+
+app.post('/tournament-watch/config', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const { channels, keywords } = req.body || {};
+  if (!Array.isArray(channels) || !Array.isArray(keywords)) {
+    return res.status(400).json({ ok: false, error: 'channels et keywords doivent être des tableaux' });
+  }
+  tournamentWatchConfig = {
+    channels: channels.filter(c => typeof c === 'string'),
+    keywords: keywords.filter(k => typeof k === 'string' && k.trim()).map(k => k.trim()),
+  };
+  console.log(`🎯 [TW] Config mise à jour : ${tournamentWatchConfig.channels.length} salon(s), keywords: [${tournamentWatchConfig.keywords.join(', ')}]`);
+  res.json({ ok: true, config: tournamentWatchConfig });
+});
+
+app.get('/tournament-watch/config', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  res.json({ ok: true, config: tournamentWatchConfig, registered: [...tournamentRegistered.values()] });
 });
 
 // ── ROUTE : Poster une annonce ────────────────────────────────────────────────
