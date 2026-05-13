@@ -38,6 +38,10 @@
         <span class="nav-tab-icon">🏟️</span>
         <span class="nav-tab-label">Tournoi start.gg</span>
       </button>
+      <button class="nav-tab" onclick="liquidSwitchTab('deluxe')" id="tabDeluxe">
+        <span class="nav-tab-icon">🎯</span>
+        <span class="nav-tab-label">start.gg Deluxe</span>
+      </button>
       <button class="nav-tab" onclick="liquidSwitchTab('config')" id="tabConfig">
         <span class="nav-tab-icon">⚙️</span>
         <span class="nav-tab-label">Configuration</span>
@@ -812,6 +816,29 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ── PAGE START.GG DELUXE ── -->
+  <!-- Outil de gestion live de tournoi : plan custom des setups physiques
+       + intégration start.gg (matchs READY, drag-and-drop assign, etc.). -->
+  <div id="pageDeluxe" class="page-section" style="display:none;">
+    <div class="dlx-page">
+      <div class="dlx-toolbar">
+        <h2 class="dlx-title">🎯 start.gg Deluxe</h2>
+        <div class="dlx-mode-toggle">
+          <button id="dlxModeEdit" type="button" class="dlx-mode-btn active" onclick="dlxSetMode('edit')">📝 Édition</button>
+          <button id="dlxModeRun"  type="button" class="dlx-mode-btn"        onclick="dlxSetMode('run')">▶ Tournoi</button>
+        </div>
+      </div>
+      <div class="dlx-editor-actions" id="dlxEditorActions">
+        <button type="button" class="btn" onclick="dlxAddStation()">+ Ajouter une station</button>
+        <button type="button" class="btn btn-secondary" onclick="dlxResetDefaultPlan()" title="Restaure le plan par défaut (perd tes modifs)">↺ Plan par défaut</button>
+        <small style="margin-left:auto;color:var(--text-soft);">Glisse pour déplacer · Cmd-clic pour renommer · ✕ pour supprimer</small>
+      </div>
+      <div class="dlx-canvas-wrap">
+        <div id="dlxCanvas" class="dlx-canvas"></div>
+      </div>
     </div>
   </div>
 
@@ -1796,6 +1823,8 @@ function switchTab(tab) {
   document.getElementById('pageHoraires').style.display  = tab === 'horaires'  ? 'flex' : 'none';
   document.getElementById('pageVod').style.display       = tab === 'vod'       ? 'flex' : 'none';
   document.getElementById('pageStartgg').style.display   = tab === 'startgg'   ? 'flex' : 'none';
+  const pageDeluxeEl = document.getElementById('pageDeluxe');
+  if (pageDeluxeEl) pageDeluxeEl.style.display = tab === 'deluxe' ? 'flex' : 'none';
   const pageConfigEl = document.getElementById('pageConfig');
   if (pageConfigEl) pageConfigEl.style.display = tab === 'config' ? 'flex' : 'none';
   // Tabs
@@ -1804,6 +1833,8 @@ function switchTab(tab) {
   document.getElementById('tabHoraires').classList.toggle('nav-tab-active', tab === 'horaires');
   document.getElementById('tabVod').classList.toggle('nav-tab-active',      tab === 'vod');
   document.getElementById('tabStartgg').classList.toggle('nav-tab-active',  tab === 'startgg');
+  const tabDeluxeEl = document.getElementById('tabDeluxe');
+  if (tabDeluxeEl) tabDeluxeEl.classList.toggle('nav-tab-active', tab === 'deluxe');
   const tabConfigEl = document.getElementById('tabConfig');
   if (tabConfigEl) tabConfigEl.classList.toggle('nav-tab-active', tab === 'config');
   // Init pages on first open
@@ -1812,6 +1843,7 @@ function switchTab(tab) {
   if (tab === 'startgg'  && typeof sggInit === 'function') sggInit();
   if (tab === 'config'   && typeof cfgInit === 'function') cfgInit();
   if (tab === 'config'   && typeof twInit  === 'function') twInit();
+  if (tab === 'deluxe'   && typeof dlxInit === 'function') dlxInit();
   // Remove WIP badge on Discord tab
   const discordWip = document.querySelector('#tabDiscord .nav-wip');
   if (discordWip) discordWip.remove();
@@ -2044,6 +2076,7 @@ function liquidSwitchTab(tab) {
 <script src="layout-maker.js"></script>
 <script src="config.js"></script>
 <script src="tournament-watch.js"></script>
+<script src="startgg-deluxe.js"></script>
 <!-- Modal : Emojis customs (Application emojis du bot) -->
 <div id="appEmojisModal" class="modal-bg" style="display:none;" onclick="if(event.target===this)dcCloseAppEmojis()">
   <div class="modal" style="width:560px;max-width:95vw;">

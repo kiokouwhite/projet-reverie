@@ -5006,6 +5006,162 @@ canvas { width: 100%; display: block; }
   border-color: rgba(155,127,184,0.6);
 }
 .cfg-reveal-btn:active { transform: scale(0.96); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   START.GG DELUXE — éditeur de plan custom + intégration tournoi
+   Phase 1 : juste l'éditeur (drag/drop des stations, mode edit/run)
+   ───────────────────────────────────────────────────────────────────── */
+#pageDeluxe {
+  display: none;
+  flex-direction: column;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+.dlx-page {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dlx-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dlx-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.dlx-mode-toggle {
+  display: inline-flex;
+  background: rgba(255,255,255,0.5);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.dlx-mode-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dlx-mode-btn.active {
+  background: white;
+  color: var(--text);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.dlx-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.5);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.dlx-editor-actions small { font-size: 11px; font-style: italic; }
+.dlx-canvas-wrap {
+  background: rgba(255,255,255,0.6);
+  border: 2px dashed rgba(155,127,184,0.4);
+  border-radius: 16px;
+  padding: 0;
+  position: relative;
+}
+.dlx-canvas {
+  position: relative;
+  width: 600px;
+  height: 800px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, #faf6ff 0%, #fff0fa 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  /* Quadrillage léger pour repérer les positions */
+  background-image:
+    linear-gradient(rgba(155,127,184,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(155,127,184,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.dlx-canvas-edit {
+  cursor: default;
+}
+.dlx-canvas-edit .dlx-station { cursor: move; }
+.dlx-station {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  user-select: none;
+  transition: transform 0.08s, box-shadow 0.15s;
+}
+.dlx-station.dragging {
+  transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  z-index: 10;
+}
+.dlx-station-label {
+  pointer-events: none;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.dlx-station-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, currentColor 50%);
+  opacity: 0.5;
+  border-bottom-right-radius: 8px;
+}
+.dlx-station-resize:hover { opacity: 1; }
+.dlx-station-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(200,59,120,0.18);
+  color: #c83b78;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+.dlx-station-remove:hover {
+  background: rgba(200,59,120,0.35);
+}
 .cfg-card {
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid var(--border);
