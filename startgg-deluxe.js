@@ -29,7 +29,7 @@
 const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
-const DLX_PLAN_VERSION = 4;
+const DLX_PLAN_VERSION = 5;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -72,18 +72,25 @@ function dlxDefaultPlan() {
   add('room-smash',   'room', 'Coin Smash',                  20, 890,  560, 410, '#f7eddf');
   add('room-to-smash','room', 'Tables TO (Smash) / Accueil', 20,1310,  560, 170, '#ede0d0');
 
-  // ═══ MURS (externes + cloisons internes) ═════════════════════════════
-  // Bordures externes (4 côtés)
-  add('w-top',    'wall', '',  18,  18, 564,   4);
-  add('w-bottom', 'wall', '',  18,1478, 564,   4);
-  add('w-left',   'wall', '',  18,  22,   4, 1460);
-  add('w-right',  'wall', '', 578,  22,   4, 1460);
-  // Cloisons internes (séparations entre zones)
-  add('w-fg-bot',     'wall', '',  18, 500, 564,   4);
-  add('w-tofg-bot',   'wall', '',  18, 620, 184,   4);  // Bas de l'alcôve TO FG
-  add('w-tofg-right', 'wall', '', 200, 500,   4, 124);  // Côté droit de l'alcôve
-  add('w-stream-bot', 'wall', '',  18, 880, 564,   4);
-  add('w-smash-bot',  'wall', '',  18,1300, 564,   4);
+  // ═══ MURS (polylines : tableau de points, plus 2 points = mur droit) ══
+  // Drag un endpoint pour étirer · Right-click sur le mur pour ajouter un
+  // vertex que tu peux ensuite pousser pour créer un angle.
+  const addWall = (id, points, thickness, color) => e.push({
+    id, type: 'wall', points, thickness: thickness || 4, color: color || '#2a2a2a',
+  });
+  // Bordures externes (rectangle complet en une seule polyline fermée)
+  addWall('w-outline', [
+    { x:  20, y:  20 },
+    { x: 580, y:  20 },
+    { x: 580, y:1480 },
+    { x:  20, y:1480 },
+    { x:  20, y:  20 },
+  ], 4);
+  // Cloisons internes
+  addWall('w-fg-bot',     [{x:20, y:500}, {x:580, y:500}], 4);
+  addWall('w-tofg',       [{x:20, y:620}, {x:200, y:620}, {x:200, y:500}], 4); // L-shape de l'alcôve TO FG
+  addWall('w-stream-bot', [{x:20, y:880}, {x:580, y:880}], 4);
+  addWall('w-smash-bot',  [{x:20, y:1300}, {x:580, y:1300}], 4);
 
   // ═══ STATIONS FG (Coin Fighting Games) ════════════════════════════════
   // Setups collés au mur gauche (x=22, juste après le mur de 4px) et au
@@ -152,9 +159,9 @@ function dlxLoadPlan() {
     const raw = localStorage.getItem(DLX_LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Skip si version obsolète (force le rechargement du nouveau default)
       if (parsed && Array.isArray(parsed.elements) && parsed.elements.length
           && parsed.version === DLX_PLAN_VERSION) {
+        dlxMigrateWalls(parsed); // sécurité : convertit walls si format mixte
         dlxPlan = parsed;
         return;
       }
@@ -195,12 +202,40 @@ function dlxSetMode(mode) {
 function dlxRender() {
   const canvas = document.getElementById('dlxCanvas');
   if (!canvas) return;
-  // Trier les éléments par z-index croissant pour que le DOM soit dans l'ordre
-  const sorted = [...dlxPlan.elements].sort(
-    (a, b) => (DLX_TYPES[a.type]?.z || 0) - (DLX_TYPES[b.type]?.z || 0)
-  );
-  canvas.innerHTML = sorted.map(dlxElementHTML).join('');
+  // Séparer murs (SVG) du reste (DOM positionné). Walls sont rendus dans
+  // un <svg> overlay pour pouvoir avoir des polylines avec angles.
+  const walls    = dlxPlan.elements.filter(e => e.type === 'wall');
+  const nonWalls = dlxPlan.elements.filter(e => e.type !== 'wall');
+  // Trier les non-walls par z-index pour ordre DOM correct
+  nonWalls.sort((a, b) => (DLX_TYPES[a.type]?.z || 0) - (DLX_TYPES[b.type]?.z || 0));
+
+  const wallsSvg = `<svg class="dlx-walls-svg" viewBox="0 0 600 1500" preserveAspectRatio="none">
+    ${walls.map(dlxWallSvg).join('')}
+  </svg>`;
+  canvas.innerHTML = wallsSvg + nonWalls.map(dlxElementHTML).join('');
   if (dlxMode === 'edit') dlxAttachDragHandlers();
+}
+
+// SVG d'un mur (polyline) + handles de vertex en mode édition.
+function dlxWallSvg(w) {
+  if (!w.points || w.points.length < 2) return '';
+  const pts = w.points.map(p => `${p.x},${p.y}`).join(' ');
+  const isEdit = dlxMode === 'edit';
+  const isSelected = dlxSelectedId === w.id;
+  const handles = isEdit ? w.points.map((p, i) =>
+    `<circle class="dlx-wall-vertex" data-wall="${w.id}" data-vertex="${i}"
+             cx="${p.x}" cy="${p.y}" r="7" />`
+  ).join('') : '';
+  return `<g class="dlx-wall-group ${isSelected ? 'selected' : ''}">
+    <polyline class="dlx-wall-line" data-id="${w.id}"
+              points="${pts}" stroke="${w.color || '#2a2a2a'}"
+              stroke-width="${w.thickness || 4}" fill="none"
+              stroke-linecap="square" stroke-linejoin="miter" />
+    ${isEdit ? `<polyline class="dlx-wall-hitarea" data-id="${w.id}"
+              points="${pts}" stroke="transparent" stroke-width="20"
+              fill="none" />` : ''}
+    ${handles}
+  </g>`;
 }
 
 function dlxElementHTML(el) {
@@ -216,13 +251,9 @@ function dlxElementHTML(el) {
     ? `<div class="dlx-el-resize" data-resize="${el.id}"></div>`
     : '';
 
-  // Rendu spécifique par type
+  // Rendu spécifique par type. Walls passent par dlxWallSvg (SVG overlay),
+  // pas par ce switch.
   switch (el.type) {
-    case 'wall':
-      return `<div class="dlx-el dlx-el-wall" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
-        ${removeBtn}${resizeHandle}</div>`;
-
     case 'room':
       return `<div class="dlx-el dlx-el-room" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;">
@@ -281,6 +312,105 @@ function dlxAttachDragHandlers() {
   canvas.querySelectorAll('.dlx-el-resize').forEach(el => {
     el.addEventListener('mousedown', dlxOnResizeMouseDown);
   });
+  // Handlers spécifiques aux murs (SVG)
+  canvas.querySelectorAll('.dlx-wall-vertex').forEach(el => {
+    el.addEventListener('mousedown', dlxOnWallVertexMouseDown);
+  });
+  canvas.querySelectorAll('.dlx-wall-hitarea').forEach(el => {
+    // Click sur le mur (pas un vertex) : sélectionne + permet right-click
+    el.addEventListener('mousedown', dlxOnWallLineMouseDown);
+    el.addEventListener('contextmenu', dlxOnWallRightClick);
+  });
+}
+
+// Convertit les coords screen (event.clientX/Y) en coords SVG/canvas
+function dlxScreenToCanvas(ev) {
+  const canvas = document.getElementById('dlxCanvas');
+  if (!canvas) return { x: 0, y: 0 };
+  const rect = canvas.getBoundingClientRect();
+  // Le canvas est en pixels réels (600×1500) sans transform, donc le
+  // mapping est direct via les bounding rects.
+  const scaleX = 600 / rect.width;
+  const scaleY = 1500 / rect.height;
+  return {
+    x: (ev.clientX - rect.left) * scaleX,
+    y: (ev.clientY - rect.top)  * scaleY,
+  };
+}
+
+// Drag d'un vertex de mur
+function dlxOnWallVertexMouseDown(ev) {
+  if (dlxMode !== 'edit') return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const wallId = ev.currentTarget.dataset.wall;
+  const vertexIdx = parseInt(ev.currentTarget.dataset.vertex, 10);
+  const w = dlxPlan.elements.find(x => x.id === wallId);
+  if (!w || !w.points || !w.points[vertexIdx]) return;
+  dlxSelect(wallId);
+  _dlxDrag = {
+    id: wallId,
+    mode: 'vertex',
+    vertexIdx,
+    startX: ev.clientX,
+    startY: ev.clientY,
+    origX: w.points[vertexIdx].x,
+    origY: w.points[vertexIdx].y,
+  };
+  document.addEventListener('mousemove', dlxOnDragMove);
+  document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
+}
+
+// Click sur la zone hit-area d'un mur (mais pas sur un vertex)
+function dlxOnWallLineMouseDown(ev) {
+  if (dlxMode !== 'edit') return;
+  if (ev.button !== 0) return; // ignore right-click ici (géré par contextmenu)
+  const wallId = ev.currentTarget.dataset.id;
+  dlxSelect(wallId);
+}
+
+// Right-click sur un mur : insère un nouveau vertex au point cliqué
+function dlxOnWallRightClick(ev) {
+  if (dlxMode !== 'edit') return;
+  ev.preventDefault();
+  const wallId = ev.currentTarget.dataset.id;
+  const w = dlxPlan.elements.find(x => x.id === wallId);
+  if (!w || !w.points || w.points.length < 2) return;
+  const click = dlxScreenToCanvas(ev);
+  // Trouve le segment le plus proche du clic et y insère le vertex
+  const insertIdx = dlxFindBestInsertIndex(w.points, click);
+  w.points.splice(insertIdx, 0, click);
+  dlxSavePlan();
+  dlxRender();
+  // Re-sélectionner le mur pour garder le panneau ouvert
+  dlxSelect(wallId);
+}
+
+// Trouve l'index où insérer un nouveau vertex pour qu'il s'intègre
+// naturellement à la polyline (entre les 2 points du segment le plus proche).
+function dlxFindBestInsertIndex(points, click) {
+  let bestIdx = 1;
+  let bestDist = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i+1];
+    const d = dlxDistanceToSegment(click, a, b);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i + 1;
+    }
+  }
+  return bestIdx;
+}
+
+// Distance d'un point à un segment [a, b]
+function dlxDistanceToSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const proj = { x: a.x + t * dx, y: a.y + t * dy };
+  return Math.hypot(p.x - proj.x, p.y - proj.y);
 }
 
 function dlxOnElMouseDown(ev) {
@@ -329,10 +459,36 @@ function dlxOnDragMove(ev) {
   if (_dlxDrag.mode === 'move') {
     s.x = Math.max(0, _dlxDrag.origX + dx);
     s.y = Math.max(0, _dlxDrag.origY + dy);
-  } else {
+  } else if (_dlxDrag.mode === 'resize') {
     // min 4px pour permettre des murs très fins
     s.w = Math.max(4, _dlxDrag.origW + dx);
     s.h = Math.max(4, _dlxDrag.origH + dy);
+  } else if (_dlxDrag.mode === 'vertex') {
+    // Drag d'un vertex de polyline (mur). Convertir delta screen → canvas
+    const canvas = document.getElementById('dlxCanvas');
+    let scaleX = 1, scaleY = 1;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      scaleX = 600 / rect.width;
+      scaleY = 1500 / rect.height;
+    }
+    const idx = _dlxDrag.vertexIdx;
+    if (s.points && s.points[idx]) {
+      s.points[idx].x = Math.max(0, _dlxDrag.origX + dx * scaleX);
+      s.points[idx].y = Math.max(0, _dlxDrag.origY + dy * scaleY);
+      // Live update du SVG sans full re-render : on remet à jour le points
+      // attribute des deux polylines (visible + hitarea) et la position du
+      // handle circle qui a été draggé.
+      const ptsStr = s.points.map(p => `${p.x},${p.y}`).join(' ');
+      const polylines = canvas.querySelectorAll(`polyline[data-id="${s.id}"]`);
+      polylines.forEach(pl => pl.setAttribute('points', ptsStr));
+      const circle = canvas.querySelector(`.dlx-wall-vertex[data-wall="${s.id}"][data-vertex="${idx}"]`);
+      if (circle) {
+        circle.setAttribute('cx', s.points[idx].x);
+        circle.setAttribute('cy', s.points[idx].y);
+      }
+    }
+    return;
   }
   const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
   if (elNode) {
@@ -352,6 +508,24 @@ function dlxOnDragEnd() {
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
+}
+
+// Conversion auto des walls ancien format (x,y,w,h rectangle) vers nouveau
+// format polyline. Appelé après load pour migrer les plans sauvegardés.
+function dlxMigrateWalls(plan) {
+  if (!plan || !Array.isArray(plan.elements)) return plan;
+  plan.elements.forEach(el => {
+    if (el.type === 'wall' && !el.points && typeof el.x === 'number') {
+      // Rectangle d'origine : on en fait un segment (axe le plus long)
+      const isHorizontal = (el.w || 0) >= (el.h || 0);
+      el.points = isHorizontal
+        ? [{ x: el.x, y: el.y + el.h/2 }, { x: el.x + el.w, y: el.y + el.h/2 }]
+        : [{ x: el.x + el.w/2, y: el.y }, { x: el.x + el.w/2, y: el.y + el.h }];
+      el.thickness = Math.max(el.w, el.h) > 0 ? Math.min(el.w, el.h) : 4;
+      delete el.x; delete el.y; delete el.w; delete el.h;
+    }
+  });
+  return plan;
 }
 
 function dlxOnElDblClick(ev) {

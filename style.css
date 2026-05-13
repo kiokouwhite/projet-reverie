@@ -5119,10 +5119,39 @@ canvas { width: 100%; display: block; }
   z-index: 999 !important;
 }
 
-/* Murs : rectangles sombres sans border-radius */
-.dlx-el-wall {
+/* Murs en SVG overlay : couvre tout le canvas, sous les éléments
+   interactifs mais au-dessus des rooms. Les polylines sont les murs ;
+   les circles sont les handles draggables des vertices (mode édition). */
+.dlx-walls-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* le svg lui-même n'attrape rien — les enfants oui */
   z-index: 3;
-  border-radius: 0;
+}
+.dlx-wall-line {
+  pointer-events: none;
+}
+.dlx-wall-hitarea {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.dlx-wall-vertex {
+  pointer-events: auto;
+  fill: #fff;
+  stroke: #7c5cff;
+  stroke-width: 2.5;
+  cursor: grab;
+  transition: r 0.1s, stroke-width 0.1s;
+}
+.dlx-wall-vertex:hover {
+  fill: #f0eaff;
+  r: 9;
+}
+.dlx-wall-vertex:active { cursor: grabbing; }
+.dlx-wall-group.selected .dlx-wall-line {
+  stroke: #7c5cff !important;
 }
 
 /* Zones (rooms) : background coloré translucide avec label en haut-gauche */
