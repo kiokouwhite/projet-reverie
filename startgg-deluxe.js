@@ -29,7 +29,7 @@
 const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
-const DLX_PLAN_VERSION = 2;
+const DLX_PLAN_VERSION = 3;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -85,48 +85,37 @@ function dlxDefaultPlan() {
   add('w-smash-bot',  'wall', '',  18,1300, 564,   4);
 
   // ═══ STATIONS FG (Coin Fighting Games) ════════════════════════════════
-  // Colonne gauche : 3 setups
-  add('fg-L1', 'station', 'FG 1',  50, 70,  200, 100, '#e85a8a');
-  add('fg-L2', 'station', 'FG 2',  50, 200, 200, 100, '#e85a8a');
-  add('fg-L3', 'station', 'FG 3',  50, 330, 200, 100, '#e85a8a');
-  // Colonne droite : 3 setups
-  add('fg-R1', 'station', 'FG 4', 350, 70,  200, 100, '#e85a8a');
-  add('fg-R2', 'station', 'FG 5', 350, 200, 200, 100, '#e85a8a');
-  add('fg-R3', 'station', 'FG 6', 350, 330, 200, 100, '#e85a8a');
-
-  // Outlets / multiprises près des setups FG (numéros 1/3 = multiprise/rallonge chantier)
-  add('o-fg-L1', 'outlet', '1',  30, 90,  22, 22, '#222');
-  add('o-fg-L2', 'outlet', '1',  30, 220, 22, 22, '#222');
-  add('o-fg-L3', 'outlet', '3',  30, 350, 22, 22, '#222');
-  add('o-fg-R1', 'outlet', '1', 560, 90,  22, 22, '#222');
-  add('o-fg-R2', 'outlet', '3', 560, 220, 22, 22, '#222');
+  // Setups collés au mur gauche (x=22, juste après le mur de 4px) et au
+  // mur droit (x=378 = 600 - 200 - 22). Stackés sans gap pour ressembler
+  // à des tables placées bout-à-bout le long du mur.
+  // 4 setups par côté, hauteur uniforme.
+  const FG_STATION_H = 110;
+  const FG_TOP = 40;
+  for (let i = 0; i < 4; i++) {
+    add(`fg-L${i+1}`, 'station', `FG ${i+1}`,  22, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
+    add(`fg-R${i+1}`, 'station', `FG ${i+5}`, 378, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
+  }
 
   // ═══ ALCÔVE TO (FG) ═══════════════════════════════════════════════════
   add('table-to-fg', 'table-classique', 'TO FG',  40, 540, 140, 60);
-  add('o-to-fg',     'outlet', '1',              165, 555, 22, 22, '#222');
 
   // ═══ ZONE STREAM ══════════════════════════════════════════════════════
-  add('stream-1', 'station', 'Stream',         180, 680, 320, 120, '#7c5cff');
-  add('mic-1',    'microphone', 'Micro',       120, 700,  30, 30);
-  add('proj-1',   'projector',  'Projo',       510, 700,  30, 24);
-  add('o-stream', 'outlet', '2',                90, 720,  22, 22, '#222');
+  add('stream-1', 'station',    'Stream',     180, 680, 320, 120, '#7c5cff');
+  add('mic-1',    'microphone', 'Micro',      120, 700,  30,  30);
+  add('proj-1',   'projector',  'Projo',      510, 700,  30,  24);
 
   // ═══ COIN SMASH ═══════════════════════════════════════════════════════
-  // 5 stations de chaque côté, espacement régulier
+  // 5 stations de chaque côté, collées au mur, stackées sans gap.
+  const SMASH_STATION_H = 82;
+  const SMASH_TOP = 900;
   for (let i = 0; i < 5; i++) {
-    add(`smash-L${i+1}`, 'station', `Smash ${i+1}`,  50, 910 + i*78, 200, 70, '#46d18f');
-    add(`smash-R${i+1}`, 'station', `Smash ${i+6}`, 350, 910 + i*78, 200, 70, '#46d18f');
-    // Outlet par paire
-    add(`o-smash-L${i+1}`, 'outlet', String((i%3)+1),  30,  928 + i*78, 22, 22, '#222');
-    add(`o-smash-R${i+1}`, 'outlet', String((i%3)+1), 560,  928 + i*78, 22, 22, '#222');
+    add(`smash-L${i+1}`, 'station', `Smash ${i+1}`,  22, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
+    add(`smash-R${i+1}`, 'station', `Smash ${i+6}`, 378, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
   }
 
   // ═══ TABLES TO SMASH + ACCUEIL ════════════════════════════════════════
-  add('table-to-smash', 'table-grande',    'TO',         60, 1340, 200, 80);
-  add('table-accueil',  'table-grande',    'Accueil',   330, 1340, 200, 80);
-  add('laptop-accueil', 'laptop',          'Laptop',    420, 1430,  40, 28);
-  add('whiteboard-1',   'whiteboard',      '',           70, 1430,  90, 12);
-  add('o-to-smash',     'outlet', '2',                  140, 1430,  22, 22, '#222');
+  add('table-to-smash', 'table-grande', 'TO',       60, 1340, 200, 80);
+  add('table-accueil',  'table-grande', 'Accueil', 330, 1340, 200, 80);
 
   // ═══ SORTIES DE SECOURS ═══════════════════════════════════════════════
   add('exit-top', 'exit', '',  470,  30, 36, 36);
