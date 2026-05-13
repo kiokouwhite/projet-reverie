@@ -4987,6 +4987,25 @@ canvas { width: 100%; display: block; }
   margin: 0;
   line-height: 1.5;
 }
+/* Bouton "Afficher les mots de passe" — protégé par mot de passe admin */
+.cfg-reveal-btn {
+  margin-top: 12px;
+  padding: 6px 14px;
+  background: rgba(155,127,184,0.12);
+  border: 1.5px solid rgba(155,127,184,0.35);
+  border-radius: 999px;
+  color: var(--purple-deep, #5b3fb0);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.cfg-reveal-btn:hover {
+  background: rgba(155,127,184,0.25);
+  border-color: rgba(155,127,184,0.6);
+}
+.cfg-reveal-btn:active { transform: scale(0.96); }
 .cfg-card {
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid var(--border);

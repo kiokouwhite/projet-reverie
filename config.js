@@ -69,13 +69,59 @@ function cfgPropagateToInputs(startgg, url, secret) {
   if (hrBotSecret && hrBotSecret.value !== secret) hrBotSecret.value = secret;
 }
 
+// ── BASCULE AFFICHAGE EN CLAIR DES MOTS DE PASSE ───────────────────────────
+// Protégée par un mot de passe admin ("gnarpyadmin"). Une fois validé pour
+// la session, tous les champs type="password" du panel Configuration
+// passent en type="text". Re-clic = re-cache.
+const CFG_REVEAL_PASSWORD = 'gnarpyadmin';
+let _cfgRevealed = false;
+
+function cfgToggleReveal() {
+  const btn = document.getElementById('cfgRevealBtn');
+  if (_cfgRevealed) {
+    _cfgSetPasswordFieldsVisible(false);
+    _cfgRevealed = false;
+    if (btn) btn.textContent = '👁️ Afficher les mots de passe';
+    return;
+  }
+  const entered = prompt('Mot de passe admin :');
+  if (entered == null) return; // cancel
+  if (entered !== CFG_REVEAL_PASSWORD) {
+    cfgFlash('❌ Mot de passe incorrect', 'error');
+    return;
+  }
+  _cfgSetPasswordFieldsVisible(true);
+  _cfgRevealed = true;
+  if (btn) btn.textContent = '🙈 Masquer les mots de passe';
+}
+
+function _cfgSetPasswordFieldsVisible(visible) {
+  // Tous les <input> du panel #pageConfig dont le type était password
+  const root = document.getElementById('pageConfig');
+  if (!root) return;
+  root.querySelectorAll('input').forEach(el => {
+    // On garde une trace du type original via data-attr pour pouvoir restore
+    if (visible) {
+      if (el.type === 'password') {
+        el.dataset.cfgOrigType = 'password';
+        el.type = 'text';
+      }
+    } else {
+      if (el.dataset.cfgOrigType === 'password') {
+        el.type = 'password';
+        delete el.dataset.cfgOrigType;
+      }
+    }
+  });
+}
+
 let _cfgFlashTimer = null;
-function cfgFlash(msg) {
+function cfgFlash(msg, type) {
   const el = document.getElementById('cfgStatus');
   if (!el) return;
   el.textContent = msg;
-  el.className   = 'cfg-status cfg-status-ok';
+  el.className   = 'cfg-status cfg-status-' + (type || 'ok');
   el.style.display = 'block';
   clearTimeout(_cfgFlashTimer);
-  _cfgFlashTimer = setTimeout(() => { el.style.display = 'none'; }, 1500);
+  _cfgFlashTimer = setTimeout(() => { el.style.display = 'none'; }, 2200);
 }
