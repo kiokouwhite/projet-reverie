@@ -29,7 +29,7 @@
 const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
-const DLX_PLAN_VERSION = 3;
+const DLX_PLAN_VERSION = 4;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -88,12 +88,12 @@ function dlxDefaultPlan() {
   // Setups collés au mur gauche (x=22, juste après le mur de 4px) et au
   // mur droit (x=378 = 600 - 200 - 22). Stackés sans gap pour ressembler
   // à des tables placées bout-à-bout le long du mur.
-  // 4 setups par côté, hauteur uniforme.
+  // 4 setups par côté, hauteur uniforme. Labels = juste le numéro.
   const FG_STATION_H = 110;
   const FG_TOP = 40;
   for (let i = 0; i < 4; i++) {
-    add(`fg-L${i+1}`, 'station', `FG ${i+1}`,  22, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
-    add(`fg-R${i+1}`, 'station', `FG ${i+5}`, 378, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
+    add(`fg-L${i+1}`, 'station', `${i+1}`,  22, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
+    add(`fg-R${i+1}`, 'station', `${i+5}`, 378, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
   }
 
   // ═══ ALCÔVE TO (FG) ═══════════════════════════════════════════════════
@@ -106,11 +106,12 @@ function dlxDefaultPlan() {
 
   // ═══ COIN SMASH ═══════════════════════════════════════════════════════
   // 5 stations de chaque côté, collées au mur, stackées sans gap.
+  // Labels = juste le numéro.
   const SMASH_STATION_H = 82;
   const SMASH_TOP = 900;
   for (let i = 0; i < 5; i++) {
-    add(`smash-L${i+1}`, 'station', `Smash ${i+1}`,  22, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
-    add(`smash-R${i+1}`, 'station', `Smash ${i+6}`, 378, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
+    add(`smash-L${i+1}`, 'station', `${i+1}`,  22, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
+    add(`smash-R${i+1}`, 'station', `${i+6}`, 378, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
   }
 
   // ═══ TABLES TO SMASH + ACCUEIL ════════════════════════════════════════
