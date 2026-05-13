@@ -34,6 +34,7 @@ let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
 let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
+let dlxSelectedId = null;   // élément actuellement sélectionné pour édition fine
 
 // ── DÉFINITION DES TYPES D'ÉLÉMENTS ─────────────────────────────────────────
 // Chaque type a : icône, label menu, taille par défaut, couleur, z-index.
@@ -291,6 +292,8 @@ function dlxOnElMouseDown(ev) {
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   ev.preventDefault();
+  // Sélectionne l'élément (ouvre le panneau de propriétés)
+  dlxSelect(id);
   _dlxDrag = {
     id, mode: 'move',
     startX: ev.clientX, startY: ev.clientY,
@@ -327,8 +330,9 @@ function dlxOnDragMove(ev) {
     s.x = Math.max(0, _dlxDrag.origX + dx);
     s.y = Math.max(0, _dlxDrag.origY + dy);
   } else {
-    s.w = Math.max(20, _dlxDrag.origW + dx);
-    s.h = Math.max(20, _dlxDrag.origH + dy);
+    // min 4px pour permettre des murs très fins
+    s.w = Math.max(4, _dlxDrag.origW + dx);
+    s.h = Math.max(4, _dlxDrag.origH + dy);
   }
   const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
   if (elNode) {
@@ -337,6 +341,8 @@ function dlxOnDragMove(ev) {
     elNode.style.width  = s.w + 'px';
     elNode.style.height = s.h + 'px';
   }
+  // Sync les champs du panneau de propriétés si cet élément est sélectionné
+  if (dlxSelectedId === s.id) dlxSyncPropsInputs(s);
 }
 
 function dlxOnDragEnd() {
@@ -392,3 +398,88 @@ function dlxRemoveElement(id) {
 
 // Backward-compat
 function dlxRemoveStation(id) { dlxRemoveElement(id); }
+
+// ── PANNEAU DE PROPRIÉTÉS (sélection + édition fine) ───────────────────────
+function dlxSelect(id) {
+  dlxSelectedId = id;
+  // Highlight visuel : retire ancien, ajoute nouveau
+  document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
+  const elNode = document.querySelector(`.dlx-el[data-id="${id}"]`);
+  if (elNode) elNode.classList.add('selected');
+  const s = dlxPlan.elements.find(x => x.id === id);
+  if (!s) return;
+  const panel = document.getElementById('dlxPropsPanel');
+  if (!panel) return;
+  panel.style.display = '';
+  const title = document.getElementById('dlxPropsTitle');
+  if (title) {
+    const def = DLX_TYPES[s.type] || {};
+    title.textContent = `${def.icon || ''} ${def.label || s.type} — ${s.id}`;
+  }
+  dlxSyncPropsInputs(s);
+}
+
+function dlxDeselect() {
+  dlxSelectedId = null;
+  document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
+  const panel = document.getElementById('dlxPropsPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function dlxSyncPropsInputs(s) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el && el.value !== String(v)) el.value = v; };
+  set('dlxPropsLabel', s.label || '');
+  set('dlxPropsX', s.x);
+  set('dlxPropsY', s.y);
+  set('dlxPropsW', s.w);
+  set('dlxPropsH', s.h);
+  const c = document.getElementById('dlxPropsColor');
+  if (c) c.value = s.color || '#888888';
+}
+
+// Mise à jour live d'une propriété depuis un champ input
+function dlxUpdateProp(prop, value) {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s) return;
+  if (prop === 'label' || prop === 'color') {
+    s[prop] = value;
+  } else {
+    const n = parseInt(value, 10);
+    if (Number.isNaN(n)) return;
+    s[prop] = (prop === 'w' || prop === 'h') ? Math.max(1, n) : Math.max(0, n);
+  }
+  // Mise à jour DOM directe sans full re-render (préserve la sélection
+  // et évite le flicker des champs en cours d'édition)
+  const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
+  if (elNode) {
+    elNode.style.left   = s.x + 'px';
+    elNode.style.top    = s.y + 'px';
+    elNode.style.width  = s.w + 'px';
+    elNode.style.height = s.h + 'px';
+    if (prop === 'color') {
+      // Re-render uniquement cet élément pour appliquer la couleur
+      const html = dlxElementHTML(s);
+      const wrap = document.createElement('div');
+      wrap.innerHTML = html;
+      const replacement = wrap.firstElementChild;
+      if (replacement) {
+        replacement.classList.add('selected');
+        elNode.replaceWith(replacement);
+        // Réattacher les listeners au nouveau noeud
+        replacement.addEventListener('mousedown', dlxOnStationMouseDown_or_El);
+        replacement.addEventListener('dblclick',  dlxOnElDblClick);
+        replacement.querySelectorAll('.dlx-el-resize').forEach(rh => rh.addEventListener('mousedown', dlxOnResizeMouseDown));
+      }
+    }
+    if (prop === 'label') {
+      const labelEl = elNode.querySelector('.dlx-el-station-label, .dlx-el-label-mini, .dlx-el-room-label, .dlx-el-outlet-num');
+      if (labelEl) labelEl.textContent = s.label || '';
+    }
+  }
+  dlxSavePlan();
+}
+
+// Alias pour compatibilité (dlxOnElMouseDown est le vrai nom dans le code,
+// l'alias est juste pour la ré-attachement après replaceWith ci-dessus).
+const dlxOnStationMouseDown_or_El = dlxOnElMouseDown;

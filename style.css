@@ -5237,6 +5237,82 @@ canvas { width: 100%; display: block; }
   z-index: 1000;
 }
 .dlx-el-remove:hover { background: rgba(200,59,120,0.7); }
+
+/* État "sélectionné" : outline accentué pour repérer l'élément édité */
+.dlx-el.selected {
+  outline: 3px solid #7c5cff;
+  outline-offset: 2px;
+  z-index: 998 !important;
+}
+
+/* Panneau de propriétés flottant (édition fine x/y/w/h/label/couleur) */
+.dlx-props-panel {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(100,50,200,0.12);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  backdrop-filter: blur(8px);
+}
+.dlx-props-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dlx-props-title {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text);
+}
+.dlx-props-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.dlx-props-close:hover { background: rgba(0,0,0,0.05); }
+.dlx-props-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px 1fr 80px 1fr;
+  gap: 8px 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.dlx-props-grid label {
+  font-weight: 700;
+  color: var(--text-soft);
+  text-align: right;
+}
+.dlx-props-grid input[type="text"],
+.dlx-props-grid input[type="number"] {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.dlx-props-grid input[type="color"] {
+  width: 60px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
 .cfg-card {
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid var(--border);

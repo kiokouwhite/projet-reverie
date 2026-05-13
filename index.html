@@ -837,6 +837,24 @@
         <button type="button" class="btn btn-secondary" onclick="dlxResetDefaultPlan()" title="Restaure le plan par défaut (perd tes modifs)">↺ Plan par défaut</button>
         <small style="margin-left:auto;color:var(--text-soft);">Glisse pour déplacer · Double-clic pour renommer · ✕ pour supprimer</small>
       </div>
+      <!-- Panneau de propriétés du sélectionné — apparait quand on clique
+           sur un élément en mode édition. Permet l'édition fine de x/y/w/h
+           via des champs numériques (utile pour les murs ou pour aligner
+           précisément un setup). -->
+      <div id="dlxPropsPanel" class="dlx-props-panel" style="display:none;">
+        <div class="dlx-props-header">
+          <span id="dlxPropsTitle" class="dlx-props-title">Élément</span>
+          <button type="button" class="dlx-props-close" onclick="dlxDeselect()" title="Fermer">✕</button>
+        </div>
+        <div class="dlx-props-grid">
+          <label>Label</label><input id="dlxPropsLabel" type="text" oninput="dlxUpdateProp('label', this.value)">
+          <label>X</label>    <input id="dlxPropsX" type="number" oninput="dlxUpdateProp('x', this.value)">
+          <label>Y</label>    <input id="dlxPropsY" type="number" oninput="dlxUpdateProp('y', this.value)">
+          <label>Largeur</label><input id="dlxPropsW" type="number" min="1" oninput="dlxUpdateProp('w', this.value)">
+          <label>Hauteur</label><input id="dlxPropsH" type="number" min="1" oninput="dlxUpdateProp('h', this.value)">
+          <label>Couleur</label><input id="dlxPropsColor" type="color" oninput="dlxUpdateProp('color', this.value)">
+        </div>
+      </div>
       <div class="dlx-canvas-wrap">
         <div id="dlxCanvas" class="dlx-canvas"></div>
       </div>
