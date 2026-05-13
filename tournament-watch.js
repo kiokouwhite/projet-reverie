@@ -170,11 +170,15 @@ async function twPushToBot() {
   const botUrl = (localStorage.getItem('dc_bot_url') || localStorage.getItem('hr_bot_url') || '').trim().replace(/\/+$/, '');
   const secret = (localStorage.getItem('dc_bot_secret') || localStorage.getItem('hr_bot_secret') || '').trim();
   if (!botUrl || !secret) return; // bot pas configuré, on ne fait rien
+  // Inclut la clé start.gg : nécessaire au bot pour fetch endAt d'un
+  // tournoi enregistré et programmer le post de fin d'event.
+  const startggKey = (localStorage.getItem('top8_startgg_key') || '').trim();
+  const payload = { ...twConfig, startggKey };
   try {
     const res = await fetch(`${botUrl}/tournament-watch/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify(twConfig),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const text = await res.text();

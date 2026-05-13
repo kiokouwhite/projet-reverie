@@ -141,6 +141,8 @@ async function pollTweets() {
 // ── CONNEXION DISCORD ─────────────────────────────────────────────────────────
 client.once('ready', () => {
   console.log(`✅ Bot connecté en tant que ${client.user.tag}`);
+  // Restaurer les tournois enregistrés (et re-armer leurs timers fin-de-tournoi)
+  twRestoreRegistered();
   // Démarrer le polling des tweets si configuré
   if (process.env.TWEETS_RSS_URL && process.env.TWEETS_CHANNEL_ID) {
     console.log(`🐦 Poller tweets actif (toutes les ${TWEETS_POLL_MS / 60_000} min)`);
@@ -221,20 +223,48 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ content: '⚠️ Ce tournoi est déjà enregistré.', ephemeral: true });
         return;
       }
-      tournamentRegistered.set(slug, {
+      // Defer le edit le temps de fetch start.gg (endAt)
+      await interaction.deferUpdate();
+
+      let endAt = null;
+      let tournamentName = slug;
+      try {
+        const data = await twGqlFetch(
+          `query($slug:String!) { tournament(slug:$slug) { name endAt } }`,
+          { slug }
+        );
+        const t = data?.data?.tournament;
+        if (t) {
+          endAt = t.endAt || null;
+          tournamentName = t.name || slug;
+        }
+      } catch (e) {
+        console.warn(`🎯 [TW] Fetch start.gg échec pour "${slug}" :`, e.message);
+      }
+
+      const entry = {
         slug,
         channelId:    interaction.channelId,
         messageId:    interaction.message?.id,
         registeredBy: interaction.user?.id,
         registeredAt: Date.now(),
-        endAt:        null, // Phase 3 : query start.gg pour récupérer endAt
-      });
-      await interaction.update({
+        endAt,
+        tournamentName,
+      };
+      tournamentRegistered.set(slug, entry);
+      twSaveRegisteredToFile();
+      if (endAt) twScheduleEndPost(slug);
+
+      const endDesc = endAt
+        ? `Fin prévue : <t:${endAt}:F> (<t:${endAt}:R>)\n\nJe posterai automatiquement le lien d'import à ce moment-là.`
+        : `⚠️ Impossible de récupérer la date de fin depuis start.gg — pas de post auto programmé. Tu pourras quand même importer manuellement.`;
+
+      await interaction.editReply({
         embeds: [new EmbedBuilder()
           .setTitle('✅ Tournoi enregistré')
           .setDescription(
-            `[\`${slug}\`](https://start.gg/tournament/${slug})\n\n` +
-            `Je posterai automatiquement le lien d'import dans ce salon à la fin de l'event.`
+            `**${tournamentName}** ([\`${slug}\`](https://start.gg/tournament/${slug}))\n\n` +
+            endDesc
           )
           .setColor(0x46d18f)
           .setFooter({ text: `Enregistré par ${interaction.user?.username || 'un utilisateur'}` })
@@ -242,7 +272,7 @@ client.on('interactionCreate', async (interaction) => {
         ],
         components: [],
       });
-      console.log(`✅ [TW] Tournoi enregistré : ${slug} (par ${interaction.user?.tag})`);
+      console.log(`✅ [TW] Tournoi enregistré : ${slug} (par ${interaction.user?.tag}, endAt=${endAt ? new Date(endAt*1000).toISOString() : 'inconnu'})`);
     } else if (id.startsWith('twign:')) {
       const slug = id.slice('twign:'.length);
       await interaction.update({
@@ -293,9 +323,14 @@ app.get('/', (req, res) => {
 // survivre aux redéploiements Railway (best-effort).
 const fs = require('fs');
 const path = require('path');
-const TW_CONFIG_FILE = path.join(__dirname, 'tournament-watch-config.json');
-let tournamentWatchConfig = { channels: [], keywords: ['Lorem', 'Magna'] };
+const TW_CONFIG_FILE     = path.join(__dirname, 'tournament-watch-config.json');
+const TW_REGISTERED_FILE = path.join(__dirname, 'tournament-watch-registered.json');
+let tournamentWatchConfig = { channels: [], keywords: ['Lorem', 'Magna'], startggKey: '' };
 const tournamentRegistered = new Map(); // slug → { slug, channelId, registeredAt, endAt, ... }
+const tournamentTimers     = new Map(); // slug → setTimeout id (pour clear si besoin)
+// URL publique du générateur Top 8 — utilisée pour le deep-link import
+// posté à la fin du tournoi. Ajustable via env var si besoin.
+const TW_TOP8_BASE_URL = process.env.TW_TOP8_BASE_URL || 'https://kiokouwhite.github.io/projet-reverie/';
 
 // Charge la config depuis le fichier au démarrage
 try {
@@ -303,8 +338,12 @@ try {
     const raw = fs.readFileSync(TW_CONFIG_FILE, 'utf8');
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.channels) && Array.isArray(parsed.keywords)) {
-      tournamentWatchConfig = parsed;
-      console.log(`🎯 [TW] Config restaurée depuis fichier : ${tournamentWatchConfig.channels.length} salon(s), keywords [${tournamentWatchConfig.keywords.join(', ')}]`);
+      tournamentWatchConfig = {
+        channels: parsed.channels,
+        keywords: parsed.keywords,
+        startggKey: typeof parsed.startggKey === 'string' ? parsed.startggKey : '',
+      };
+      console.log(`🎯 [TW] Config restaurée depuis fichier : ${tournamentWatchConfig.channels.length} salon(s), keywords [${tournamentWatchConfig.keywords.join(', ')}], startgg key ${tournamentWatchConfig.startggKey ? 'présente' : 'absente'}`);
     }
   } else {
     console.log('🎯 [TW] Pas de fichier config existant — config par défaut (vide)');
@@ -321,19 +360,135 @@ function twSaveConfigToFile() {
   }
 }
 
+function twSaveRegisteredToFile() {
+  try {
+    fs.writeFileSync(TW_REGISTERED_FILE, JSON.stringify([...tournamentRegistered.values()], null, 2), 'utf8');
+  } catch (e) {
+    console.warn('🎯 [TW] Écriture registered échouée :', e.message);
+  }
+}
+
+// Restaure les tournois enregistrés au boot et re-arme les timers fin-de-tournoi
+function twRestoreRegistered() {
+  try {
+    if (!fs.existsSync(TW_REGISTERED_FILE)) return;
+    const raw = fs.readFileSync(TW_REGISTERED_FILE, 'utf8');
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return;
+    arr.forEach(t => {
+      if (!t || !t.slug) return;
+      tournamentRegistered.set(t.slug, t);
+      if (t.endAt) twScheduleEndPost(t.slug);
+    });
+    console.log(`🎯 [TW] ${tournamentRegistered.size} tournoi(s) restauré(s) depuis fichier`);
+  } catch (e) {
+    console.warn('🎯 [TW] Lecture registered échouée :', e.message);
+  }
+}
+
+// ── HELPER start.gg GraphQL ─────────────────────────────────────────────────
+async function twGqlFetch(query, variables) {
+  const key = tournamentWatchConfig.startggKey;
+  if (!key) throw new Error('Clé start.gg non configurée (pousse-la depuis l\'app web)');
+  const res = await fetch('https://api.start.gg/gql/alpha', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`start.gg HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.errors) throw new Error(data.errors.map(e => e.message).join('; '));
+  return data;
+}
+
+// ── PROGRAMME LE POST DE FIN DE TOURNOI ─────────────────────────────────────
+// Lit endAt sur l'entrée et configure un setTimeout. Si endAt est dans le
+// passé, poste immédiatement. Idempotent : clear l'ancien timer s'il existe.
+function twScheduleEndPost(slug) {
+  const t = tournamentRegistered.get(slug);
+  if (!t || !t.endAt) return;
+  // Clear ancien timer si déjà programmé
+  if (tournamentTimers.has(slug)) {
+    clearTimeout(tournamentTimers.get(slug));
+    tournamentTimers.delete(slug);
+  }
+  const delay = (t.endAt * 1000) - Date.now();
+  // setTimeout max ~24.8j ; pour les tournois plus loin on poll quand
+  // la limite est atteinte. (Cas rare, planning hebdomadaire en pratique.)
+  const MAX_DELAY = 24 * 24 * 60 * 60 * 1000; // 24j de sécurité
+  if (delay <= 0) {
+    twPostEndOfTournament(slug);
+    return;
+  }
+  if (delay > MAX_DELAY) {
+    // Re-armer plus tard
+    const id = setTimeout(() => twScheduleEndPost(slug), MAX_DELAY);
+    tournamentTimers.set(slug, id);
+    return;
+  }
+  const id = setTimeout(() => twPostEndOfTournament(slug), delay);
+  tournamentTimers.set(slug, id);
+  const eta = new Date(t.endAt * 1000).toISOString();
+  console.log(`⏰ [TW] Post fin programmé pour "${slug}" dans ${(delay/60000).toFixed(1)} min (à ${eta})`);
+}
+
+// Poste le message final dans le channel d'origine et nettoie l'entrée
+async function twPostEndOfTournament(slug) {
+  const t = tournamentRegistered.get(slug);
+  if (!t) return;
+  try {
+    const channel = await client.channels.fetch(t.channelId);
+    if (!channel?.isTextBased?.()) {
+      console.warn(`🏆 [TW] Channel ${t.channelId} introuvable pour "${slug}"`);
+    } else {
+      const importUrl = `${TW_TOP8_BASE_URL.replace(/\/$/, '')}/?import=${encodeURIComponent(slug)}`;
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 Tournoi terminé !')
+        .setDescription(
+          `[\`${slug}\`](https://start.gg/tournament/${slug})\n\n` +
+          `Génère le Top 8 → [Cliquer ici pour ouvrir le générateur](${importUrl})`
+        )
+        .setColor(0xf5c623)
+        .setURL(importUrl)
+        .setTimestamp(new Date());
+      // Reply au message original si possible (sinon nouveau message)
+      const replyOpts = { embeds: [embed], allowedMentions: { repliedUser: false } };
+      if (t.messageId) {
+        try {
+          const origMsg = await channel.messages.fetch(t.messageId);
+          await origMsg.reply(replyOpts);
+        } catch {
+          await channel.send(replyOpts);
+        }
+      } else {
+        await channel.send(replyOpts);
+      }
+      console.log(`🏆 [TW] Post fin envoyé pour "${slug}" dans #${channel.name}`);
+    }
+  } catch (e) {
+    console.error(`🏆 [TW] Erreur post fin "${slug}" :`, e.message);
+  } finally {
+    // Cleanup : retire de la liste + sauvegarde
+    tournamentRegistered.delete(slug);
+    tournamentTimers.delete(slug);
+    twSaveRegisteredToFile();
+  }
+}
+
 app.post('/tournament-watch/config', (req, res) => {
   if (!checkSecret(req, res)) return;
-  const { channels, keywords } = req.body || {};
+  const { channels, keywords, startggKey } = req.body || {};
   if (!Array.isArray(channels) || !Array.isArray(keywords)) {
     return res.status(400).json({ ok: false, error: 'channels et keywords doivent être des tableaux' });
   }
   tournamentWatchConfig = {
-    channels: channels.filter(c => typeof c === 'string'),
-    keywords: keywords.filter(k => typeof k === 'string' && k.trim()).map(k => k.trim()),
+    channels:   channels.filter(c => typeof c === 'string'),
+    keywords:   keywords.filter(k => typeof k === 'string' && k.trim()).map(k => k.trim()),
+    startggKey: typeof startggKey === 'string' ? startggKey.trim() : (tournamentWatchConfig.startggKey || ''),
   };
   twSaveConfigToFile();
-  console.log(`🎯 [TW] Config mise à jour : ${tournamentWatchConfig.channels.length} salon(s), keywords: [${tournamentWatchConfig.keywords.join(', ')}]`);
-  res.json({ ok: true, config: tournamentWatchConfig });
+  console.log(`🎯 [TW] Config mise à jour : ${tournamentWatchConfig.channels.length} salon(s), keywords: [${tournamentWatchConfig.keywords.join(', ')}], startgg key ${tournamentWatchConfig.startggKey ? 'présente' : 'absente'}`);
+  res.json({ ok: true, config: { ...tournamentWatchConfig, startggKey: tournamentWatchConfig.startggKey ? '[present]' : '' } });
 });
 
 app.get('/tournament-watch/config', (req, res) => {

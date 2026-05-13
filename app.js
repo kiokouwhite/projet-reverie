@@ -704,6 +704,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Slider jour/nuit ──
   initDNSlider();
 
+  // ── Deep-link import depuis le bot ────────────────────────────────────
+  // Quand le bot poste un lien type ?import=<slug> à la fin d'un tournoi,
+  // on auto-bascule sur Top 8, on pré-remplit le champ start.gg URL, et
+  // on déclenche immédiatement importAllEvents().
+  try {
+    const qp = new URLSearchParams(window.location.search);
+    const importSlug = qp.get('import');
+    if (importSlug) {
+      // Switch sur l'onglet Top 8 (la barre nav appelle switchTab via
+      // liquidSwitchTab pour l'effet visuel, mais switchTab seul suffit ici)
+      if (typeof switchTab === 'function') switchTab('top8');
+      const urlInp = document.getElementById('startggUrl');
+      if (urlInp) {
+        urlInp.value = `https://start.gg/tournament/${importSlug}`;
+        // Petite tempo pour laisser tous les init terminer avant l'import
+        setTimeout(() => {
+          if (typeof importAllEvents === 'function') importAllEvents();
+        }, 600);
+      }
+    }
+  } catch (e) {
+    console.warn('[deep-link] Erreur import auto :', e.message);
+  }
 });
 
 // ── ÉTOILES — remplacées par des SVG statiques dans index.html ──────────────
