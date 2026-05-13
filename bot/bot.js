@@ -139,10 +139,37 @@ async function pollTweets() {
 }
 
 // ── CONNEXION DISCORD ─────────────────────────────────────────────────────────
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`✅ Bot connecté en tant que ${client.user.tag}`);
   // Restaurer les tournois enregistrés (et re-armer leurs timers fin-de-tournoi)
   twRestoreRegistered();
+  // Enregistrer les slash commands dans tous les serveurs du bot (instant)
+  try {
+    const guilds = await client.guilds.fetch();
+    const commandDefs = [
+      {
+        name: 'faketest',
+        description: 'Simule le post de fin pour un tournoi enregistré (sans le supprimer)',
+        options: [{
+          name: 'slug',
+          description: 'Slug du tournoi start.gg (ex: lorem-ipsum-page-80)',
+          type: 3, // STRING
+          required: true,
+        }],
+      },
+    ];
+    for (const [, partial] of guilds) {
+      try {
+        const guild = await partial.fetch();
+        await guild.commands.set(commandDefs);
+      } catch (e) {
+        console.warn(`Slash commands register échec pour guild ${partial?.id} :`, e.message);
+      }
+    }
+    console.log(`✅ Slash commands enregistrés dans ${guilds.size} serveur(s) : /faketest`);
+  } catch (e) {
+    console.warn('Slash commands register échec global :', e.message);
+  }
   // Démarrer le polling des tweets si configuré
   if (process.env.TWEETS_RSS_URL && process.env.TWEETS_CHANNEL_ID) {
     console.log(`🐦 Poller tweets actif (toutes les ${TWEETS_POLL_MS / 60_000} min)`);
@@ -212,9 +239,33 @@ client.on('messageCreate', async (msg) => {
   }
 });
 
-// ── HANDLER BOUTONS ENREGISTRER / IGNORER ───────────────────────────────────
+// ── HANDLER INTERACTIONS (boutons + slash commands) ─────────────────────────
 client.on('interactionCreate', async (interaction) => {
   try {
+    // ── Slash command /faketest ────────────────────────────────────────────
+    if (interaction.isChatInputCommand && interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'faketest') {
+        const slug = interaction.options.getString('slug', true);
+        if (!tournamentRegistered.has(slug)) {
+          const registeredList = [...tournamentRegistered.keys()];
+          const hint = registeredList.length
+            ? `\nTournois enregistrés : ${registeredList.map(s => `\`${s}\``).join(', ')}`
+            : '\nAucun tournoi enregistré actuellement.';
+          await interaction.reply({
+            content: `❌ Aucun tournoi enregistré avec ce slug : \`${slug}\`${hint}`,
+            ephemeral: true,
+          });
+          return;
+        }
+        await interaction.deferReply({ ephemeral: true });
+        await twPostEndOfTournament(slug, { test: true });
+        await interaction.editReply({
+          content: `✅ Post de test envoyé pour \`${slug}\`. L'enregistrement reste actif et le post automatique de fin de tournoi se fera quand même.`,
+        });
+        return;
+      }
+    }
+
     if (!interaction.isButton()) return;
     const id = interaction.customId || '';
     if (id.startsWith('twreg:')) {
@@ -432,8 +483,10 @@ function twScheduleEndPost(slug) {
   console.log(`⏰ [TW] Post fin programmé pour "${slug}" dans ${(delay/60000).toFixed(1)} min (à ${eta})`);
 }
 
-// Poste le message final dans le channel d'origine et nettoie l'entrée
-async function twPostEndOfTournament(slug) {
+// Poste le message final dans le channel d'origine. Si test=true,
+// préfixe le titre par [TEST] et NE supprime PAS l'entrée (utile pour
+// la commande /faketest qui simule le post avant la vraie fin).
+async function twPostEndOfTournament(slug, { test = false } = {}) {
   const t = tournamentRegistered.get(slug);
   if (!t) return;
   try {
@@ -442,13 +495,15 @@ async function twPostEndOfTournament(slug) {
       console.warn(`🏆 [TW] Channel ${t.channelId} introuvable pour "${slug}"`);
     } else {
       const importUrl = `${TW_TOP8_BASE_URL.replace(/\/$/, '')}/?import=${encodeURIComponent(slug)}`;
+      const titlePrefix = test ? '🧪 [TEST] ' : '';
       const embed = new EmbedBuilder()
-        .setTitle('🏆 Tournoi terminé !')
+        .setTitle(`${titlePrefix}🏆 Tournoi terminé !`)
         .setDescription(
-          `[\`${slug}\`](https://start.gg/tournament/${slug})\n\n` +
-          `Génère le Top 8 → [Cliquer ici pour ouvrir le générateur](${importUrl})`
+          `**${t.tournamentName || slug}** ([\`${slug}\`](https://start.gg/tournament/${slug}))\n\n` +
+          `Génère le Top 8 → [Cliquer ici pour ouvrir le générateur](${importUrl})` +
+          (test ? '\n\n*⚠️ Test manuel — l\'enregistrement reste actif.*' : '')
         )
-        .setColor(0xf5c623)
+        .setColor(test ? 0x9b7fb8 : 0xf5c623)
         .setURL(importUrl)
         .setTimestamp(new Date());
       // Reply au message original si possible (sinon nouveau message)
@@ -463,15 +518,17 @@ async function twPostEndOfTournament(slug) {
       } else {
         await channel.send(replyOpts);
       }
-      console.log(`🏆 [TW] Post fin envoyé pour "${slug}" dans #${channel.name}`);
+      console.log(`🏆 [TW] Post fin${test ? ' (TEST)' : ''} envoyé pour "${slug}" dans #${channel.name}`);
     }
   } catch (e) {
     console.error(`🏆 [TW] Erreur post fin "${slug}" :`, e.message);
   } finally {
-    // Cleanup : retire de la liste + sauvegarde
-    tournamentRegistered.delete(slug);
-    tournamentTimers.delete(slug);
-    twSaveRegisteredToFile();
+    // Cleanup uniquement en mode normal (pas en test)
+    if (!test) {
+      tournamentRegistered.delete(slug);
+      tournamentTimers.delete(slug);
+      twSaveRegisteredToFile();
+    }
   }
 }
 
