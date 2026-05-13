@@ -1,50 +1,138 @@
 // ============================================================
 // STARTGG-DELUXE.JS — Outil de gestion live de tournoi
 //
-// Phase 1 : éditeur de plan custom (drag/drop des stations sur un
-// canvas, persistance localStorage). Les phases suivantes ajouteront
-// le fetch start.gg, le drag-and-drop des matchs, le report de scores.
+// Phase 1 v2 : éditeur de plan complet avec types d'éléments
+// (walls, rooms, tables, stations…). Les stations sont les zones
+// qui recevront les matchs en drag-and-drop (Phase 4).
 //
-// Storage : top8_deluxe_plan = { stations: [{id, label, x, y, w, h, color}] }
+// Modèle : chaque élément a un type qui détermine son rendu.
+//   { id, type, label, x, y, w, h, color? }
+//
+// Types supportés :
+//   - 'wall'           — mur opaque sombre
+//   - 'room'           — zone label (background coloré translucide)
+//   - 'table-classique'— table rectangulaire gris clair
+//   - 'table-ronde'    — table circulaire marron
+//   - 'table-grande'   — grande table marron foncé
+//   - 'desk'           — bureau à roulette
+//   - 'exit'           — sortie de secours (pictogramme vert)
+//   - 'microphone'     — micro
+//   - 'laptop'         — ordinateur portable
+//   - 'whiteboard'     — tableau blanc
+//   - 'projector'      — vidéoprojecteur
+//   - 'outlet'         — prise / multiprise (label = 1/2/3)
+//   - 'station'        — slot de match (drop target Phase 4)
+//
+// Storage : top8_deluxe_plan = { elements: [...] }
 // ============================================================
 
-// État global
 const DLX_LS_KEY = 'top8_deluxe_plan';
-let dlxPlan = { stations: [] };
+// Version du modèle de plan. Bumper quand le default change radicalement
+// pour forcer le rechargement automatique chez les users existants.
+const DLX_PLAN_VERSION = 2;
+let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
+let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
 
-// Plan par défaut basé sur le venue de l'asso (cf. capture utilisateur) :
-// - "Zone de Stream" en haut (large rectangle)
-// - 2 colonnes de 5 setups Smash au centre
-// - "TO / Accueil" en bas
+// ── DÉFINITION DES TYPES D'ÉLÉMENTS ─────────────────────────────────────────
+// Chaque type a : icône, label menu, taille par défaut, couleur, z-index.
+const DLX_TYPES = {
+  'wall':            { icon: '🧱',  label: 'Mur',                 defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
+  'room':            { icon: '🏠',  label: 'Zone (label)',        defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
+  'table-classique': { icon: '▭',   label: 'Table classique',     defaultW: 80,  defaultH: 50,  color: '#d8d8d8', z: 4 },
+  'table-ronde':     { icon: '●',   label: 'Table ronde',         defaultW: 50,  defaultH: 50,  color: '#5c3a1f', z: 4 },
+  'table-grande':    { icon: '▬',   label: 'Grande table',        defaultW: 120, defaultH: 70,  color: '#7d4a2a', z: 4 },
+  'desk':            { icon: '💻',  label: 'Bureau à roulette',   defaultW: 60,  defaultH: 40,  color: '#c8a888', z: 4 },
+  'exit':            { icon: '🚪',  label: 'Sortie de secours',   defaultW: 36,  defaultH: 36,  color: '#46d18f', z: 5 },
+  'microphone':      { icon: '🎤',  label: 'Microphone',          defaultW: 30,  defaultH: 30,  color: '#7a5fca', z: 5 },
+  'laptop':          { icon: '💻',  label: 'Ordinateur portable', defaultW: 40,  defaultH: 28,  color: '#888',    z: 5 },
+  'whiteboard':      { icon: '◻',   label: 'Tableau blanc',       defaultW: 90,  defaultH: 12,  color: '#fafafa', z: 4 },
+  'projector':       { icon: '📽️', label: 'Vidéoprojecteur',     defaultW: 30,  defaultH: 24,  color: '#444',    z: 5 },
+  'outlet':          { icon: '🔌',  label: 'Prise / multiprise',  defaultW: 22,  defaultH: 22,  color: '#222',    z: 6 },
+  'station':         { icon: '🎮',  label: 'Setup (station)',     defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7 },
+};
+
+// Plan par défaut basé sur le venue de l'asso (Projet Reverie).
+// Layout approximatif, asymétrique : alcôve TO FG sur la gauche au milieu,
+// stations FG asymétriques en haut, stream au centre, Smash double colonne
+// en bas, accueil + TO Smash tout en bas. Chaises et écrans omis.
 function dlxDefaultPlan() {
-  const stations = [];
-  // Zone de Stream (haut, full-width)
-  stations.push({ id: 'stream',  label: 'Zone de Stream', x:  40, y:  20, w: 520, h: 130, color: '#7c5cff' });
-  // Colonne gauche : 5 setups Smash
+  const e = [];
+  const add = (id, type, label, x, y, w, h, color) => e.push({
+    id, type, label, x, y, w, h,
+    color: color || DLX_TYPES[type]?.color,
+  });
+
+  // ═══ ZONES (rooms) ════════════════════════════════════════════════════
+  add('room-fg',      'room', 'Coin Fighting Games',         20,  20,  560, 480, '#f7eddf');
+  add('room-to-fg',   'room', 'Table TO (FG)',               20, 510,  180, 110, '#ede0d0');
+  add('room-stream',  'room', 'Zone de Stream',              20, 630,  560, 250, '#e8dfee');
+  add('room-smash',   'room', 'Coin Smash',                  20, 890,  560, 410, '#f7eddf');
+  add('room-to-smash','room', 'Tables TO (Smash) / Accueil', 20,1310,  560, 170, '#ede0d0');
+
+  // ═══ MURS (externes + cloisons internes) ═════════════════════════════
+  // Bordures externes (4 côtés)
+  add('w-top',    'wall', '',  18,  18, 564,   4);
+  add('w-bottom', 'wall', '',  18,1478, 564,   4);
+  add('w-left',   'wall', '',  18,  22,   4, 1460);
+  add('w-right',  'wall', '', 578,  22,   4, 1460);
+  // Cloisons internes (séparations entre zones)
+  add('w-fg-bot',     'wall', '',  18, 500, 564,   4);
+  add('w-tofg-bot',   'wall', '',  18, 620, 184,   4);  // Bas de l'alcôve TO FG
+  add('w-tofg-right', 'wall', '', 200, 500,   4, 124);  // Côté droit de l'alcôve
+  add('w-stream-bot', 'wall', '',  18, 880, 564,   4);
+  add('w-smash-bot',  'wall', '',  18,1300, 564,   4);
+
+  // ═══ STATIONS FG (Coin Fighting Games) ════════════════════════════════
+  // Colonne gauche : 3 setups
+  add('fg-L1', 'station', 'FG 1',  50, 70,  200, 100, '#e85a8a');
+  add('fg-L2', 'station', 'FG 2',  50, 200, 200, 100, '#e85a8a');
+  add('fg-L3', 'station', 'FG 3',  50, 330, 200, 100, '#e85a8a');
+  // Colonne droite : 3 setups
+  add('fg-R1', 'station', 'FG 4', 350, 70,  200, 100, '#e85a8a');
+  add('fg-R2', 'station', 'FG 5', 350, 200, 200, 100, '#e85a8a');
+  add('fg-R3', 'station', 'FG 6', 350, 330, 200, 100, '#e85a8a');
+
+  // Outlets / multiprises près des setups FG (numéros 1/3 = multiprise/rallonge chantier)
+  add('o-fg-L1', 'outlet', '1',  30, 90,  22, 22, '#222');
+  add('o-fg-L2', 'outlet', '1',  30, 220, 22, 22, '#222');
+  add('o-fg-L3', 'outlet', '3',  30, 350, 22, 22, '#222');
+  add('o-fg-R1', 'outlet', '1', 560, 90,  22, 22, '#222');
+  add('o-fg-R2', 'outlet', '3', 560, 220, 22, 22, '#222');
+
+  // ═══ ALCÔVE TO (FG) ═══════════════════════════════════════════════════
+  add('table-to-fg', 'table-classique', 'TO FG',  40, 540, 140, 60);
+  add('o-to-fg',     'outlet', '1',              165, 555, 22, 22, '#222');
+
+  // ═══ ZONE STREAM ══════════════════════════════════════════════════════
+  add('stream-1', 'station', 'Stream',         180, 680, 320, 120, '#7c5cff');
+  add('mic-1',    'microphone', 'Micro',       120, 700,  30, 30);
+  add('proj-1',   'projector',  'Projo',       510, 700,  30, 24);
+  add('o-stream', 'outlet', '2',                90, 720,  22, 22, '#222');
+
+  // ═══ COIN SMASH ═══════════════════════════════════════════════════════
+  // 5 stations de chaque côté, espacement régulier
   for (let i = 0; i < 5; i++) {
-    stations.push({
-      id: `smash-L${i+1}`,
-      label: `Setup ${i+1}`,
-      x: 40, y: 180 + i * 100,
-      w: 220, h: 80,
-      color: '#46d18f',
-    });
+    add(`smash-L${i+1}`, 'station', `Smash ${i+1}`,  50, 910 + i*78, 200, 70, '#46d18f');
+    add(`smash-R${i+1}`, 'station', `Smash ${i+6}`, 350, 910 + i*78, 200, 70, '#46d18f');
+    // Outlet par paire
+    add(`o-smash-L${i+1}`, 'outlet', String((i%3)+1),  30,  928 + i*78, 22, 22, '#222');
+    add(`o-smash-R${i+1}`, 'outlet', String((i%3)+1), 560,  928 + i*78, 22, 22, '#222');
   }
-  // Colonne droite : 5 setups Smash
-  for (let i = 0; i < 5; i++) {
-    stations.push({
-      id: `smash-R${i+1}`,
-      label: `Setup ${i+6}`,
-      x: 340, y: 180 + i * 100,
-      w: 220, h: 80,
-      color: '#46d18f',
-    });
-  }
-  // TO / Accueil en bas (full-width)
-  stations.push({ id: 'to', label: 'Tables TO / Accueil', x: 40, y: 700, w: 520, h: 80, color: '#f0a020' });
-  return { stations };
+
+  // ═══ TABLES TO SMASH + ACCUEIL ════════════════════════════════════════
+  add('table-to-smash', 'table-grande',    'TO',         60, 1340, 200, 80);
+  add('table-accueil',  'table-grande',    'Accueil',   330, 1340, 200, 80);
+  add('laptop-accueil', 'laptop',          'Laptop',    420, 1430,  40, 28);
+  add('whiteboard-1',   'whiteboard',      '',           70, 1430,  90, 12);
+  add('o-to-smash',     'outlet', '2',                  140, 1430,  22, 22, '#222');
+
+  // ═══ SORTIES DE SECOURS ═══════════════════════════════════════════════
+  add('exit-top', 'exit', '',  470,  30, 36, 36);
+  add('exit-mid', 'exit', '',  470, 890, 36, 36);
+
+  return { version: DLX_PLAN_VERSION, elements: e };
 }
 
 // ── INIT ────────────────────────────────────────────────────────────────────
@@ -52,7 +140,19 @@ function dlxInit() {
   if (dlxInitDone) return;
   dlxInitDone = true;
   dlxLoadPlan();
+  dlxBuildAddTypeSelector();
   dlxRender();
+}
+
+// Construit le <select> des types pour le bouton "+ Ajouter"
+function dlxBuildAddTypeSelector() {
+  const sel = document.getElementById('dlxAddTypeSelect');
+  if (!sel) return;
+  sel.innerHTML = Object.entries(DLX_TYPES)
+    .map(([key, def]) => `<option value="${key}">${def.icon} ${def.label}</option>`)
+    .join('');
+  sel.value = dlxAddType;
+  sel.onchange = () => { dlxAddType = sel.value; };
 }
 
 // ── PERSISTANCE ─────────────────────────────────────────────────────────────
@@ -61,7 +161,9 @@ function dlxLoadPlan() {
     const raw = localStorage.getItem(DLX_LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.stations) && parsed.stations.length) {
+      // Skip si version obsolète (force le rechargement du nouveau default)
+      if (parsed && Array.isArray(parsed.elements) && parsed.elements.length
+          && parsed.version === DLX_PLAN_VERSION) {
         dlxPlan = parsed;
         return;
       }
@@ -69,7 +171,6 @@ function dlxLoadPlan() {
   } catch (e) {
     console.warn('[DLX] Load plan échec :', e.message);
   }
-  // Fallback : plan par défaut
   dlxPlan = dlxDefaultPlan();
 }
 
@@ -103,53 +204,101 @@ function dlxSetMode(mode) {
 function dlxRender() {
   const canvas = document.getElementById('dlxCanvas');
   if (!canvas) return;
-  canvas.innerHTML = dlxPlan.stations.map(s => dlxStationHTML(s)).join('');
-  // Attacher les listeners drag aux stations (mode edit uniquement)
+  // Trier les éléments par z-index croissant pour que le DOM soit dans l'ordre
+  const sorted = [...dlxPlan.elements].sort(
+    (a, b) => (DLX_TYPES[a.type]?.z || 0) - (DLX_TYPES[b.type]?.z || 0)
+  );
+  canvas.innerHTML = sorted.map(dlxElementHTML).join('');
   if (dlxMode === 'edit') dlxAttachDragHandlers();
 }
 
-function dlxStationHTML(s) {
-  const safeLabel = String(s.label || '').replace(/[&<>"']/g, c => ({
+function dlxElementHTML(el) {
+  const def = DLX_TYPES[el.type] || DLX_TYPES['station'];
+  const isEdit = dlxMode === 'edit';
+  const safeLabel = String(el.label || '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
-  const isEdit = dlxMode === 'edit';
   const removeBtn = isEdit
-    ? `<button class="dlx-station-remove" onclick="dlxRemoveStation('${s.id}')" title="Supprimer">✕</button>`
+    ? `<button class="dlx-el-remove" onclick="dlxRemoveElement('${el.id}')" title="Supprimer">✕</button>`
     : '';
-  return `
-    <div class="dlx-station" data-id="${s.id}"
-         style="left:${s.x}px;top:${s.y}px;width:${s.w}px;height:${s.h}px;background:${s.color}33;border-color:${s.color};">
-      <div class="dlx-station-label">${safeLabel}</div>
-      ${isEdit ? `<div class="dlx-station-resize" data-resize="${s.id}"></div>` : ''}
-      ${removeBtn}
-    </div>`;
+  const resizeHandle = isEdit
+    ? `<div class="dlx-el-resize" data-resize="${el.id}"></div>`
+    : '';
+
+  // Rendu spécifique par type
+  switch (el.type) {
+    case 'wall':
+      return `<div class="dlx-el dlx-el-wall" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'room':
+      return `<div class="dlx-el dlx-el-room" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;">
+        <div class="dlx-el-room-label">${safeLabel}</div>
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'table-ronde':
+      return `<div class="dlx-el dlx-el-table-ronde" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
+        ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'table-classique':
+    case 'table-grande':
+      return `<div class="dlx-el dlx-el-table" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:${el.type==='table-grande' ? '#fff' : '#333'};">
+        ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'desk':
+    case 'whiteboard':
+    case 'projector':
+    case 'laptop':
+    case 'microphone':
+    case 'exit':
+      return `<div class="dlx-el dlx-el-icon" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:#fff;">
+        <span class="dlx-el-icon-glyph">${def.icon}</span>
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'outlet':
+      return `<div class="dlx-el dlx-el-outlet" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
+        <span class="dlx-el-outlet-num">${safeLabel || '🔌'}</span>
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'station':
+    default:
+      return `<div class="dlx-el dlx-el-station" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};">
+        <div class="dlx-el-station-label">${safeLabel}</div>
+        ${removeBtn}${resizeHandle}</div>`;
+  }
 }
 
 // ── DRAG / RESIZE HANDLERS ──────────────────────────────────────────────────
-let _dlxDrag = null; // { id, mode:'move'|'resize', startX, startY, origX, origY, origW, origH }
+let _dlxDrag = null;
 
 function dlxAttachDragHandlers() {
   const canvas = document.getElementById('dlxCanvas');
   if (!canvas) return;
-  // Délégation : un seul listener sur le canvas
-  // (les listeners spécifiques sont attachés ci-dessous)
-  canvas.querySelectorAll('.dlx-station').forEach(el => {
-    el.addEventListener('mousedown', dlxOnStationMouseDown);
-    el.addEventListener('dblclick',  dlxOnStationDblClick);
+  canvas.querySelectorAll('.dlx-el').forEach(el => {
+    el.addEventListener('mousedown', dlxOnElMouseDown);
+    el.addEventListener('dblclick',  dlxOnElDblClick);
   });
-  canvas.querySelectorAll('.dlx-station-resize').forEach(el => {
+  canvas.querySelectorAll('.dlx-el-resize').forEach(el => {
     el.addEventListener('mousedown', dlxOnResizeMouseDown);
   });
 }
 
-function dlxOnStationMouseDown(ev) {
-  // Ignorer si on a cliqué sur le bouton remove ou le handle resize
-  if (ev.target.classList.contains('dlx-station-remove')) return;
-  if (ev.target.classList.contains('dlx-station-resize')) return;
+function dlxOnElMouseDown(ev) {
+  if (ev.target.classList.contains('dlx-el-remove')) return;
+  if (ev.target.classList.contains('dlx-el-resize')) return;
   if (dlxMode !== 'edit') return;
   const el = ev.currentTarget;
   const id = el.dataset.id;
-  const s = dlxPlan.stations.find(x => x.id === id);
+  const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   ev.preventDefault();
   _dlxDrag = {
@@ -167,7 +316,7 @@ function dlxOnResizeMouseDown(ev) {
   ev.preventDefault();
   ev.stopPropagation();
   const id = ev.currentTarget.dataset.resize;
-  const s = dlxPlan.stations.find(x => x.id === id);
+  const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   _dlxDrag = {
     id, mode: 'resize',
@@ -180,69 +329,76 @@ function dlxOnResizeMouseDown(ev) {
 
 function dlxOnDragMove(ev) {
   if (!_dlxDrag) return;
-  const s = dlxPlan.stations.find(x => x.id === _dlxDrag.id);
+  const s = dlxPlan.elements.find(x => x.id === _dlxDrag.id);
   if (!s) return;
   const dx = ev.clientX - _dlxDrag.startX;
   const dy = ev.clientY - _dlxDrag.startY;
   if (_dlxDrag.mode === 'move') {
     s.x = Math.max(0, _dlxDrag.origX + dx);
     s.y = Math.max(0, _dlxDrag.origY + dy);
-  } else if (_dlxDrag.mode === 'resize') {
-    s.w = Math.max(60, _dlxDrag.origW + dx);
-    s.h = Math.max(40, _dlxDrag.origH + dy);
+  } else {
+    s.w = Math.max(20, _dlxDrag.origW + dx);
+    s.h = Math.max(20, _dlxDrag.origH + dy);
   }
-  // Mise à jour DOM directe (évite un re-render complet à chaque pixel)
-  const el = document.querySelector(`.dlx-station[data-id="${s.id}"]`);
-  if (el) {
-    el.style.left   = s.x + 'px';
-    el.style.top    = s.y + 'px';
-    el.style.width  = s.w + 'px';
-    el.style.height = s.h + 'px';
+  const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
+  if (elNode) {
+    elNode.style.left   = s.x + 'px';
+    elNode.style.top    = s.y + 'px';
+    elNode.style.width  = s.w + 'px';
+    elNode.style.height = s.h + 'px';
   }
 }
 
 function dlxOnDragEnd() {
   if (!_dlxDrag) return;
   document.removeEventListener('mousemove', dlxOnDragMove);
-  const el = document.querySelector(`.dlx-station[data-id="${_dlxDrag.id}"]`);
+  const el = document.querySelector(`.dlx-el[data-id="${_dlxDrag.id}"]`);
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
 }
 
-function dlxOnStationDblClick(ev) {
+function dlxOnElDblClick(ev) {
   if (dlxMode !== 'edit') return;
-  if (ev.target.classList.contains('dlx-station-remove')) return;
+  if (ev.target.classList.contains('dlx-el-remove')) return;
   const id = ev.currentTarget.dataset.id;
-  const s = dlxPlan.stations.find(x => x.id === id);
+  const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
-  const newLabel = prompt('Nom de la station :', s.label);
+  const newLabel = prompt(`Nom de l'élément (${s.type}) :`, s.label);
   if (newLabel == null) return;
-  s.label = newLabel.trim() || s.label;
+  s.label = newLabel.trim();
   dlxSavePlan();
   dlxRender();
 }
 
-// ── AJOUT / SUPPRESSION DE STATIONS ─────────────────────────────────────────
-function dlxAddStation() {
-  // Place la nouvelle station en haut-gauche du canvas avec une couleur par défaut
-  const id = 'station-' + Date.now();
-  const colors = ['#7c5cff', '#46d18f', '#e85a8a', '#f0a020', '#06b6d4', '#d946ef'];
-  const color = colors[dlxPlan.stations.length % colors.length];
-  dlxPlan.stations.push({
+// ── AJOUT / SUPPRESSION ─────────────────────────────────────────────────────
+function dlxAddElement() {
+  const type = dlxAddType;
+  const def = DLX_TYPES[type];
+  if (!def) return;
+  const id = `${type}-${Date.now()}`;
+  dlxPlan.elements.push({
     id,
-    label: 'Nouvelle station',
-    x: 20, y: 20,
-    w: 180, h: 80,
-    color,
+    type,
+    label: type === 'station' ? 'Nouvelle station' : (type === 'room' ? 'Nouvelle zone' : ''),
+    x: 30, y: 30,
+    w: def.defaultW,
+    h: def.defaultH,
+    color: def.color,
   });
   dlxSavePlan();
   dlxRender();
 }
 
-function dlxRemoveStation(id) {
-  if (!confirm('Supprimer cette station ?')) return;
-  dlxPlan.stations = dlxPlan.stations.filter(s => s.id !== id);
+// Wrapper backward-compat (l'ancien bouton du HTML appelle dlxAddStation)
+function dlxAddStation() { dlxAddType = 'station'; dlxAddElement(); }
+
+function dlxRemoveElement(id) {
+  if (!confirm('Supprimer cet élément ?')) return;
+  dlxPlan.elements = dlxPlan.elements.filter(s => s.id !== id);
   dlxSavePlan();
   dlxRender();
 }
+
+// Backward-compat
+function dlxRemoveStation(id) { dlxRemoveElement(id); }

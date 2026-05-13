@@ -832,9 +832,10 @@
         </div>
       </div>
       <div class="dlx-editor-actions" id="dlxEditorActions">
-        <button type="button" class="btn" onclick="dlxAddStation()">+ Ajouter une station</button>
+        <select id="dlxAddTypeSelect" class="dc-text-input" style="width:auto;min-width:180px;"></select>
+        <button type="button" class="btn" onclick="dlxAddElement()">+ Ajouter</button>
         <button type="button" class="btn btn-secondary" onclick="dlxResetDefaultPlan()" title="Restaure le plan par défaut (perd tes modifs)">↺ Plan par défaut</button>
-        <small style="margin-left:auto;color:var(--text-soft);">Glisse pour déplacer · Cmd-clic pour renommer · ✕ pour supprimer</small>
+        <small style="margin-left:auto;color:var(--text-soft);">Glisse pour déplacer · Double-clic pour renommer · ✕ pour supprimer</small>
       </div>
       <div class="dlx-canvas-wrap">
         <div id="dlxCanvas" class="dlx-canvas"></div>

@@ -5087,70 +5087,146 @@ canvas { width: 100%; display: block; }
 .dlx-canvas {
   position: relative;
   width: 600px;
-  height: 800px;
+  height: 1500px;
   margin: 0 auto;
-  background: linear-gradient(180deg, #faf6ff 0%, #fff0fa 100%);
+  background: #f5e8d0; /* parquet beige clair */
   border-radius: 12px;
   overflow: hidden;
-  /* Quadrillage léger pour repérer les positions */
   background-image:
-    linear-gradient(rgba(155,127,184,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(155,127,184,0.06) 1px, transparent 1px);
+    linear-gradient(rgba(120,80,40,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,80,40,0.04) 1px, transparent 1px);
   background-size: 40px 40px;
 }
-.dlx-canvas-edit {
-  cursor: default;
-}
-.dlx-canvas-edit .dlx-station { cursor: move; }
-.dlx-station {
+.dlx-canvas-edit { cursor: default; }
+.dlx-canvas-edit .dlx-el { cursor: move; }
+
+/* Élément de base — toutes les variantes en héritent */
+.dlx-el {
   position: absolute;
-  border: 2px solid;
-  border-radius: 10px;
+  user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 10px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text);
-  user-select: none;
   transition: transform 0.08s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
-.dlx-station.dragging {
+.dlx-el.dragging {
   transform: scale(1.03);
   box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-  z-index: 10;
+  z-index: 999 !important;
 }
-.dlx-station-label {
+
+/* Murs : rectangles sombres sans border-radius */
+.dlx-el-wall {
+  z-index: 3;
+  border-radius: 0;
+}
+
+/* Zones (rooms) : background coloré translucide avec label en haut-gauche */
+.dlx-el-room {
+  z-index: 1;
+  border: 1px dashed rgba(100,60,30,0.3);
+  border-radius: 4px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 8px 12px;
+}
+.dlx-el-room-label {
+  font-style: italic;
+  color: rgba(80,50,20,0.7);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* Tables */
+.dlx-el-table {
+  z-index: 4;
+  border: 1px solid rgba(0,0,0,0.18);
+  border-radius: 4px;
+}
+.dlx-el-table-ronde {
+  z-index: 4;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 50%;
+  color: #fff;
+}
+.dlx-el-label-mini {
+  font-size: 10px;
+  font-weight: 700;
   pointer-events: none;
   text-align: center;
+  padding: 2px 4px;
+}
+
+/* Icônes simples (sortie, micro, etc.) */
+.dlx-el-icon {
+  z-index: 5;
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 4px;
+}
+.dlx-el-icon-glyph {
+  font-size: 16px;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* Prise / multiprise — petit cercle dark */
+.dlx-el-outlet {
+  z-index: 6;
+  border-radius: 50%;
+  color: #fff;
+}
+.dlx-el-outlet-num {
+  font-size: 11px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+/* Stations — la zone "active" qui recevra les matchs en drop */
+.dlx-el-station {
+  z-index: 7;
+  border: 2px solid;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.dlx-el-station-label {
+  pointer-events: none;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
-.dlx-station-resize {
+
+/* Resize + remove handles (visibles en mode édition uniquement) */
+.dlx-el-resize {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, currentColor 50%);
-  opacity: 0.5;
-  border-bottom-right-radius: 8px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.5) 50%);
+  border-bottom-right-radius: inherit;
+  z-index: 1000;
 }
-.dlx-station-resize:hover { opacity: 1; }
-.dlx-station-remove {
+.dlx-el-resize:hover { background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.85) 50%); }
+.dlx-el-remove {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 22px;
-  height: 22px;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: none;
-  background: rgba(200,59,120,0.18);
-  color: #c83b78;
-  font-size: 12px;
+  background: rgba(200,59,120,0.25);
+  color: #fff;
+  font-size: 10px;
   font-weight: 800;
   cursor: pointer;
   display: flex;
@@ -5158,10 +5234,9 @@ canvas { width: 100%; display: block; }
   justify-content: center;
   padding: 0;
   line-height: 1;
+  z-index: 1000;
 }
-.dlx-station-remove:hover {
-  background: rgba(200,59,120,0.35);
-}
+.dlx-el-remove:hover { background: rgba(200,59,120,0.7); }
 .cfg-card {
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid var(--border);
