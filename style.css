@@ -588,6 +588,8 @@ body::before {
   overflow: hidden;
   box-sizing: border-box;
   width: 100%;
+  position: relative; /* pour positionner .page-collapse-btn en absolu */
+  transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .panel {
@@ -1077,6 +1079,32 @@ select {
 .btn-icon { padding: 8px 12px; border-radius: 12px; }
 .btn-full { width: 100%; padding: 13px; font-size: 15px; margin-top: 6px; border-radius: 30px; }
 .btn-choose { font-size: 11px; padding: 5px 11px; border-radius: 20px; }
+
+/* Bouton icône "Importer une image custom" — placé à côté de Perso dans
+   chaque slot Joueur. Style pastel violet rond, hover plus saturé. */
+.btn-import-img {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(155,127,184,0.14);
+  border: 1.5px solid rgba(155,127,184,0.32);
+  color: #7a5fca;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.btn-import-img:hover {
+  background: rgba(155,127,184,0.26);
+  border-color: rgba(155,127,184,0.55);
+  color: #5b3fb0;
+}
+.btn-import-img:active { transform: scale(0.92); }
+.btn-import-img svg { display: block; }
 
 /* ── CANVAS ─────────────────────────────────────────────── */
 .canvas-wrap {
@@ -3151,22 +3179,27 @@ canvas { width: 100%; display: block; }
    PAGE DISCORD — Générateur d'annonce
 ═══════════════════════════════════════════════════════════ */
 .dc-page {
-  display: grid;
-  grid-template-columns: 400px 1fr;
+  /* Flex pour permettre le push off-screen de la colonne gauche via
+     margin-left négatif (cf .left-collapsed). */
+  display: flex;
   gap: 20px;
   padding: 20px;
-  /* Remplace min-height par flex: 1 pour rentrer dans le viewport comme le Top 8 */
   flex: 1;
   min-height: 0;
-  align-items: stretch;   /* les deux colonnes ont la même hauteur */
+  align-items: stretch;
   overflow: hidden;
+  position: relative;
+  width: 100%;
+  transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @media (max-width: 900px) {
-  .dc-page { grid-template-columns: 1fr; }
+  .dc-page { flex-direction: column; }
 }
 
 /* Colonne gauche : tarot carousel — flex column comme panel-left */
 .dc-left {
+  flex: 0 0 400px;
+  transition: margin-left 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3416,9 +3449,11 @@ canvas { width: 100%; display: block; }
 
 /* ── Colonne droite — prévisualisation ── */
 .dc-right {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;         /* indispensable pour que flex: 1 fonctionne en enfant de grid */
+  min-height: 0;
 }
 .dc-preview-header {
   display: flex;
@@ -3562,30 +3597,30 @@ canvas { width: 100%; display: block; }
   display: flex;
   gap: 24px;
   padding: 24px 28px;
-  /* width explicit (pas max-width) pour que la transition vers 100vw soit
-     animée de manière fiable cross-navigateur. max-width:100% évite tout
-     dépassement sur petits écrans. */
   width: 1600px;
   max-width: 100%;
   margin: 0 auto;
-  height: calc(100vh - 70px);
+  /* height: 100% au lieu de calc(100vh - 70px) : suit la hauteur réelle
+     de .page-section, qui s'adapte automatiquement quand le header se
+     masque/réapparaît grâce à la padding-top variable de .app. */
+  height: 100%;
   overflow: hidden;
   position: relative;
   transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Quand la colonne gauche est masquée, la page entière s'étend en plein écran
    → la section droite (Planning) prend littéralement tout l'écran disponible. */
-.hr-page.hr-left-collapsed {
+.hr-page.left-collapsed {
   width: 100vw;
 }
-/* Bouton flèche permettant de masquer la colonne gauche pour se concentrer
-   sur le planning à droite. Position : à cheval sur la frontière gauche/droite. */
-.hr-collapse-btn {
+/* Bouton flèche permettant de masquer la colonne gauche d'un onglet pour
+   se concentrer sur le contenu principal. Position : à cheval sur la
+   frontière gauche/droite. Chaque page définit son décalage X via
+   `--collapse-btn-x` puisque la largeur du panneau gauche varie par onglet. */
+.page-collapse-btn {
   position: absolute;
   top: 50%;
-  /* 28 (padding) + 340 (colonne) + 6 (mi-gap) = 374px, on aligne le bord
-     gauche du bouton à ~360px pour qu'il soit centré sur la frontière. */
-  left: 360px;
+  left: var(--collapse-btn-x, 360px);
   transform: translateY(-50%);
   width: 26px;
   height: 56px;
@@ -3596,30 +3631,192 @@ canvas { width: 100%; display: block; }
   font-size: 18px;
   font-weight: 700;
   color: var(--text-soft);
-  z-index: 20;
+  /* z-index bas en mode normal : le bouton est tucké DERRIÈRE la carte de
+     gauche (qui passe à z-index:2 ci-dessous), seule sa partie qui dépasse
+     dans le gap entre les cartes reste visible. */
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   box-shadow: 2px 2px 6px rgba(0,0,0,0.06);
-  /* Même easing/duration que la colonne gauche → le bouton suit pile poil
-     le bord de la carte qui glisse. */
   transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s, color 0.15s;
 }
-.hr-collapse-btn:hover {
+/* En mode collapsed, la carte de gauche est partie hors écran → le bouton
+   doit être au-dessus de tout pour rester cliquable au bord gauche. */
+[data-collapsable-page].left-collapsed .page-collapse-btn {
+  z-index: 30;
+}
+/* Cards de gauche : z-index 2 pour passer par-dessus le bouton en mode normal */
+.hr-left, .dc-left, .panel-left {
+  position: relative;
+  z-index: 2;
+}
+.page-collapse-btn:hover {
   background: rgba(155,127,184,0.12);
   color: var(--text);
 }
-/* État replié : la colonne gauche est poussée hors écran à gauche via
-   margin-left négatif (340px + gap 24px + buffer 20px = -384px), et la
-   colonne droite (flex:1) avance automatiquement à gauche pour combler. */
-.hr-page.hr-left-collapsed .hr-left {
-  margin-left: -384px;
-  pointer-events: none;
-}
-.hr-page.hr-left-collapsed .hr-collapse-btn {
+/* État "panneau gauche masqué" — appliqué sur le container avec
+   [data-collapsable-page] via la classe .left-collapsed. Le bouton se colle
+   au bord gauche, et chaque page définit le shift de sa colonne gauche. */
+[data-collapsable-page].left-collapsed .page-collapse-btn {
   left: 0;
 }
+
+/* Décalages X du bouton et margin-left négatif de la colonne gauche par page.
+   Chaque page : padding-left + largeur-colonne + ~mi-gap → position frontière. */
+.hr-page { --collapse-btn-x: 360px; }
+.hr-page.left-collapsed .hr-left { margin-left: -384px; pointer-events: none; }
+
+.dc-page { --collapse-btn-x: 420px; }
+.dc-page.left-collapsed .dc-left { margin-left: -440px; pointer-events: none; }
+/* Marge gauche équivalente au padding-right de .dc-page (20px) pour que le
+   panneau droit ne se colle pas au bord gauche en mode collapsed. */
+.dc-page.left-collapsed .dc-right { margin-left: 20px; }
+
+/* Top 8 : .panel-left fait 420px, padding 24px, gap 20px → frontière ~444px */
+.main { --collapse-btn-x: 444px; position: relative; }
+.main.left-collapsed .panel-left { margin-left: -464px; pointer-events: none; }
+.panel-left { transition: margin-left 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* En mode collapsed sur Top 8 : grid 2 colonnes égales (1fr chacune). Le
+   canvas se centre dans sa moitié gauche, le contenu de la sidebar (Message
+   + boutons) se centre dans sa moitié droite → visuellement, la sidebar
+   est au milieu de la moitié droite du panel.
+
+   Topbar (Éditer + nav multi) sur sa propre row, full width. */
+.main.left-collapsed .panel-right {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "main   side";
+  gap: 12px 24px;
+  align-items: stretch;
+  height: 100%;
+  overflow: hidden;
+  margin-left: 24px;
+}
+.main.left-collapsed .panel-right > div:first-child {
+  grid-area: topbar;
+}
+
+/* Zone principale (canvas) : centrée, contrainte à la taille du cell de grid */
+.main.left-collapsed .top8-main-area {
+  grid-area: main;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+/* En mode collapsed, canvas-wrap disparaît visuellement : on retire son
+   background gradient, sa bordure et son ombre. Avec display: contents,
+   l'élément ne participe plus à la mise en page → le canvas devient un
+   enfant direct de top8-main-area (la grid cell), ce qui lui permet
+   d'utiliser max-width/height: 100% RELATIF À LA CELL et non à la wrap. */
+.main.left-collapsed .top8-main-area .canvas-wrap {
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  display: contents;
+}
+/* Canvas seul, ratio-preserving, contraint à la cell de grid */
+.main.left-collapsed .top8-main-area canvas {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* Sidebar : centrée verticalement ET horizontalement, scrolle si débordement */
+.main.left-collapsed .top8-side-area {
+  grid-area: side;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* centrage vertical */
+  align-items: center;     /* centrage horizontal de chaque item */
+  gap: 6px;
+}
+/* Textarea et label : largeur explicite pour rester confortables une fois
+   align-items:center activé (qui sinon les rétrécirait à leur contenu). */
+.main.left-collapsed .top8-side-area .field-label {
+  align-self: center;
+}
+.main.left-collapsed .top8-side-area #tweetText {
+  width: 100%;
+  max-width: 340px;
+}
+.main.left-collapsed .top8-side-area .preview-actions {
+  /* Grid 2 colonnes : Rafraîchir + Télécharger en haut, Poster sur X +
+     Instagram en dessous. Évite que les 4 boutons se mettent sur une ligne
+     unique trop large. */
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 10px;
+  justify-content: center;
+}
+.main.left-collapsed .top8-side-area .field-label { margin-top: 0 !important; }
+/* Bouton aquarium "Poster sur X" : l'ombre par défaut (0 14px 28px) est trop
+   prononcée dans le sidebar étroit en mode collapsed → on l'adoucit. */
+.main.left-collapsed .top8-side-area .btn-aquarium {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.main.left-collapsed .top8-side-area .btn-aquarium.is-hover {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10),
+    0 6px 14px rgba(0, 0, 0, 0.30),
+    0 2px 5px rgba(0, 0, 0, 0.20);
+}
+
+/* En mode normal, les wrappers .top8-main-area et .top8-side-area sont juste
+   des blocks transparents pour la mise en page : aucun changement visuel. */
+
+/* En mode collapsed, on élargit la page entière à pleine largeur pour que la
+   colonne droite gobe tout l'écran. width:100vw au lieu de max-width:1320px. */
+.main.left-collapsed,
+.dc-page.left-collapsed {
+  width: 100vw;
+  max-width: 100vw;
+}
+/* En mode fullscreen (panneau gauche masqué), on transforme la colonne droite
+   en grille 2 colonnes : Planning prend tout l'espace principal, Résultats
+   devient une sidebar à droite (340px). On utilise grid pour réordonner
+   visuellement les enfants sans toucher au HTML (Résultats est avant Planning
+   dans le DOM mais s'affiche après visuellement). */
+.hr-page.left-collapsed .hr-right {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  /* Trois zones : Questions en haut full-width (bonus si l'utilisateur veut
+     les éditer en plein milieu du flow), puis Planning et Résultats en 2 cols. */
+  grid-template-areas:
+    "questions questions"
+    "planning  results";
+  gap: 16px 24px;
+  align-items: start;
+}
+.hr-page.left-collapsed .hr-questions-right-home {
+  grid-area: questions;
+}
+.hr-page.left-collapsed .hr-results-section {
+  grid-area: results;
+  position: sticky;
+  top: 0;
+}
+.hr-page.left-collapsed #hrPlanningSection {
+  grid-area: planning;
+  margin-top: 0;
+}
+/* En mode normal (panneau gauche visible), .hr-right reste en flex column
+   simple — pas de changement de comportement. */
 .hr-left {
   /* Largeur fixe 340px, ne grandit pas, ne rétrécit pas (gardée même quand on
      push off-screen via margin-left négatif). */
@@ -4042,9 +4239,311 @@ canvas { width: 100%; display: block; }
   font-size: 11px;
 }
 
+/* Container des questions affichées dans la colonne droite (visible avant
+   qu'il y ait des résultats). Permet à l'utilisateur de configurer les
+   sondages avec plus de place que dans le tarot. */
+.hr-questions-right-home {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+/* Bouton flottant en bas à gauche pour basculer entre Questions et Résultats */
+.hr-view-toggle {
+  position: fixed;
+  bottom: 22px;
+  left: 22px;
+  z-index: 25;
+  background: linear-gradient(135deg, #7769DD, #b44fc7);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 8px 22px rgba(119, 105, 221, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+}
+.hr-view-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 28px rgba(119, 105, 221, 0.45),
+    0 3px 8px rgba(0, 0, 0, 0.15);
+}
+.hr-view-toggle:active { transform: translateY(0); }
+.hr-view-toggle.is-disabled {
+  background: var(--bg2);
+  color: var(--text-soft);
+  cursor: not-allowed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* ── Rubik's Cube Button ──────────────────────────────────────────────────
+   Remplace .hr-view-toggle quand il y a des résultats. Cube 3D 240×240px
+   en position:fixed bas-gauche. Cliquer sur une face autre que la face
+   avant déclenche un mélange palindromique + rotation entière qui amène
+   le logo de l'autre vue à l'avant — et bascule la vue du site. Port du
+   prototype "Rubiks Cube Button.html". */
+.rk-stage {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  width: 240px;
+  height: 240px;
+  z-index: 50;
+  user-select: none;
+  pointer-events: auto;
+}
+.rk-stage::after {
+  content: '';
+  position: absolute;
+  left: 40px; right: 40px; bottom: 8px;
+  height: 18px;
+  background: radial-gradient(ellipse at center, rgba(40,10,80,.28), transparent 70%);
+  filter: blur(5px);
+  z-index: -1;
+}
+.rk-perspective {
+  width: 100%; height: 100%;
+  perspective: 900px;
+  perspective-origin: 50% 45%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rk-flip-y {
+  transform-style: preserve-3d;
+  width: 120px; height: 120px;
+  position: relative;
+  transition: transform .9s ease-out;
+}
+.rk-root {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 0; height: 0;
+  transform-style: preserve-3d;
+}
+.rk-cubie {
+  position: absolute;
+  left: -19.5px; top: -19.5px;
+  width: 39px; height: 39px;
+  transform-style: preserve-3d;
+  background: transparent;
+}
+/* Shell : 6 faces de plastique sombre, opaques → effet "plein" pendant les twists */
+.rk-cubie-shell {
+  position: absolute;
+  left: 0; top: 0;
+  width: 39px; height: 39px;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+.rk-cs-face {
+  position: absolute;
+  left: 0; top: 0;
+  width: 39px; height: 39px;
+  background: #2d1b4e;
+  backface-visibility: hidden;
+}
+/* Face plastique derrière le sticker → effet anneau "stickerless" */
+.rk-cubie-face {
+  position: absolute;
+  left: 0; top: 0;
+  width: 39px; height: 39px;
+  background: #1a1422;
+  backface-visibility: hidden;
+  box-shadow:
+    inset 0 0 0 1px #0c0a12,
+    inset 2px 2px 3px rgba(0,0,0,.45),
+    inset -1px -1px 2px rgba(120,100,160,.18);
+}
+.rk-sticker {
+  position: absolute;
+  left: 0.5px; top: 0.5px;
+  width: 38px; height: 38px;
+  border-radius: 11px;
+  box-shadow:
+    inset 0 -1.5px 3px rgba(60,30,90,.18),
+    inset 0 2px 3px rgba(255,255,255,.55);
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+.rk-sticker.rk-has-logo {
+  box-shadow:
+    inset 0 -1.5px 3px rgba(120,100,160,.16),
+    inset 0 2px 3px rgba(255,255,255,.6);
+}
+.rk-sticker.rk-clickable { cursor: pointer; }
+.rk-sticker.rk-clickable:hover { filter: brightness(1.06) saturate(1.1); }
+.rk-sticker.rk-face-hover {
+  filter: brightness(1.08) saturate(1.15);
+  box-shadow:
+    inset 0 -1.5px 3px rgba(120,100,160,.16),
+    inset 0 2px 3px rgba(255,255,255,.6),
+    0 0 0 1.5px rgba(255,255,255,.95),
+    0 0 16px rgba(244,184,212,.55);
+}
+.rk-logo-window {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.rk-logo-inner {
+  transform-origin: 0 0;
+}
+.hr-questions-right-home #hrQuestionsWrap {
+  /* Annule le padding/background qui viennent peut-être du parent tarot */
+  background: transparent;
+}
+
+/* Layout des catégories — colonne pour séparer Régie (full-width en haut)
+   du reste (en flex row plus bas). */
+.hr-plan-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.hr-plan-cats-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+}
+/* Régie est en pleine largeur et ses slots se répartissent horizontalement */
+.hr-plan-category.is-regie {
+  width: 100%;
+}
+.hr-plan-category.is-regie .hr-plan-category-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hr-plan-category.is-regie .hr-plan-role {
+  flex: 1 1 220px; /* chaque plage prend 1/N de la largeur, min 220px */
+  width: auto;
+  min-width: 220px;
+  /* Régie : max 2 miis par plage, donc on réduit la hauteur réservée */
+  min-height: 160px;
+}
+.hr-plan-category.is-regie .hr-plan-role .hr-plan-chips {
+  min-height: 110px; /* assez pour 1 ligne de miis (78px) + le nom */
+}
+
+/* Catégorie TO — full-width sous le reste, 2 slots côte à côte (Smash / FG).
+   Pré-remplie automatiquement depuis les flags toFG / toSmash, donc en
+   général peu de miis par slot → on garde la hauteur compacte de Régie. */
+.hr-plan-category.is-to {
+  width: 100%;
+}
+.hr-plan-category.is-to .hr-plan-category-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hr-plan-category.is-to .hr-plan-role {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 220px;
+  min-height: 160px;
+}
+.hr-plan-category.is-to .hr-plan-role .hr-plan-chips {
+  min-height: 110px;
+}
+/* Bouton "+ Ajouter une plage" dans le header de catégorie Régie */
+.hr-plan-add-slot-btn {
+  margin-left: auto;
+  background: rgba(155,127,184,0.12);
+  border: 1px solid rgba(155,127,184,0.35);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--purple-deep, var(--text));
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, transform 0.1s;
+}
+.hr-plan-add-slot-btn:hover { background: rgba(155,127,184,0.22); }
+.hr-plan-add-slot-btn:active { transform: scale(0.97); }
+/* Plage horaire éditable au clic */
+.hr-plan-slot-editable {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.hr-plan-slot-editable:hover {
+  background: rgba(155,127,184,0.22);
+  color: var(--text);
+}
+.hr-plan-slot-editable.hr-plan-slot-empty {
+  font-style: italic;
+  opacity: 0.7;
+}
+/* Bouton ✕ pour retirer une plage Régie */
+.hr-plan-role-del-btn {
+  background: none;
+  border: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 2px;
+  transition: color 0.15s, background 0.15s;
+}
+.hr-plan-role-del-btn:hover {
+  color: #d04a3f;
+  background: rgba(208, 74, 63, 0.10);
+}
+.hr-plan-category {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Catégorie multi-slots : fond partagé doux, header commun au-dessus */
+.hr-plan-category.is-multi {
+  background: rgba(155,127,184,0.06);
+  border: 1px dashed rgba(155,127,184,0.35);
+  border-radius: 12px;
+  padding: 8px 10px 10px;
+}
+.hr-plan-category-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--purple-deep, var(--text));
+  letter-spacing: 0.02em;
+  padding: 2px 4px;
+  text-transform: uppercase;
+}
+.hr-plan-category-icon { font-size: 13px; }
+.hr-plan-category-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* Les slots dans une catégorie ont une largeur cohérente */
+.hr-plan-category-slots .hr-plan-role {
+  width: 200px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+/* Compat : ancienne grid (au cas où d'autres styles la référencent encore) */
 .hr-plan-roles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -4108,68 +4607,94 @@ canvas { width: 100%; display: block; }
   background: rgba(150,100,220,0.08);
 }
 
+/* Feedback "déjà dans cette slot" — secousse rouge brève */
+@keyframes hr-plan-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px); }
+  30% { transform: translateX(7px); }
+  45% { transform: translateX(-5px); }
+  60% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  90% { transform: translateX(3px); }
+}
+.hr-plan-role.hr-plan-error {
+  animation: hr-plan-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  border-color: #d04a3f !important;
+  background: rgba(208, 74, 63, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(208, 74, 63, 0.25);
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    PERSONNAGES MII (planning horaires)
    Visual porté du design "mii-name". Chaque carte = Mii draggable avec
    bras pendulaires. Tint par équipe (Smash bleu = source, FG rouge = hue-rotate).
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Roster (non assignés) — 2 colonnes équipes côte à côte */
+/* Roster (non assignés) — un seul tray, équipes mélangées (les couleurs
+   des Miis suffisent à distinguer Smash bleu / FG rouge). */
 .hr-mii-roster {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
   background: rgba(155,127,184,0.05);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px 16px;
   margin-bottom: 16px;
 }
-.hr-mii-roster-team { display: flex; flex-direction: column; min-width: 0; }
-.hr-mii-roster-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 8px;
-}
-.hr-mii-roster-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-}
-.hr-mii-team-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-right: 7px;
-  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.12);
-}
-.hr-mii-team-smash { background: #36a8db; }
-.hr-mii-team-fg    { background: #d04a3f; }
-.hr-mii-roster-meta {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
-  font-size: 10px;
-  color: var(--text-soft);
-}
 .hr-mii-roster-tray {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 14px 16px;
   min-height: 110px;
-  align-content: flex-start;
+  /* Centrage vertical des Miis dans la hauteur du pool */
+  align-content: center;
+  align-items: center;
+  /* Répartition uniforme horizontale : les Miis remplissent toute la largeur
+     avec des espaces équivalents entre eux et aux bords. */
+  justify-content: space-evenly;
   padding: 6px;
   border-radius: 10px;
   background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(120,100,80,0.04) 8px 9px);
   transition: background 0.18s, outline 0.18s;
 }
 
-/* Cartes de rôles : on garde la grid existante (.hr-plan-roles-grid) mais
-   on augmente la hauteur min pour accueillir les Miis (plus grands que les chips). */
-.hr-plan-role { min-height: 150px; }
-.hr-plan-chips { gap: 6px; min-height: 96px; padding-top: 2px; }
+/* Cartes de rôles : min-height généreux pour que les cards vides aient une
+   présence visuelle comparable aux cards remplies dans la même row. */
+.hr-plan-role {
+  min-height: 280px;
+  /* Stretch à la hauteur du voisin (utile quand un slot de la même row a
+     bcp de Miis et qu'on veut un alignement uniforme). */
+  align-self: stretch;
+}
+/* Au sein d'une catégorie multi-slot (Installation+Rangement, Accueil), les
+   cards sont en flex row → leur hauteur est synchronisée par le flex stretch. */
+.hr-plan-category-slots {
+  align-items: stretch;
+}
+/* Forcer les catégories d'une même row à avoir la même hauteur (équilibre
+   visuel entre catégories chargées et vides). */
+.hr-plan-cats-row {
+  align-items: stretch;
+}
+.hr-plan-cats-row > .hr-plan-category {
+  display: flex;
+  flex-direction: column;
+}
+.hr-plan-cats-row > .hr-plan-category > .hr-plan-category-slots {
+  flex: 1;
+}
+.hr-plan-chips {
+  gap: 12px 14px;
+  min-height: 96px;
+  padding-top: 2px;
+  /* Prend toute la hauteur restante dans la card pour que le centrage
+     vertical ait du sens (utile quand la card est stretched à la hauteur
+     d'un voisin dans la même catégorie qui a plus de Miis). */
+  flex: 1;
+  /* Centrage : horizontalement chaque ligne (dernière incomplète centrée
+     aussi), verticalement l'ensemble des lignes. */
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+}
 .hr-plan-count {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 10px;
@@ -4191,17 +4716,20 @@ canvas { width: 100%; display: block; }
 }
 .hr-mii-empty-slot { width: 100%; text-align: center; }
 
-/* ── Carte Mii ── */
+/* ── Carte Mii ──
+   Taille pilotée par --mii-size (default 78px). Le JS fixe une taille plus
+   petite via inline style sur .hr-plan-chips quand le rôle contient > 6 Miis
+   pour qu'ils tiennent tous dans la card sans la faire exploser. */
 .hr-mii-card {
   --tx: 0px;
   --ty: 0px;
-  width: 78px;
+  width: var(--mii-size, 78px);
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
   cursor: grab;
   transform: translate(var(--tx), var(--ty));
-  transition: filter 0.18s;
+  transition: filter 0.18s, width 0.18s;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -4213,15 +4741,25 @@ canvas { width: 100%; display: block; }
   cursor: grabbing;
   z-index: 99;
   filter: drop-shadow(0 18px 12px rgba(40, 30, 20, 0.20));
+  /* Pendant le drag, on force la taille à la "taille normale" (78px) même
+     si la carte est partie d'un tray où --mii-size avait été réduit pour
+     entasser plus de miis. La transition width/height de .hr-mii-frame
+     anime le grossissement. */
+  --mii-size: 78px;
 }
+/* La largeur de .hr-mii-card elle-même utilise var(--mii-size) mais sans
+   transition par défaut → on l'ajoute pour que l'agrandissement du cadre
+   blanc autour soit aussi animé. */
+.hr-mii-card { transition: width 0.18s; }
 .hr-mii-card:hover:not(.hr-mii-dragging) .hr-mii-frame { transform: translateY(-2px); }
 .hr-mii-card:hover:not(.hr-mii-dragging) .hr-mii-name  { filter: brightness(1.05); }
 
 .hr-mii-frame {
-  width: 72px;
-  height: 72px;
+  /* Suit la taille de la card en gardant les 6px de marge (3px de chaque côté) */
+  width: calc(var(--mii-size, 78px) - 6px);
+  height: calc(var(--mii-size, 78px) - 6px);
   position: relative;
-  transition: transform 0.18s;
+  transition: transform 0.18s, width 0.18s, height 0.18s;
 }
 .hr-mii-stack {
   width: 100%;
@@ -4255,16 +4793,18 @@ canvas { width: 100%; display: block; }
 .hr-mii-name {
   font-family: 'Nunito', system-ui, sans-serif;
   font-weight: 700;
-  font-size: 10px;
+  /* Le texte scale doucement avec --mii-size (78px → 10px, 50px → 7px env.)
+     mais on borne pour rester lisible. */
+  font-size: clamp(7px, calc(var(--mii-size, 78px) * 0.128), 11px);
   color: #1a1a1a;
   background: linear-gradient(180deg, #ffffff 0%, #fafafa 45%, #d6d6dc 100%);
   border: 1px solid #2a2a2a;
-  padding: 3px 11px 4px;
+  padding: 3px clamp(6px, calc(var(--mii-size, 78px) * 0.14), 14px) 4px;
   border-radius: 999px;
   cursor: inherit;
   line-height: 1.05;
   letter-spacing: 0.01em;
-  max-width: 92px;
+  max-width: calc(var(--mii-size, 78px) + 14px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4309,9 +4849,6 @@ canvas { width: 100%; display: block; }
 .hr-mii-prio .hr-plan-prio-uni { font-size: 11px; }
 .hr-mii-prio .hr-plan-prio-name { font-size: 9px; color: var(--text-soft); }
 
-@media (max-width: 720px) {
-  .hr-mii-roster { grid-template-columns: 1fr; }
-}
 
 /* ── APERÇU DISCORD (annonces) ─────────────────────────────── */
 .dc-discord-preview {
@@ -4569,6 +5106,46 @@ canvas { width: 100%; display: block; }
   text-align: center;
   margin-top: 4px;
   font-style: italic;
+}
+/* Image PNG du planning rendue sous l'embed (comme Discord rend un
+   attachment image juste sous le bloc embed). Largeur bornée à la preview,
+   coins arrondis, fond Discord pour le placeholder. */
+.hr-embed-preview-image-wrap {
+  margin-top: 8px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.hr-embed-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid #1f2225;
+  background: #2f3136;
+}
+.hr-embed-preview-image-placeholder {
+  background: #2f3136;
+  color: #b9bbbe;
+  font-size: 11px;
+  text-align: center;
+  padding: 28px 14px;
+  border-radius: 6px;
+  border: 1px dashed #4a4d52;
+  font-style: italic;
+}
+/* Aperçu d'un message Discord en texte brut (avec mentions) — sans bordure
+   d'embed. Imite le rendu "classique" d'un message posté par le bot. */
+.hr-content-preview-card {
+  background: transparent;
+  color: #dcddde;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 8px 4px 4px;
+  margin-top: 8px;
+  font-family: -apple-system, "Segoe UI", Helvetica, sans-serif;
+  white-space: normal;
+  word-break: break-word;
 }
 .hr-embed-empty {
   color: #b9bbbe;

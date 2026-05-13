@@ -6,7 +6,7 @@
   <title>Projet Reverie — Générateur de résultats</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Anton&family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Oswald:wght@400;600;700&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Squada+One&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Permanent+Marker&family=Exo+2:wght@400;700;800;900&family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Anton&family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Oswald:wght@400;600;700&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Squada+One&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Permanent+Marker&family=Exo+2:wght@400;700;800;900&family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;700&family=Black+Han+Sans&family=Montserrat:wght@400;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -48,7 +48,14 @@
 
   <!-- ── PAGE TOP 8 ── -->
   <div id="pageTop8" class="page-section">
-  <div class="main">
+  <div class="main" id="topPage" data-collapsable-page>
+
+    <!-- Bouton de masquage du panneau gauche -->
+    <button class="page-collapse-btn" type="button"
+            data-collapse-key="top8_left_collapsed"
+            onclick="togglePageLeftPanelFromBtn(this)"
+            aria-label="Masquer le panneau gauche"
+            title="Masquer / afficher le panneau gauche">‹</button>
 
     <!-- PANNEAU GAUCHE -->
     <div class="panel panel-left">
@@ -109,6 +116,32 @@
 
             <!-- Slide 1 : Paramètres -->
             <div class="left-slide" id="leftSlide1">
+              <!-- Sélecteur de format graphique : Lorem (classique per-game)
+                   vs Magna (format multi-jeux adaptatif). Le format change
+                   le RENDU du Top 8 indépendamment du jeu : Magna utilise
+                   un fond rouge rayé + cartes sombres style esport. -->
+              <label class="field-label">Format</label>
+              <select id="formatSelect" onchange="updateFormat(this.value)" style="width:100%;margin-bottom:8px;">
+                <option value="lorem">Lorem Ipsum (classique)</option>
+                <option value="magna">Magna Arena</option>
+              </select>
+              <!-- Contrôle du nombre de joueurs Magna (3-16). Caché tant que
+                   le format n'est pas Magna. Affiché par updateFormat(). -->
+              <div id="magnaCountWrap" style="display:none;margin-bottom:8px;">
+                <label class="field-label">Nombre de joueurs</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <button type="button" onclick="updateMagnaCount(-1)"
+                          style="flex:0 0 36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-weight:800;cursor:pointer;">−</button>
+                  <div id="magnaCountValue"
+                       style="flex:1;text-align:center;font-weight:800;font-size:16px;">8</div>
+                  <button type="button" onclick="updateMagnaCount(+1)"
+                          style="flex:0 0 36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-weight:800;cursor:pointer;">+</button>
+                </div>
+              </div>
+              <!-- Le sélecteur "Jeu" reste pertinent en Lorem (un layout par jeu).
+                   En Magna, le jeu est par-joueur (Phase 3) — pour l'instant on
+                   garde le selecteur visible mais sa logique ne s'applique pas
+                   au rendu Magna. -->
               <label class="field-label">Jeu</label>
               <select id="gameSelect" onchange="updateGame()" style="width:100%;margin-bottom:8px;">
                 <optgroup label="🎮 Avec layout">
@@ -213,25 +246,32 @@
           </button>
         </div>
       </div>
-      <div class="canvas-wrap">
-        <canvas id="previewCanvas"></canvas>
+      <!-- Wrappers pour mode collapsed (Top 8 image à gauche, message+boutons
+           à droite en sidebar). En mode normal ils ne changent rien (display
+           block, pas de margin). -->
+      <div class="top8-main-area">
+        <div class="canvas-wrap">
+          <canvas id="previewCanvas"></canvas>
+        </div>
       </div>
 
-      <label class="field-label" style="margin-top:14px;">Message Twitter (modifiable)</label>
-      <textarea id="tweetText" rows="4"></textarea>
-      <div class="preview-actions">
-        <button class="btn btn-secondary" onclick="generatePreview()">↻ Rafraîchir</button>
-        <button class="btn btn-primary" onclick="downloadImage()">⬇ Télécharger</button>
-        <button class="btn-aquarium" onclick="postThreadToTwitter()">Poster sur X</button>
-        <button class="btn btn-instagram" onclick="postToInstagram()">📷 Poster sur Instagram</button>
-      </div>
-      <div class="twitter-hint" id="twitterHint" style="display:none;">
-        ✅ Image téléchargée ! Twitter s'est ouvert avec le texte pré-rempli.<br>
-        <strong>Attache l'image téléchargée</strong> au tweet et poste !
-      </div>
-      <div class="instagram-hint" id="instaHint" style="display:none;">
-        ✅ Image téléchargée et texte copié !<br>
-        Ouvre Instagram → <strong>+</strong> → choisis l'image → colle le texte (<kbd>Ctrl+V</kbd>).
+      <div class="top8-side-area">
+        <label class="field-label" style="margin-top:14px;">Message Twitter (modifiable)</label>
+        <textarea id="tweetText" rows="4"></textarea>
+        <div class="preview-actions">
+          <button class="btn btn-secondary" onclick="generatePreview()">↻ Rafraîchir</button>
+          <button class="btn btn-primary" onclick="downloadImage()">⬇ Télécharger</button>
+          <button class="btn-aquarium" onclick="postThreadToTwitter()">Poster sur X</button>
+          <button class="btn btn-instagram" onclick="postToInstagram()">📷 Poster sur Instagram</button>
+        </div>
+        <div class="twitter-hint" id="twitterHint" style="display:none;">
+          ✅ Image téléchargée ! Twitter s'est ouvert avec le texte pré-rempli.<br>
+          <strong>Attache l'image téléchargée</strong> au tweet et poste !
+        </div>
+        <div class="instagram-hint" id="instaHint" style="display:none;">
+          ✅ Image téléchargée et texte copié !<br>
+          Ouvre Instagram → <strong>+</strong> → choisis l'image → colle le texte (<kbd>Ctrl+V</kbd>).
+        </div>
       </div>
     </div>
 
@@ -240,7 +280,14 @@
 
   <!-- ── PAGE DISCORD ── -->
   <div id="pageDiscord" class="page-section" style="display:none;">
-    <div class="dc-page">
+    <div class="dc-page" id="dcPage" data-collapsable-page>
+
+      <!-- Bouton de masquage du panneau gauche -->
+      <button class="page-collapse-btn" type="button"
+              data-collapse-key="dc_left_collapsed"
+              onclick="togglePageLeftPanelFromBtn(this)"
+              aria-label="Masquer le panneau gauche"
+              title="Masquer / afficher le panneau gauche">‹</button>
 
       <!-- ── COLONNE GAUCHE : PARAMÈTRES (TAROT CAROUSEL) ── -->
       <div class="dc-left">
@@ -408,12 +455,21 @@
 
   <!-- ── PAGE HORAIRES ── -->
   <div id="pageHoraires" class="page-section" style="display:none;">
-    <div class="hr-page" id="hrPage">
+    <div class="hr-page" id="hrPage" data-collapsable-page>
 
       <!-- Bouton de masquage / restauration de la colonne gauche -->
-      <button id="hrCollapseBtn" class="hr-collapse-btn" type="button"
-              onclick="hrToggleLeftPanel()" aria-label="Masquer le panneau gauche"
+      <button id="hrCollapseBtn" class="page-collapse-btn" type="button"
+              data-collapse-key="hr_left_collapsed"
+              onclick="togglePageLeftPanelFromBtn(this)"
+              aria-label="Masquer le panneau gauche"
               title="Masquer / afficher le panneau gauche">‹</button>
+
+      <!-- Bouton de navigation Rubik's Cube : remplace l'ancien hrViewToggle.
+           Cliquer sur une face autre que la face avant déclenche un mélange
+           palindromique + rotation entière qui amène l'autre vue à l'avant.
+           Le site bascule en synchro via hrApplyViewMode (cf. rubiks-cube.js).
+           Caché tant qu'il n'y a pas de résultats à toggler. -->
+      <div id="hrCubeStage" class="rk-stage" aria-label="Rubik's Cube de navigation Questions ↔ Résultats" style="display:none"></div>
 
       <!-- ── COLONNE GAUCHE (TAROT CAROUSEL) ── -->
       <div class="hr-left">
@@ -451,7 +507,9 @@
             <!-- coins injectés par JS -->
             <div class="left-slides-wrap">
 
-              <!-- Slide 0 : Bot Discord -->
+              <!-- Slide 0 : Bot Discord — tout le setup d'envoi des sondages,
+                   du choix du salon à l'envoi planifié hebdo et au "poster
+                   maintenant". La slide Programme hebdo a été fusionnée ici. -->
               <div class="left-slide" id="hrSlide0">
                 <!-- URL bot + secret cachés : configurés depuis l'onglet ⚙️ Configuration -->
                 <div style="display:none;">
@@ -459,49 +517,49 @@
                   <input type="password" id="hrBotSecret" oninput="hrSaveBotSettings()">
                 </div>
                 <p class="dc-api-hint" style="margin-bottom:10px;">💡 URL bot et secret se configurent dans l'onglet <strong>⚙️ Configuration</strong>.</p>
+
+                <!-- Choix du salon -->
                 <div class="dc-field-row" style="margin-top:8px;">
                   <label>Salon</label>
-                  <!-- Input ID caché : conservé pour le code legacy qui lit hrChannelId.value -->
                   <input type="text" id="hrChannelId" style="display:none;">
                 </div>
                 <select id="hrChannelSelect" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;"></select>
                 <button class="dc-add-sched-btn" style="margin-top:8px;" onclick="hrLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
                 <div id="hrChannelStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+
+                <!-- Programmation hebdomadaire (fusionnée depuis l'ancien slide II) -->
+                <div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(155,127,184,0.4);">
+                  <div class="dc-field-row">
+                    <label>Jour</label>
+                    <select id="hrDay" style="flex:1;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;">
+                      <option value="0">Dimanche</option>
+                      <option value="1">Lundi</option>
+                      <option value="2">Mardi</option>
+                      <option value="3">Mercredi</option>
+                      <option value="4">Jeudi</option>
+                      <option value="5" selected>Vendredi</option>
+                      <option value="6">Samedi</option>
+                    </select>
+                  </div>
+                  <div class="dc-field-row" style="margin-top:8px;">
+                    <label>Heure</label>
+                    <input type="time" id="hrTime" value="17:00" class="dc-datetime-input" style="flex:1;">
+                  </div>
+                  <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="hrSetWeekly()">🔁 Activer l'envoi hebdomadaire</button>
+                  <button class="btn" style="width:100%;margin-top:6px;background:rgba(220,53,69,0.2);color:#ff6b7a;border:1px solid rgba(220,53,69,0.3);" onclick="hrCancelWeekly()">✕ Désactiver</button>
+                  <div id="hrWeeklyStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
+                </div>
+
+                <!-- Envoi immédiat -->
+                <div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(155,127,184,0.4);">
+                  <div id="hrPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
+                  <button class="btn btn-primary" style="width:100%;" onclick="hrPost()">📨 Poster les sondages maintenant</button>
+                </div>
               </div>
 
-              <!-- Slide 1 : Questions -->
+              <!-- Slide 1 : Actions — récupération des résultats (anciennement Slide 2) -->
               <div class="left-slide" id="hrSlide1">
-                <div id="hrQuestionsWrap"></div>
-              </div>
-
-              <!-- Slide 2 : Programmation hebdomadaire -->
-              <div class="left-slide" id="hrSlide2">
-                <div class="dc-field-row">
-                  <label>Jour</label>
-                  <select id="hrDay" style="flex:1;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;">
-                    <option value="0">Dimanche</option>
-                    <option value="1">Lundi</option>
-                    <option value="2">Mardi</option>
-                    <option value="3">Mercredi</option>
-                    <option value="4">Jeudi</option>
-                    <option value="5" selected>Vendredi</option>
-                    <option value="6">Samedi</option>
-                  </select>
-                </div>
-                <div class="dc-field-row" style="margin-top:8px;">
-                  <label>Heure</label>
-                  <input type="time" id="hrTime" value="17:00" class="dc-datetime-input" style="flex:1;">
-                </div>
-                <button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="hrSetWeekly()">🔁 Activer l'envoi hebdomadaire</button>
-                <button class="btn" style="width:100%;margin-top:6px;background:rgba(220,53,69,0.2);color:#ff6b7a;border:1px solid rgba(220,53,69,0.3);" onclick="hrCancelWeekly()">✕ Désactiver</button>
-                <div id="hrWeeklyStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
-              </div>
-
-              <!-- Slide 3 : Actions -->
-              <div class="left-slide" id="hrSlide3">
-                <div id="hrPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
-                <button class="btn btn-primary" style="width:100%;" onclick="hrPost()">📨 Poster les sondages maintenant</button>
-                <button class="btn btn-secondary" style="width:100%;margin-top:8px;" onclick="hrFetchResults()" id="hrFetchBtn">📊 Voir les résultats</button>
+                <button class="btn btn-secondary" style="width:100%;" onclick="hrFetchResults()" id="hrFetchBtn">📊 Voir les résultats</button>
                 <div id="hrResultsStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
               </div>
 
@@ -536,11 +594,25 @@
 
       <!-- ── COLONNE DROITE ── -->
       <div class="hr-right">
-        <div class="hr-results-header">
-          <span class="hr-results-title">📊 Résultats</span>
+        <!-- Bloc Questions : vit en permanence dans la colonne droite. Avant
+             qu'il y ait des résultats il prend toute la place ; quand des
+             résultats arrivent, il est masqué (hrUpdateQuestionsLocation). -->
+        <div id="hrQuestionsRightHome" class="hr-questions-right-home">
+          <div class="hr-results-header" style="margin-bottom:10px;">
+            <span class="hr-results-title">❓ Questions du sondage</span>
+          </div>
+          <div id="hrQuestionsWrap"></div>
         </div>
-        <div id="hrResults" class="hr-results-wrap">
-          <p class="hr-results-empty">Poste les sondages puis clique sur "Voir les résultats"</p>
+
+        <!-- Wrapper "Résultats" — séparé pour pouvoir le placer en sidebar
+             quand le panneau gauche est masqué (mode fullscreen). -->
+        <div class="hr-results-section">
+          <div class="hr-results-header">
+            <span class="hr-results-title">📊 Résultats</span>
+          </div>
+          <div id="hrResults" class="hr-results-wrap">
+            <p class="hr-results-empty">Poste les sondages puis clique sur "Voir les résultats"</p>
+          </div>
         </div>
 
         <!-- ── PLANNING ── -->
@@ -1916,6 +1988,7 @@ function liquidSwitchTab(tab) {
 <script src="data.js"></script>
 <script src="discord.js"></script>
 <script src="horaires.js"></script>
+<script src="rubiks-cube.js"></script>
 <script src="startgg.js"></script>
 <script src="crop.js"></script>
 <script src="layout-maker.js"></script>

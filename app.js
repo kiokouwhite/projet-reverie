@@ -7,6 +7,13 @@ const PURPLE_COLORS = ['#b8c4ff','#b8c4ff','#b8c4ff','#b8c4ff','#b8c4ff','#b8c4f
 // ============================================================
 
 let currentGame = 'ssbu';
+// Format graphique : 'lorem' (classique, layouts per-game) ou 'magna'
+// (Magna Arena, fond rouge rayé + cartes sombres, multi-jeux adaptatif).
+// Restauré depuis localStorage à l'init (cf. updateFormat / init bloc).
+let currentFormat = 'lorem';
+// Nombre de joueurs Magna (single mode). En multi mode, dérivé du nombre
+// de standings retournés par l'event (ignoré).
+let magnaPlayerCount = 8;
 // players[i] = { name, charId, costume (1-8), startggId }
 let players = Array.from({length:8}, () => ({name:'', team:'', charId:null, costume:1, charId2:null, costume2:1, startggId:null}));
 let bgImg = null;
@@ -218,14 +225,37 @@ function _tcUpdateArrows() {
   if (next) next.disabled = _tcActive === TC_PANELS.length - 1;
 }
 
-function tcInit() {
+// Avant qu'un tournoi soit importé, on cache toutes les options sauf
+// "Import start.gg". L'utilisateur ne voit que le panneau d'import au
+// premier accès, puis l'éventail complet s'ouvre une fois qu'il y a
+// des données à éditer.
+function _tcHasAnyImport() {
+  return (typeof players !== 'undefined' && Array.isArray(players)
+          && players.some(p => p && p.name))
+      || (typeof graphs !== 'undefined' && Array.isArray(graphs) && graphs.length > 0);
+}
+
+function _tcRenderTabs() {
   const tabs = document.getElementById('tcTabs');
-  if (tabs) {
-    tabs.innerHTML = TC_PANELS.map((p, i) =>
-      `<button class="tc-tab-btn${i===0?' active':''}" data-idx="${i}" onclick="tcGo(${i})" title="${p.name}"
-        style="${i===0?`border-color:${p.accent};box-shadow:0 2px 8px ${p.accent}33`:''}"><div style="width:28px;height:28px">${_iconSvgs[p.icon]||p.emoji}</div></button>`
-    ).join('');
-  }
+  if (!tabs) return;
+  const hasImport = _tcHasAnyImport();
+  tabs.innerHTML = TC_PANELS.map((p, i) => {
+    const isActive = i === _tcActive;
+    const hidden   = !hasImport && i !== 0;
+    const hideCss  = hidden ? 'display:none;' : '';
+    const accent   = isActive ? `border-color:${p.accent};box-shadow:0 2px 8px ${p.accent}33;` : '';
+    return `<button class="tc-tab-btn${isActive?' active':''}" data-idx="${i}" onclick="tcGo(${i})" title="${p.name}"
+        style="${hideCss}${accent}"><div style="width:28px;height:28px">${_iconSvgs[p.icon]||p.emoji}</div></button>`;
+  }).join('');
+  // Les flèches prev/next n'ont aucun sens tant qu'on n'a qu'un seul panneau
+  const prev = document.getElementById('tcPrev');
+  const next = document.getElementById('tcNext');
+  if (prev) prev.style.display = hasImport ? '' : 'none';
+  if (next) next.style.display = hasImport ? '' : 'none';
+}
+
+function tcInit() {
+  _tcRenderTabs();
   const mainCard = document.getElementById('tcMainCard');
   if (mainCard) _tcUpdateCornersOn(mainCard, 0);
   const inFace = document.querySelector('#tcIncoming .tc-in-face');
@@ -290,6 +320,46 @@ function tcGo(target) {
 }
 
 function tcNavigate(delta) { tcGo(_tcActive + delta); }
+
+// ────────────────────────────────────────────────────────────────────────────
+// COLLAPSE PANNEAU GAUCHE — système partagé entre tous les onglets
+// Un bouton .page-collapse-btn placé dans n'importe quel container avec
+// l'attribut data-collapsable-page permet de masquer la colonne gauche
+// (.X-left, .panel-left, etc.) via une classe `.left-collapsed` sur le
+// container. L'état est persisté en localStorage par tab.
+//
+// Migration v2 : reset une seule fois les anciennes valeurs persistées
+// pour assurer que les utilisateurs voient le panneau gauche par défaut.
+const __COLLAPSE_VERSION = 2;
+(function migrateCollapseV2() {
+  try {
+    const ver = parseInt(localStorage.getItem('collapse_reset_ver') || '0', 10);
+    if (ver < __COLLAPSE_VERSION) {
+      // Reset tous les flags de collapse (ancien et nouveaux)
+      ['hr_left_collapsed', 'top8_left_collapsed', 'dc_left_collapsed', 'sgg_left_collapsed']
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('collapse_reset_ver', String(__COLLAPSE_VERSION));
+    }
+  } catch {}
+})();
+
+function togglePageLeftPanelFromBtn(btn) {
+  const page = btn?.closest('[data-collapsable-page]');
+  if (!page) return;
+  const key = btn.dataset.collapseKey || 'left_collapsed';
+  page.classList.toggle('left-collapsed');
+  const collapsed = page.classList.contains('left-collapsed');
+  btn.textContent = collapsed ? '›' : '‹';
+  btn.setAttribute('aria-label', collapsed ? 'Afficher le panneau gauche' : 'Masquer le panneau gauche');
+  try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch {}
+}
+
+// No-op : on ne restaure plus l'état collapsed au chargement. Décision UX :
+// le panneau gauche doit toujours être visible au démarrage (pas caché par
+// surprise). Le toggle reste fonctionnel dans la session courante.
+function restorePageLeftPanel(_pageEl, _storageKey) {
+  // intentionnellement vide
+}
 
 // backward-compat — keep old names working (used elsewhere in the codebase)
 function setLeftPanel(idx) {
@@ -446,11 +516,11 @@ function dcTcNavigate(delta) { dcTcGo(_dcTcActive + delta); }
 // IDs: hrTcPrev, hrTcNext, hrTcTabs, hrTcSigilIcon, hrTcSigilTitle,
 //      hrTcMainCard, hrTcIncoming, hrTcInContent, hrSlide{0-3}
 
+// Questions retiré (vit dans la colonne droite). Programme hebdo fusionné
+// dans Bot Discord (un seul slide pour tout le setup d'envoi). Reste 2 slides.
 const HR_TC_PANELS = [
-  { label: 'Bot',       roman: 'I',   accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',    icon: 'bot' },
-  { label: 'Questions', roman: 'II',  accent: '#7c5cff', emoji: '❓', name: 'Questions',      icon: 'questions' },
-  { label: 'Programme', roman: 'III', accent: '#f0a020', emoji: '🗓️', name: 'Programme hebdo', icon: 'calendar' },
-  { label: 'Actions',   roman: 'IV',  accent: '#e85a8a', emoji: '📨', name: 'Actions',        icon: 'actions' },
+  { label: 'Bot',     roman: 'I',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord', icon: 'bot' },
+  { label: 'Actions', roman: 'II', accent: '#e85a8a', emoji: '📨', name: 'Actions',     icon: 'actions' },
 ];
 
 let _hrTcActive = 0;
@@ -584,6 +654,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (_sel) _sel.value = _savedGame;
   }
 
+  // Restaurer le format graphique (Lorem / Magna)
+  const _savedFormat = localStorage.getItem('top8_format');
+  if (_savedFormat === 'lorem' || _savedFormat === 'magna') {
+    currentFormat = _savedFormat;
+    const _fmtSel = document.getElementById('formatSelect');
+    if (_fmtSel) _fmtSel.value = _savedFormat;
+  }
+  // Restaurer le compte de joueurs Magna
+  const _savedCount = parseInt(localStorage.getItem('top8_magna_count') || '8', 10);
+  if (_savedCount >= 3 && _savedCount <= 16) magnaPlayerCount = _savedCount;
+  // Sync UI : afficher le wrap magnaCount si format=magna, mettre à jour la valeur
+  applyMagnaUI();
+
   // Charger le fond du jeu initial (éventuellement restauré)
   const _initGame = document.getElementById('gameSelect')?.value || 'ssbu';
   const defaultLayout = LAYOUTS[_initGame] || LAYOUTS['ssbu'];
@@ -595,7 +678,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Attendre que les polices soient chargées avant de dessiner
+  await document.fonts.load('700 40px Montserrat'); // Bold weight pour Magna
   await document.fonts.load('800 40px Montserrat');
+  await document.fonts.load('900 40px Montserrat'); // Black weight (encore utilisé ailleurs)
   await document.fonts.load('400 40px Anton');
   await loadCropsJson();
   if (typeof lmInitCoffreSelector === 'function') lmInitCoffreSelector();
@@ -781,16 +866,118 @@ function initHeaderScroll() {
     return false;
   }
 
-  // Scroll vers le haut → afficher, scroll vers le bas → cacher
-  // Ignorer si on scrolle à l'intérieur d'une carte ou d'un élément scrollable
+  // Scroll vers le haut → afficher (uniquement si on n'est pas en train de
+  // scroller dans un élément interne — sinon le scroll inside montrerait le
+  // header par accident dès qu'on remonte une liste).
+  // Scroll vers le bas → cacher (TOUJOURS, même dans un élément scrollable :
+  // l'intention "je veux maximiser la zone de contenu" doit toujours
+  // marcher, sinon l'utilisateur est bloqué sur les pages dont tout le
+  // contenu vit dans un panneau scrollable).
   document.addEventListener('wheel', e => {
-    if (_insideScrollable(e.target)) return;
-    if (e.deltaY < 0) _show();
-    else if (e.deltaY > 0) _hide();
+    if (e.deltaY < 0) {
+      if (_insideScrollable(e.target)) return;
+      _show();
+    } else if (e.deltaY > 0) {
+      _hide();
+    }
   }, { passive: true });
 
   // Exposer _hide pour que liquidSwitchTab puisse l'appeler
   window._headerHide = _hide;
+}
+
+// ── FORMAT GRAPHIQUE ─────────────────────────────────────────────────────────
+// Bascule entre 'lorem' (rendu classique per-game via LAYOUTS) et 'magna'
+// (rendu Magna Arena, fond rouge à rayures, cartes sombres, multi-jeux).
+// Persiste en localStorage et re-render. Le sélecteur de jeu reste utile en
+// Lorem (un layout par jeu) ; en Magna le jeu est par-joueur (Phase 3).
+function updateFormat(newFormat) {
+  if (newFormat !== 'lorem' && newFormat !== 'magna') return;
+  currentFormat = newFormat;
+  try { localStorage.setItem('top8_format', newFormat); } catch {}
+  // Sync le dropdown UI au cas où l'appel vient d'un auto-detect
+  const _sel = document.getElementById('formatSelect');
+  if (_sel && _sel.value !== newFormat) _sel.value = newFormat;
+  applyMagnaUI();
+  // En Magna, la section "Jeux sans layout" n'a plus de sens (Magna a
+  // un rendu unifié multi-jeux). On la masque immédiatement même si
+  // elle avait été montrée par un import précédent.
+  if (newFormat === 'magna') {
+    const noLayoutWrap = document.getElementById('noLayoutSection');
+    if (noLayoutWrap) noLayoutWrap.style.cssText = 'display:none !important';
+  }
+  // Re-render slots UI (le nombre de slots dépend du format) + preview canvas
+  if (typeof renderSlots === 'function') renderSlots();
+  if (typeof generatePreview === 'function') generatePreview();
+}
+
+// Met à jour le compte de joueurs Magna (clampé 2-16) et re-render.
+function updateMagnaCount(delta) {
+  magnaPlayerCount = Math.max(2, Math.min(16, magnaPlayerCount + delta));
+  try { localStorage.setItem('top8_magna_count', String(magnaPlayerCount)); } catch {}
+  const el = document.getElementById('magnaCountValue');
+  if (el) el.textContent = String(magnaPlayerCount);
+  // Re-render slots UI (panneau "Joueurs & Personnages") + preview canvas
+  if (typeof renderSlots === 'function') renderSlots();
+  if (typeof generatePreview === 'function') generatePreview();
+}
+
+// Affiche/cache les contrôles spécifiques Magna selon le format actuel
+// et synchronise la valeur affichée du compteur.
+function applyMagnaUI() {
+  const wrap = document.getElementById('magnaCountWrap');
+  if (wrap) wrap.style.display = (currentFormat === 'magna') ? '' : 'none';
+  const el = document.getElementById('magnaCountValue');
+  if (el) el.textContent = String(magnaPlayerCount);
+}
+
+// Rang labels standards d'un bracket double-élim : 1, 2, 3, 4, 5/5, 7/7,
+// 9/9/9/9, 13/13/13/13, 17×8, ... Tronqué à N.
+function rankLabelsForN(n) {
+  const labels = [];
+  let pos = 1;
+  while (labels.length < n) {
+    if (pos <= 4) {
+      labels.push(pos); pos++;
+    } else {
+      // Tailles de groupe : 5/5 (2), 7/7 (2), 9×4, 13×4, 17×8, 25×8, ...
+      let groupSize;
+      if (pos === 5 || pos === 7) groupSize = 2;
+      else if (pos === 9 || pos === 13) groupSize = 4;
+      else groupSize = pos; // doubling pour positions > 16
+      for (let j = 0; j < groupSize && labels.length < n; j++) labels.push(pos);
+      pos += groupSize;
+    }
+  }
+  return labels.slice(0, n).map(String);
+}
+
+// Auto-détecte le format graphique depuis le nom du tournoi.
+// Appelé par les flows d'import start.gg (single + multi) après réception
+// du nom. Cherche les mots-clés caractéristiques de chaque format.
+function autoDetectFormat(tournamentName) {
+  if (!tournamentName) return;
+  const lc = tournamentName.toLowerCase();
+  if (lc.includes('magna arena') || lc.includes('magna')) {
+    if (currentFormat !== 'magna') updateFormat('magna');
+  }
+  // Pas de bascule auto vers Lorem : on respecte le choix utilisateur si
+  // un autre nom de tournoi est importé (sinon on switch dans tous les sens).
+}
+
+// Auto-détecte magnaPlayerCount à partir du nombre de joueurs réellement
+// remplis dans `players[]` (start.gg single import OU multi mode carousel).
+// S'applique pour N entre 2 et 8 — pour N > 8 on garde la valeur courante
+// (manuel ou défaut 8) pour respecter le choix utilisateur.
+function autoDetectMagnaCount() {
+  if (typeof players === 'undefined' || !players) return;
+  const filled = players.filter(p => p && p.name).length;
+  if (filled >= 2 && filled <= 8 && filled !== magnaPlayerCount) {
+    magnaPlayerCount = filled;
+    try { localStorage.setItem('top8_magna_count', String(magnaPlayerCount)); } catch {}
+    applyMagnaUI();
+    if (typeof renderSlots === 'function') renderSlots();
+  }
 }
 
 // ── JEU ──────────────────────────────────────────────────────────────────────
@@ -837,13 +1024,211 @@ function rankClass(i) {
   return 'rank-badge';
 }
 
+// Calcule combien de slots afficher dans le panneau "Joueurs & Personnages".
+// - En Magna : suit magnaPlayerCount (single) ou le nombre de filled players
+//   (multi mode), pour matcher exactement les cartes affichées dans la preview.
+// - En Lorem : suit le playerCount du layout du jeu courant.
+function getSlotCountToShow() {
+  if (typeof currentFormat !== 'undefined' && currentFormat === 'magna') {
+    const inMulti = typeof window !== 'undefined' && !!window._multiTournamentName;
+    if (inMulti) {
+      const filled = (Array.isArray(players) ? players.filter(p => p && p.name).length : 0);
+      return Math.max(2, filled || 8);
+    }
+    return (typeof magnaPlayerCount !== 'undefined' ? magnaPlayerCount : 8);
+  }
+  return LAYOUTS[currentGame]?.playerCount || 8;
+}
+
+// Modal de recadrage pour une image custom uploadée (X/Y/Zoom). Le crop
+// est stocké sur players[slotIdx].customImgCrop = { x, y, scale } et
+// appliqué uniquement dans drawMagnaCard (Magna format).
+function openMagnaCustomCrop(slotIdx) {
+  const p = players?.[slotIdx];
+  if (!p || !p.customImgUrl || !p.customImgKey) {
+    alert('Aucune image custom à recadrer pour ce slot.');
+    return;
+  }
+  const cached = imgCache[p.customImgKey];
+  if (!cached?._img) {
+    alert('L\'image n\'a pas fini de charger, réessaie dans une seconde.');
+    return;
+  }
+  if (!p.customImgCrop) p.customImgCrop = { x: 0, y: 0, scale: 1 };
+  const crop = p.customImgCrop;
+
+  // Estime un aspect ratio représentatif d'une carte Magna pour ce slot
+  // (basé sur le layout courant). Fallback 1.2:1 si on ne peut pas calculer.
+  let cardAspect = 1.2; // w/h
+  try {
+    const n = (typeof magnaPlayerCount !== 'undefined') ? magnaPlayerCount : 8;
+    const layout = (typeof magnaLayoutFor === 'function') ? magnaLayoutFor(n) : null;
+    const cell = layout?.[slotIdx];
+    if (cell) {
+      // Approximation : zone des cartes a un aspect ratio dérivé du canvas
+      // 16:9 (1920×1080) avec 60px margins. areaW/areaH ≈ 1800/756 ≈ 2.38.
+      cardAspect = (cell.w / cell.h) * (1800 / 756);
+    }
+  } catch {}
+
+  // Construction du modal
+  const existing = document.getElementById('magnaCropModal');
+  if (existing) existing.remove();
+  const previewH = 280;
+  const previewW = Math.round(previewH * cardAspect);
+  const modal = document.createElement('div');
+  modal.id = 'magnaCropModal';
+  modal.className = 'modal-bg';
+  modal.style.zIndex = 200;
+  modal.innerHTML = `
+    <div class="modal" style="max-width:520px;padding:20px 24px;">
+      <h3 style="margin:0 0 12px;font-weight:800;font-size:18px;">Recadrer l'image custom</h3>
+      <div style="display:flex;justify-content:center;margin-bottom:14px;">
+        <canvas id="magnaCropPreview" width="${previewW}" height="${previewH}"
+                style="border-radius:14px;background:#1a1a1c;box-shadow:0 4px 20px rgba(0,0,0,0.15);"></canvas>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
+          <span style="flex:0 0 60px;font-weight:700;">↔ X</span>
+          <input type="range" id="cropSliderX" min="-100" max="100" step="1" value="${crop.x}" style="flex:1;">
+          <span id="cropValueX" style="flex:0 0 50px;text-align:right;font-variant-numeric:tabular-nums;">${crop.x}%</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
+          <span style="flex:0 0 60px;font-weight:700;">↕ Y</span>
+          <input type="range" id="cropSliderY" min="-100" max="100" step="1" value="${crop.y}" style="flex:1;">
+          <span id="cropValueY" style="flex:0 0 50px;text-align:right;font-variant-numeric:tabular-nums;">${crop.y}%</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
+          <span style="flex:0 0 60px;font-weight:700;">🔍 Zoom</span>
+          <input type="range" id="cropSliderScale" min="50" max="300" step="1" value="${Math.round(crop.scale*100)}" style="flex:1;">
+          <span id="cropValueScale" style="flex:0 0 50px;text-align:right;font-variant-numeric:tabular-nums;">${Math.round(crop.scale*100)}%</span>
+        </label>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+        <button class="btn" onclick="resetMagnaCustomCrop(${slotIdx})">↺ Réinitialiser</button>
+        <button class="btn btn-primary" onclick="closeMagnaCustomCrop()">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const img = cached._img;
+  const previewCanvas = modal.querySelector('#magnaCropPreview');
+  const renderPreview = () => {
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, previewW, previewH);
+    // Fond carte
+    ctx.fillStyle = '#1a1a1c';
+    ctx.fillRect(0, 0, previewW, previewH);
+    // Image avec crop appliqué (même formule que drawMagnaCard)
+    const aspect = img.naturalWidth / img.naturalHeight;
+    let dw = previewW, dh = previewW / aspect;
+    if (dh < previewH) { dh = previewH; dw = previewH * aspect; }
+    dw *= crop.scale; dh *= crop.scale;
+    const dx = (previewW - dw) / 2 + crop.x * previewW * 0.01;
+    const dy = (previewH - dh) / 2 + crop.y * previewH * 0.01;
+    ctx.save();
+    // Clip à la carte (avec coins arrondis pour cohérence visuelle)
+    const r = 12;
+    ctx.beginPath();
+    ctx.moveTo(r, 0); ctx.lineTo(previewW-r, 0);
+    ctx.quadraticCurveTo(previewW, 0, previewW, r);
+    ctx.lineTo(previewW, previewH-r);
+    ctx.quadraticCurveTo(previewW, previewH, previewW-r, previewH);
+    ctx.lineTo(r, previewH);
+    ctx.quadraticCurveTo(0, previewH, 0, previewH-r);
+    ctx.lineTo(0, r);
+    ctx.quadraticCurveTo(0, 0, r, 0);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+  };
+  renderPreview();
+
+  const slidX = modal.querySelector('#cropSliderX');
+  const slidY = modal.querySelector('#cropSliderY');
+  const slidS = modal.querySelector('#cropSliderScale');
+  const valX  = modal.querySelector('#cropValueX');
+  const valY  = modal.querySelector('#cropValueY');
+  const valS  = modal.querySelector('#cropValueScale');
+  const onChange = () => {
+    crop.x = parseInt(slidX.value, 10);
+    crop.y = parseInt(slidY.value, 10);
+    crop.scale = parseInt(slidS.value, 10) / 100;
+    valX.textContent = `${crop.x}%`;
+    valY.textContent = `${crop.y}%`;
+    valS.textContent = `${slidS.value}%`;
+    renderPreview();
+    if (typeof generatePreview === 'function') generatePreview();
+  };
+  slidX.addEventListener('input', onChange);
+  slidY.addEventListener('input', onChange);
+  slidS.addEventListener('input', onChange);
+}
+
+function closeMagnaCustomCrop() {
+  const modal = document.getElementById('magnaCropModal');
+  if (modal) modal.remove();
+  if (typeof renderSlots === 'function') renderSlots();
+}
+
+function resetMagnaCustomCrop(slotIdx) {
+  if (!players?.[slotIdx]) return;
+  players[slotIdx].customImgCrop = { x: 0, y: 0, scale: 1 };
+  // Re-ouvre le modal avec valeurs reset
+  closeMagnaCustomCrop();
+  openMagnaCustomCrop(slotIdx);
+}
+
+// Permet à l'utilisateur d'uploader une image custom pour un slot de joueur.
+// L'image est convertie en data URL et stockée sur players[i].customImgUrl
+// + préchargée dans imgCache pour rendu canvas immédiat. Priorité max
+// dans drawMagnaCard (au-dessus du mural local et du fallback start.gg).
+function openImportImage(slotIdx) {
+  if (typeof players === 'undefined' || !players[slotIdx]) return;
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.style.display = 'none';
+  inp.onchange = ev => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+      players[slotIdx].customImgUrl = dataUrl;
+      // Clé unique (timestamp) pour invalider le cache à chaque upload
+      const key = `__custom__${slotIdx}_${Date.now()}`;
+      players[slotIdx].customImgKey = key;
+      if (!imgCache[key]) imgCache[key] = { _loaded: false, _img: null };
+      const img = new Image();
+      img.onload = () => {
+        imgCache[key]._loaded = true;
+        imgCache[key]._img = img;
+        if (typeof generatePreview === 'function') generatePreview();
+      };
+      img.onerror = () => { /* no-op */ };
+      img.src = dataUrl;
+      if (typeof renderSlots === 'function') renderSlots();
+    };
+    reader.readAsDataURL(file);
+  };
+  document.body.appendChild(inp);
+  inp.click();
+  setTimeout(() => inp.remove(), 1000);
+}
+
 function renderSlots() {
   if (document.getElementById('editorModal')?.style.display !== 'none') renderNameEditor();
+  // Synchronise l'affichage des onglets tarot : avant un import, seul
+  // "Import start.gg" est visible ; après import, tous les onglets s'ouvrent.
+  if (typeof _tcRenderTabs === 'function') _tcRenderTabs();
   const grid = document.getElementById('slotsGrid');
   grid.innerHTML = '';
   const layout = LAYOUTS[currentGame];
   const rankDisp = layout?.rankDisplay || CONFIG.RANKS_DISPLAY;
-  players.forEach((p, i) => {
+  const slotCount = getSlotCountToShow();
+  players.slice(0, slotCount).forEach((p, i) => {
     const is2xko = currentGame === '2xko';
     const char  = p.charId  ? GAMES[currentGame].chars.find(c=>c.id===p.charId)  : null;
     const char2 = (is2xko && p.charId2) ? GAMES[currentGame].chars.find(c=>c.id===p.charId2) : null;
@@ -867,10 +1252,19 @@ function renderSlots() {
       <div class="char-row">
         ${stockUrl
           ? `<img src="${stockUrl}" class="char-stock" onerror="this.style.display='none'">`
-          : `<div class="char-icon">${char ? char.icon : '?'}</div>`
+          : (p.customImgUrl
+              ? `<img src="${p.customImgUrl}" class="char-stock" alt="Custom">`
+              : `<div class="char-icon">${char ? char.icon : '?'}</div>`)
         }
-        <span class="char-name">${char ? char.name : 'Aucun personnage'}</span>
+        <span class="char-name">${char ? char.name : (p.customImgUrl ? 'Image custom' : 'Aucun personnage')}</span>
         <button class="btn btn-choose" onclick="openModal(${i},1)">${is2xko ? 'Perso 1' : 'Perso'}</button>
+        <button class="btn-import-img" onclick="openImportImage(${i})" title="Importer une image custom pour ce slot" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v3.6A2.4 2.4 0 0 1 18.6 21H5.4A2.4 2.4 0 0 1 3 18.6V15"/>
+            <path d="M12 3v12"/>
+            <path d="m7 10 5 5 5-5"/>
+          </svg>
+        </button>
       </div>
       ${is2xko ? `<div class="char-row" style="border-top:1px solid rgba(255,255,255,0.08);">
         ${stockUrl2
@@ -893,6 +1287,12 @@ function renderSlots() {
       <div class="crop-row">
         <button class="btn btn-crop-adjust" onclick="openCropAdjusterForSlot(${i})">
           ${hasCrop ? '✅ Cadrage — ✏️ Ajuster' : '✏️ Ajuster le cadrage'}
+        </button>
+      </div>` : ''}
+      ${p.customImgUrl ? `
+      <div class="crop-row">
+        <button class="btn btn-crop-adjust" onclick="openMagnaCustomCrop(${i})">
+          ${p.customImgCrop ? '✅ Cadrage custom — ✏️ Ajuster' : "✏️ Recadrer l'image"}
         </button>
       </div>` : ''}
     `;
@@ -1225,7 +1625,10 @@ async function fetchFromStartGG() {
 
     players = Array.from({length:8}, ()=>({name:'',team:'',charId:null,costume:1,startggId:null}));
     const entrantIds = [];
-    const playerCount2 = LAYOUTS[currentGame]?.playerCount || 8;
+    // Comme pour multi.js : on collecte max(layout.playerCount, 8) standings
+    // pour que Magna (qui ne suit pas le playerCount per-game Lorem) ait
+    // assez de joueurs. Lorem clippe naturellement à layout.playerCount.
+    const playerCount2 = Math.max(LAYOUTS[currentGame]?.playerCount || 8, 8);
     standings.slice(0,playerCount2).forEach((s,i) => {
       const participant = s.entrant?.participants?.[0];
       players[i].name = participant?.player?.gamerTag || s.entrant?.name || '???';
@@ -1245,7 +1648,14 @@ async function fetchFromStartGG() {
     if(tName) {
       const numMatch = tName.match(/#\s*(\d+)/);
       document.getElementById('tournamentName').value = tName.replace(/#\s*\d+/,'').trim()||tName;
+      // Auto-détecte le format graphique depuis le nom du tournoi
+      // (Magna Arena → format magna). Cf. autoDetectFormat dans app.js.
+      autoDetectFormat(tName);
     }
+
+    // Auto-détecte le nombre de joueurs Magna depuis les standings réels :
+    // si l'event a < 8 joueurs, on resize le compteur UI pour matcher.
+    autoDetectMagnaCount();
 
     renderSlots();
     showStatus('loading','⏳ Récupération des personnages...');
@@ -1648,9 +2058,23 @@ function drawLayoutSlots(ctx, layout, sc) {
 }
 function renderCanvas(canvas, size) {
   const ctx = canvas.getContext('2d');
-  canvas.width=size; canvas.height=size;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
+
+  // ── Format Magna Arena ─────────────────────────────────────
+  // Aspect 16:9 (1920×1080 de référence) vs Lorem qui est carré.
+  // Le param `size` représente la LARGEUR ; hauteur dérivée.
+  if (currentFormat === 'magna') {
+    const MAGNA_REF_W = 1920, MAGNA_REF_H = 1080;
+    canvas.width  = size;
+    canvas.height = Math.round(size * MAGNA_REF_H / MAGNA_REF_W);
+    const scM = size / MAGNA_REF_W;
+    drawMagnaCanvas(ctx, canvas.width, canvas.height, scM);
+    return;
+  }
+
+  // Carré classique Lorem
+  canvas.width=size; canvas.height=size;
   const sc = size/CONFIG.REF_SIZE;
 
   // ── Layout custom (créé via Layout Maker) ──────────────────
@@ -1721,6 +2145,564 @@ function renderCanvas(canvas, size) {
       ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
     }
   });
+}
+
+// ── RENDU MAGNA ARENA ─────────────────────────────────────────────────────
+// Format esport multi-jeux 16:9 : fond rouge à rayures diagonales, logo en
+// haut, cartes sombres avec rang/perso/nom-twitter, nom du tournoi en bas.
+// Phase 1 : scaffold (fond + logo placeholder + titre). Cartes en Phase 2.
+//   width, height = dimensions canvas en px (aspect 16:9)
+//   sc            = facteur d'échelle (width / 1920) pour scaler les éléments
+function drawMagnaCanvas(ctx, width, height, sc) {
+  // ── État vide : aucun joueur chargé ─────────────────────────────────
+  // Si players[] ne contient AUCUN name rempli, on n'affiche pas le layout
+  // Magna (qui serait juste 8 cartes "Aucun perso" peu utiles). À la
+  // place : un écran gris avec instructions claires pour importer.
+  const filledCount = (typeof players !== 'undefined')
+    ? players.filter(p => p && p.name).length
+    : 0;
+  if (filledCount === 0) {
+    drawMagnaEmptyState(ctx, width, height, sc);
+    return;
+  }
+
+  drawMagnaBackground(ctx, width, height);
+  // Cartes joueurs : N depuis le nb de standings non-vides en mode multi,
+  // sinon magnaPlayerCount (UI).
+  const inMulti = !!window._multiTournamentName;
+  const n = inMulti ? Math.max(2, filledCount || 8) : magnaPlayerCount;
+  // Ordre : background → cards → LOGO → title. On dessine les cartes
+  // AVANT le logo pour que celui-ci passe par-dessus quand les cartes
+  // remontent visuellement sous le logo (cf. topY plus haut).
+  drawMagnaCards(ctx, width, height, sc, players, n);
+  drawMagnaLogo(ctx, width, height, sc);
+  drawMagnaTitle(ctx, width, height, sc);
+}
+
+// Écran d'état vide pour Magna : fond gris uni + instructions au centre.
+// Affiché tant qu'aucun joueur n'a été chargé (start.gg ou manuel).
+function drawMagnaEmptyState(ctx, width, height, sc) {
+  // Fond gris
+  ctx.fillStyle = '#3a3a3e';
+  ctx.fillRect(0, 0, width, height);
+
+  // Texte central
+  const cx = width / 2;
+  const cy = height / 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Icône
+  const iconSize = Math.round(80 * sc);
+  ctx.font = `${iconSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+  ctx.fillText('🏆', cx, cy - iconSize * 1.1);
+
+  // Titre
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = `800 ${Math.round(46 * sc)}px "Nunito", "Segoe UI", sans-serif`;
+  ctx.fillText('Aucun tournoi chargé', cx, cy + 10 * sc);
+
+  // Instructions
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = `600 ${Math.round(26 * sc)}px "Nunito", "Segoe UI", sans-serif`;
+  ctx.fillText('Importe un tournoi via start.gg', cx, cy + 70 * sc);
+  ctx.fillText('ou ajoute des joueurs dans l’onglet Joueurs', cx, cy + 105 * sc);
+}
+
+// Grille de cartes joueurs adaptative.
+//   width × height : canvas (16:9, 1920×1080 ref)
+//   sc             : facteur d'échelle (width/1920)
+//   playersList    : tableau de joueurs ({name, team, charId, costume, ...})
+//   n              : nombre de slots à dessiner
+// Layout : 4 colonnes maxi, autant de rangées que nécessaire (ceil(n/4)).
+// Rangs : 1, 2, 3, 4, 5/5, 7/7, 9×4, 13×4 — cf. rankLabelsForN.
+function drawMagnaCards(ctx, width, height, sc, playersList, n) {
+  const ranks = rankLabelsForN(n);
+  // Zone disponible : remonte plus haut (10%) pour que les cartes
+  // passent visuellement sous le logo Magna (qui fait ~22% de la hauteur
+  // et est dessiné PAR-DESSUS). Titre en bas réserve 110px.
+  const topY    = Math.round(height * 0.10);
+  const bottomY = Math.round(height - 110 * sc);
+  const leftX   = Math.round(60 * sc);
+  const rightX  = Math.round(width - 60 * sc);
+  const areaW   = rightX - leftX;
+  const areaH   = bottomY - topY;
+
+  // Layout custom par N (cf. mockups utilisateur) : positions/tailles
+  // normalisées 0-1 dans la zone des cartes. Slot 1 toujours en grand à
+  // gauche, slots suivants arrangés selon le N.
+  const layout = magnaLayoutFor(n);
+  if (layout) {
+    layout.forEach((cell, i) => {
+      const x = leftX + cell.x * areaW;
+      const y = topY  + cell.y * areaH;
+      const w = cell.w * areaW;
+      const h = cell.h * areaH;
+      drawMagnaCard(ctx, x, y, w, h, sc, playersList[i] || {}, ranks[i]);
+    });
+    return;
+  }
+
+  // Fallback grille 4-col simple pour N=1 ou N>8 (pas dans les mockups)
+  const cols    = Math.min(4, n);
+  const rows    = Math.ceil(n / cols);
+  const gap     = Math.round(16 * sc);
+  const cardW   = Math.round((areaW - gap * (cols - 1)) / cols);
+  const cardH   = Math.round((areaH - gap * (rows - 1)) / rows);
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const x = leftX + col * (cardW + gap);
+    const y = topY  + row * (cardH + gap);
+    drawMagnaCard(ctx, x, y, cardW, cardH, sc, playersList[i] || {}, ranks[i]);
+  }
+}
+
+// Layouts custom par nombre de joueurs N — coords normalisées (0-1) dans
+// la zone des cartes. Slot 1 toujours en grand à gauche. Gap consistant
+// (1.5% du width) horizontal/vertical entre toutes les cartes.
+// Basé sur les mockups utilisateur (N=4..8). N=2, N=3 dérivés du même
+// principe. Pour N>8 ou N<2, retourne null → fallback grille simple.
+function magnaLayoutFor(n) {
+  const GAP = 0.015;
+  const SLOT1_W = 0.32;       // largeur slot 1 (grand)
+  const TOP_H = 0.55;         // hauteur rangée du haut quand 2 rangées
+
+  if (n === 2) {
+    const w = (1 - GAP) / 2;
+    return [
+      {x: 0,     y: 0, w, h: 1},
+      {x: w+GAP, y: 0, w, h: 1},
+    ];
+  }
+  if (n === 3) {
+    // Podium : slot 1 grand au milieu (full height), slots 2 & 3 plus
+    // petits sur les côtés (~78% height, bottom-aligned). Style estrade
+    // de podium olympique.
+    const midW  = 0.36;
+    const sideW = (1 - 2*GAP - midW) / 2;
+    const sideH = 0.78;
+    const sideY = 1 - sideH; // bottom-aligned
+    return [
+      {x: sideW + GAP,                    y: 0,     w: midW,  h: 1},
+      {x: 0,                              y: sideY, w: sideW, h: sideH},
+      {x: sideW + GAP + midW + GAP,       y: sideY, w: sideW, h: sideH},
+    ];
+  }
+  if (n === 4) {
+    // Slot 1 grand + slot 2 grand + slots 3/4 empilés à droite (3 cols)
+    const colW = (1 - 2*GAP) / 3;
+    const halfH = (1 - GAP) / 2;
+    return [
+      {x: 0,             y: 0,         w: colW, h: 1},
+      {x: colW+GAP,      y: 0,         w: colW, h: 1},
+      {x: 2*(colW+GAP),  y: 0,         w: colW, h: halfH},
+      {x: 2*(colW+GAP),  y: halfH+GAP, w: colW, h: halfH},
+    ];
+  }
+  if (n === 5) {
+    // Slot 1 grand + grille 2×2 à droite
+    const rightW = 1 - SLOT1_W - GAP;
+    const cardW = (rightW - GAP) / 2;
+    const halfH = (1 - GAP) / 2;
+    return [
+      {x: 0,                   y: 0,         w: SLOT1_W, h: 1},
+      {x: SLOT1_W+GAP,         y: 0,         w: cardW,   h: halfH},
+      {x: SLOT1_W+GAP+cardW+GAP, y: 0,       w: cardW,   h: halfH},
+      {x: SLOT1_W+GAP,         y: halfH+GAP, w: cardW,   h: halfH},
+      {x: SLOT1_W+GAP+cardW+GAP, y: halfH+GAP,w: cardW,  h: halfH},
+    ];
+  }
+  if (n === 6) {
+    // Slot 1 + rangée 3 cards en haut + rangée 2 cards en bas (squarer)
+    const rightW = 1 - SLOT1_W - GAP;
+    const topCardW = (rightW - 2*GAP) / 3;
+    const bottomCardW = (rightW - GAP) / 2;
+    const bottomH = 1 - TOP_H - GAP;
+    const out = [{x: 0, y: 0, w: SLOT1_W, h: 1}];
+    for (let i = 0; i < 3; i++) {
+      out.push({x: SLOT1_W+GAP + i*(topCardW+GAP), y: 0, w: topCardW, h: TOP_H});
+    }
+    for (let i = 0; i < 2; i++) {
+      out.push({x: SLOT1_W+GAP + i*(bottomCardW+GAP), y: TOP_H+GAP, w: bottomCardW, h: bottomH});
+    }
+    return out;
+  }
+  if (n === 7) {
+    // Slot 1 + 2 rangées de 3 cards à droite
+    const rightW = 1 - SLOT1_W - GAP;
+    const cardW = (rightW - 2*GAP) / 3;
+    const bottomH = 1 - TOP_H - GAP;
+    const out = [{x: 0, y: 0, w: SLOT1_W, h: 1}];
+    for (let i = 0; i < 3; i++) {
+      out.push({x: SLOT1_W+GAP + i*(cardW+GAP), y: 0, w: cardW, h: TOP_H});
+    }
+    for (let i = 0; i < 3; i++) {
+      out.push({x: SLOT1_W+GAP + i*(cardW+GAP), y: TOP_H+GAP, w: cardW, h: bottomH});
+    }
+    return out;
+  }
+  if (n === 8) {
+    // Slot 1 + rangée 3 cards (plus larges) en haut + rangée 4 cards (plus
+    // étroites) en bas. Largeurs alignées sur grille de 12 unités côté droit.
+    const rightW = 1 - SLOT1_W - GAP;
+    const topCardW = (rightW - 2*GAP) / 3;
+    const bottomCardW = (rightW - 3*GAP) / 4;
+    const bottomH = 1 - TOP_H - GAP;
+    const out = [{x: 0, y: 0, w: SLOT1_W, h: 1}];
+    for (let i = 0; i < 3; i++) {
+      out.push({x: SLOT1_W+GAP + i*(topCardW+GAP), y: 0, w: topCardW, h: TOP_H});
+    }
+    for (let i = 0; i < 4; i++) {
+      out.push({x: SLOT1_W+GAP + i*(bottomCardW+GAP), y: TOP_H+GAP, w: bottomCardW, h: bottomH});
+    }
+    return out;
+  }
+  return null;
+}
+
+// Une carte joueur : fond sombre arrondi, rang en haut-gauche, mural perso
+// en grand, nom (+team prefix) en bas. Twitter @handle réservé à Phase 3.
+function drawMagnaCard(ctx, x, y, w, h, sc, player, rankLabel) {
+  ctx.save();
+  // Fond carte
+  const r = Math.round(14 * sc);
+  ctx.fillStyle = '#1a1a1c';
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.fill();
+
+  // Bordure subtile
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = Math.max(1, Math.round(1 * sc));
+  ctx.stroke();
+
+  // Pipeline de résolution de l'image du perso (ordre de priorité) :
+  //   1. customImgUrl uploadée par l'utilisateur (le plus haut)
+  //   2. Mural local via charId
+  //   3. Fallback start.gg via charImgUrl
+  let hasCharImage = false;
+  if (typeof imgCache !== 'undefined') {
+    let cachedImg = null;
+    // 1. Image custom uploadée
+    if (player.customImgKey) {
+      const customCached = imgCache[player.customImgKey];
+      if (customCached?._loaded && customCached._img) cachedImg = customCached._img;
+    }
+    // 2. Mural local via charId
+    if (!cachedImg && player.charId) {
+      const game = player.game || currentGame;
+      const key = `${game}_${player.charId}_${player.costume || 1}`;
+      const cached = imgCache[key];
+      if (cached?._loaded && cached._img) cachedImg = cached._img;
+    }
+    // 3. Fallback start.gg : utilisé si pas de mural local (404 ou pas de charId)
+    if (!cachedImg && player.charImgUrl) {
+      const sgKey = `__sg__${player.charImgUrl}`;
+      const sgCached = imgCache[sgKey];
+      if (sgCached?._loaded && sgCached._img) cachedImg = sgCached._img;
+    }
+    if (cachedImg) {
+      ctx.save();
+      roundRectPath(ctx, x, y, w, h, r);
+      ctx.clip();
+      // Centré, recouvre la carte tout en préservant l'aspect ratio
+      const aspect = cachedImg.naturalWidth / cachedImg.naturalHeight;
+      let dw = w, dh = w / aspect;
+      if (dh < h) { dh = h; dw = h * aspect; }
+      // Crop custom (X/Y/Zoom) appliqué uniquement si l'image vient de
+      // l'upload custom de l'utilisateur. Format : { x, y, scale }
+      // x et y sont des pourcentages de la taille de la carte (-100 à +100)
+      const crop = (player.customImgKey && player.customImgCrop) ? player.customImgCrop : null;
+      if (crop) {
+        dw *= crop.scale; dh *= crop.scale;
+      }
+      let dx = x + (w - dw) / 2;
+      let dy = y + (h - dh) / 2;
+      if (crop) {
+        dx += crop.x * w * 0.01;
+        dy += crop.y * h * 0.01;
+      }
+      ctx.drawImage(cachedImg, dx, dy, dw, dh);
+      ctx.restore();
+      hasCharImage = true;
+    }
+  }
+
+  // Placeholder instructif quand aucun perso n'est chargé : aide l'utilisateur
+  // à comprendre où aller pour ajouter une image (onglet Joueurs ou start.gg).
+  // Centré dans la carte, sobre (gris semi-transparent par-dessus le noir).
+  if (!hasCharImage) {
+    ctx.save();
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const minDim = Math.min(w, h);
+    // Icône image au-dessus
+    const iconSize = Math.round(minDim * 0.18);
+    ctx.font = `${iconSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🖼️', cx, cy - iconSize * 0.85);
+    // Texte principal
+    const mainSize = Math.round(minDim * 0.07);
+    ctx.font = `800 ${mainSize}px "Nunito", "Segoe UI", sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('Aucun perso', cx, cy + iconSize * 0.2);
+    // Sous-texte d'instruction
+    const subSize = Math.round(minDim * 0.052);
+    ctx.font = `600 ${subSize}px "Nunito", "Segoe UI", sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.38)';
+    ctx.fillText('Va dans l’onglet Joueurs', cx, cy + iconSize * 0.2 + mainSize * 1.4);
+    ctx.fillText('pour en ajouter un', cx, cy + iconSize * 0.2 + mainSize * 1.4 + subSize * 1.3);
+    ctx.restore();
+  }
+
+  // Rang en haut-gauche : chiffre blanc plein en Montserrat Black 900,
+  // avec un contour/shadow noir décalé en bas à droite (effet relief 3D).
+  const rankSize = Math.round(Math.min(w, h) * 0.16);
+  ctx.font = `900 ${rankSize}px "Montserrat", "Segoe UI", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const rankX = x + Math.round(34 * sc);
+  const rankY = y + Math.round(26 * sc);
+  // Ombre noire décalée bas-droite (proportionnelle à la taille du rang)
+  const off = Math.max(2, Math.round(rankSize * 0.08));
+  ctx.fillStyle = '#000';
+  ctx.fillText(rankLabel, rankX + off, rankY + off);
+  // Chiffre blanc principal
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(rankLabel, rankX, rankY);
+
+  // Nom en bas (+ team prefix optionnel). Background degradé bottom pour
+  // garantir la lisibilité par-dessus le mural. Police Montserrat Black
+  // (weight 900). Texte positionné tout en bas de la carte.
+  if (player.name) {
+    const nameBoxH = Math.round(h * 0.18);
+    const ny = y + h - nameBoxH;
+    // Gradient noir transparent → opaque sur les 60% inférieurs
+    const grad = ctx.createLinearGradient(0, ny - h*0.15, 0, y + h);
+    grad.addColorStop(0, 'rgba(20,20,22,0)');
+    grad.addColorStop(1, 'rgba(10,10,12,0.92)');
+    ctx.fillStyle = grad;
+    ctx.save();
+    roundRectPath(ctx, x, y, w, h, r);
+    ctx.clip();
+    ctx.fillRect(x, ny - h*0.15, w, h*0.15 + nameBoxH);
+    ctx.restore();
+
+    // Texte nom : team prefix en accent jaune, name en blanc. Police
+    // Montserrat Bold (700). Auto-fit pour que le texte tienne dans la
+    // carte (réduction du fontSize si le texte composé dépasse la largeur
+    // disponible avec un padding latéral de 14px de chaque côté).
+    const team = (player.team || '').trim();
+    const name = (player.name || '').trim();
+    const sepTxt = team ? ' | ' : '';
+    const fullText = team + sepTxt + name;
+
+    // Padding latéral : 30px par défaut, mais 70px (×2) pour la 1ʳᵉ place
+    // qui a une grande carte → le nom doit garder beaucoup d'air autour
+    // de lui pour ne pas paraître écrasant sur la carte du champion.
+    const isFirstPlace = rankLabel === '1';
+    const padPerSide = isFirstPlace ? 70 : 30;
+    const maxTextWidth = w - Math.round(padPerSide * 2 * sc);
+    let fontSize = Math.round(h * 0.085);
+    ctx.font = `700 ${fontSize}px "Montserrat", "Segoe UI", sans-serif`;
+    let totalW = ctx.measureText(fullText).width;
+    if (totalW > maxTextWidth) {
+      // Réduit proportionnellement (avec un floor minimum de 10px)
+      fontSize = Math.max(10, Math.floor(fontSize * (maxTextWidth / totalW)));
+      ctx.font = `700 ${fontSize}px "Montserrat", "Segoe UI", sans-serif`;
+      totalW = ctx.measureText(fullText).width;
+    }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    const tx = x + w / 2;
+    // Position : remonte le texte du fond (10% de la hauteur de carte
+    // depuis le bas) pour laisser plus d'air entre le nom et le bord.
+    const ty = y + h - Math.round(h * 0.10);
+    if (team) {
+      const teamW = ctx.measureText(team).width;
+      const sepW  = ctx.measureText(sepTxt).width;
+      const startX = tx - totalW / 2;
+      ctx.fillStyle = '#f5c623';
+      ctx.fillText(team, startX, ty);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(sepTxt, startX + teamW, ty);
+      ctx.fillText(name, startX + teamW + sepW, ty);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(name, tx, ty);
+    }
+  }
+
+  ctx.restore();
+}
+
+// Helper : trace un path rectangle arrondi compatible vieux navigateurs
+// (ctx.roundRect existe en moderne mais pas universel).
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+// Fond rouge avec rayures diagonales sombres.
+function drawMagnaBackground(ctx, width, height) {
+  ctx.fillStyle = '#d80018';
+  ctx.fillRect(0, 0, width, height);
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.rotate(-Math.PI / 4); // -45° diagonale
+  ctx.strokeStyle = '#9d0017';
+  const ref = Math.max(width, height);
+  ctx.lineWidth = Math.max(3, ref * 0.0045);
+  const span = ref * 1.6;
+  const step = Math.max(18, ref * 0.022);
+  for (let x = -span; x < span; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, -span);
+    ctx.lineTo(x, span);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Cache global du logo Magna Arena PNG (chargé async une seule fois depuis
+// le repo d'assets via jsDelivr). Tant qu'il n'est pas chargé, on dessine
+// le placeholder canvas en attendant. Promise-based pour pouvoir attendre
+// son chargement depuis les flows d'import multi-event.
+let _magnaLogoImg = null;
+let _magnaLogoPromise = null;
+function loadMagnaLogo() {
+  if (_magnaLogoImg) return Promise.resolve(_magnaLogoImg);
+  if (_magnaLogoPromise) return _magnaLogoPromise;
+  _magnaLogoPromise = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      _magnaLogoImg = img;
+      // Re-render single mode pour montrer le vrai logo si on est en magna
+      if (currentFormat === 'magna' && typeof generatePreview === 'function') {
+        generatePreview();
+      }
+      resolve(img);
+    };
+    img.onerror = () => {
+      console.warn('[Magna] Logo PNG introuvable (backgrounds/magna_logo.png) — placeholder utilisé');
+      resolve(null);
+    };
+    img.src = (typeof assetUrl === 'function')
+      ? assetUrl('backgrounds/magna_logo.png')
+      : 'backgrounds/magna_logo.png';
+  });
+  return _magnaLogoPromise;
+}
+
+// Logo Magna Arena en haut au centre. Utilise le PNG officiel si chargé,
+// sinon retombe sur un placeholder dessiné en canvas (couronne + texte).
+function drawMagnaLogo(ctx, width, height, sc) {
+  // Trigger le chargement async (idempotent grâce au cache + flag loading)
+  if (!_magnaLogoImg) loadMagnaLogo();
+
+  // ── Logo PNG officiel chargé : on l'affiche centré en haut ──
+  if (_magnaLogoImg && _magnaLogoImg.naturalWidth > 0) {
+    // ≈16.5% de la hauteur (22% × 0.75 = 25% plus petit) — dessiné
+    // par-dessus les cartes qui remontent (cf. drawMagnaCards topY=10%)
+    // pour donner l'effet "cartes passent SOUS le logo".
+    const logoH = Math.round(height * 0.165);
+    const aspect = _magnaLogoImg.naturalWidth / _magnaLogoImg.naturalHeight;
+    const logoW = Math.round(logoH * aspect);
+    const x = Math.round((width - logoW) / 2);
+    const y = Math.round(14 * sc);
+    ctx.drawImage(_magnaLogoImg, x, y, logoW, logoH);
+    return;
+  }
+
+  // ── Fallback placeholder en attendant le chargement ──
+  ctx.save();
+  // Couronne stylisée : 3 triangles dorés
+  const cx = width / 2;
+  const cy = 70 * sc;
+  const crownW = 110 * sc;
+  ctx.fillStyle = '#f5c623';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 3 * sc;
+  ctx.beginPath();
+  ctx.moveTo(cx - crownW/2, cy + 30*sc);
+  ctx.lineTo(cx - crownW/3, cy - 10*sc);
+  ctx.lineTo(cx - crownW/6, cy + 20*sc);
+  ctx.lineTo(cx,           cy - 35*sc);
+  ctx.lineTo(cx + crownW/6, cy + 20*sc);
+  ctx.lineTo(cx + crownW/3, cy - 10*sc);
+  ctx.lineTo(cx + crownW/2, cy + 30*sc);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Rubis central
+  ctx.fillStyle = '#d80018';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 18*sc);
+  ctx.lineTo(cx + 9*sc, cy - 5*sc);
+  ctx.lineTo(cx, cy + 8*sc);
+  ctx.lineTo(cx - 9*sc, cy - 5*sc);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Texte "MAGNA" en gros blanc avec stroke noir
+  ctx.font = `900 ${Math.round(72*sc)}px Anton, "Arial Black", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 7 * sc;
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeText('MAGNA', cx, cy + 110*sc);
+  ctx.fillText  ('MAGNA', cx, cy + 110*sc);
+  // Ruban "ARENA"
+  const banY = cy + 130*sc, banW = 220*sc, banH = 42*sc;
+  ctx.fillStyle = '#8e1226';
+  ctx.fillRect(cx - banW/2, banY, banW, banH);
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 3 * sc;
+  ctx.strokeRect(cx - banW/2, banY, banW, banH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 ${Math.round(24*sc)}px Anton, "Arial Black", sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ARENA', cx, banY + banH/2 + 2*sc);
+  ctx.restore();
+}
+
+// Nom du tournoi en bas, gros blanc, letter-spacing.
+// En mode multi-event, le nom vient de window._multiTournamentName (set
+// par multi.js avant l'appel à renderCanvas) plutôt que du champ input
+// qui n'est pas synchronisé en multi.
+function drawMagnaTitle(ctx, width, height, sc) {
+  const t = (window._multiTournamentName
+          || document.getElementById('tournamentName')?.value
+          || 'MAGNA ARENA').trim();
+  if (!t) return;
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 ${Math.round(54*sc)}px Anton, "Arial Black", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${4*sc}px`;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 8 * sc;
+  ctx.shadowOffsetY = 2 * sc;
+  ctx.fillText(t.toUpperCase(), width / 2, height - 25 * sc);
+  ctx.restore();
 }
 
 function generatePreview() {
@@ -2680,6 +3662,20 @@ function preloadMurals(gameId, playersList) {
       img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId, p.costume, gameId);
+    }));
+    // Fallback start.gg image : on précharge TOUJOURS quand charImgUrl est
+    // défini, même si charId existe — car le mural local peut 404 (perso
+    // pas dans le repo d'assets, ex. Alex SF6 en attendant l'upload).
+    // drawMagnaCard utilise le local si chargé, sinon ce fallback.
+    if (p.charImgUrl) loads.push(new Promise(resolve => {
+      const key = `__sg__${p.charImgUrl}`;
+      if (imgCache[key]?._loaded) { resolve(); return; }
+      if (!imgCache[key]) imgCache[key] = {_loaded:false, _img:null};
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
+      img.onerror = () => resolve();
+      img.src = p.charImgUrl;
     }));
     if (p.charId2) loads.push(new Promise(resolve => {
       const key2 = `${gameId}_${p.charId2}_${p.costume2||1}`;

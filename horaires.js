@@ -37,13 +37,28 @@ const HR = {
   weeklyId: null,       // id du timer/schedule côté bot
   lastResults: null,    // derniers résultats bruts (pour le planning)
   planRoles: [
-    { id: 'install',  icon: '🚀', title: 'Installation', slot: null,          users: [] },
-    { id: 'acc1',     icon: '🏠', title: 'Accueil',      slot: '17h30-18h30', users: [] },
-    { id: 'acc2',     icon: '🏠', title: 'Accueil',      slot: '18h30-19h30', users: [] },
-    { id: 'regie',    icon: '💻', title: 'Régie',        slot: '19h30-fin',   users: [] },
-    { id: 'seeding',  icon: '🌱', title: 'Seeding',      slot: null,          users: [] },
-    { id: 'rangement',icon: '🧹', title: 'Rangement',    slot: 'A la fermeture', users: [] },
+    { id: 'install',  category: 'setup',   icon: '🚀', title: 'Installation', slot: null,          users: [] },
+    { id: 'rangement',category: 'setup',   icon: '🧹', title: 'Rangement',    slot: 'A la fermeture', users: [] },
+    { id: 'acc1',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '17h30-18h30', users: [] },
+    { id: 'acc2',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '18h30-19h30', users: [] },
+    { id: 'regie',    category: 'regie',   icon: '💻', title: 'Régie',        slot: '19h30-fin',   users: [] },
+    { id: 'seeding',  category: 'seeding', icon: '🌱', title: 'Seeding',      slot: null,          users: [] },
+    // Catégorie TO — pré-remplie automatiquement depuis les flags toFG /
+    // toSmash annotés par le bot Discord sur les votants (rôle serveur).
+    { id: 'to_smash', category: 'to',      icon: '💥', title: 'TO Smash',     slot: null,          users: [] },
+    { id: 'to_fg',    category: 'to',      icon: '🎮', title: 'TO FG',        slot: null,          users: [] },
   ],
+};
+
+// Catégories de slots regroupées visuellement dans le planning. Multi-slots
+// (setup, accueil) sont regroupés sous un header commun avec un fond partagé ;
+// les autres restent en standalone.
+const HR_PLAN_CATEGORIES = {
+  setup:   { label: 'Installation & Rangement', icon: '🛠️' },
+  accueil: { label: 'Accueil',                  icon: '🏠' },
+  regie:   { label: 'Régie',                    icon: '💻' },
+  seeding: { label: 'Seeding',                  icon: '🌱' },
+  to:      { label: 'TO',                       icon: '🎮' },
 };
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -53,7 +68,9 @@ function hrInit() {
   hrInitDone = true;
   hrLoadBotSettings();
   hrLoadQuestions();   // charge les questions sauvegardées
+  hrLoadPlanRolesSkeleton(); // restaure les plages Régie custom ajoutées par l'user
   hrBuildQuestions();
+  hrUpdateQuestionsLocation(); // place les questions à droite tant qu'il n'y a pas de résultats
   hrLoadLastMessageIds();
   // Précharger les emojis (app + serveur) en background pour afficher les
   // images dans les boutons à gauche des options. Re-rend après chargement.
@@ -69,32 +86,17 @@ function hrInit() {
   hrRestoreLeftPanelState();
 }
 
-// Bascule l'état "panneau gauche masqué". L'état est persisté en localStorage
-// pour qu'un reload ou une navigation entre onglets ne casse pas la préférence.
+// Wrappers Horaires qui réutilisent le système partagé togglePageLeftPanel*
+// défini dans app.js. Le bouton avec onclick="hrToggleLeftPanel()" appelle
+// togglePageLeftPanelFromBtn() — on garde le wrapper pour ne pas casser la
+// signature HTML existante.
 function hrToggleLeftPanel() {
-  const page = document.getElementById('hrPage');
-  const btn  = document.getElementById('hrCollapseBtn');
-  if (!page) return;
-  page.classList.toggle('hr-left-collapsed');
-  const collapsed = page.classList.contains('hr-left-collapsed');
-  if (btn) {
-    btn.textContent = collapsed ? '›' : '‹';
-    btn.setAttribute('aria-label', collapsed ? 'Afficher le panneau gauche' : 'Masquer le panneau gauche');
-  }
-  try { localStorage.setItem('hr_left_collapsed', collapsed ? '1' : '0'); } catch {}
+  const btn = document.getElementById('hrCollapseBtn');
+  if (typeof togglePageLeftPanelFromBtn === 'function') togglePageLeftPanelFromBtn(btn);
 }
-
 function hrRestoreLeftPanelState() {
-  let saved = '0';
-  try { saved = localStorage.getItem('hr_left_collapsed') || '0'; } catch {}
-  if (saved === '1') {
-    const page = document.getElementById('hrPage');
-    const btn  = document.getElementById('hrCollapseBtn');
-    if (page) page.classList.add('hr-left-collapsed');
-    if (btn) {
-      btn.textContent = '›';
-      btn.setAttribute('aria-label', 'Afficher le panneau gauche');
-    }
+  if (typeof restorePageLeftPanel === 'function') {
+    restorePageLeftPanel(document.getElementById('hrPage'), 'hr_left_collapsed');
   }
 }
 
@@ -128,6 +130,45 @@ async function hrPreloadEmojis() {
 }
 
 // ── CONSTRUIRE LES ÉDITEURS DE QUESTIONS ──────────────────────────────────────
+// Vue active de la colonne droite : 'questions' (édition du sondage) ou
+// 'results' (résultats + planning). Bascule via le bouton flottant en bas
+// à gauche, et auto-switch vers 'results' quand des résultats arrivent.
+HR.viewMode = 'questions';
+
+function hrToggleView() {
+  HR.viewMode = HR.viewMode === 'questions' ? 'results' : 'questions';
+  hrApplyViewMode();
+}
+
+function hrApplyViewMode() {
+  const questionsEl = document.getElementById('hrQuestionsRightHome');
+  const resultsEl   = document.querySelector('.hr-results-section');
+  const planningEl  = document.getElementById('hrPlanningSection');
+  const hasResults  = !!(HR.lastResults && HR.lastResults.length);
+
+  // Sans résultats, on force la vue questions (pas de résultats à montrer).
+  const effective = hasResults ? HR.viewMode : 'questions';
+
+  if (questionsEl) questionsEl.style.display = (effective === 'questions') ? '' : 'none';
+  if (resultsEl)   resultsEl.style.display   = (effective === 'results')   ? '' : 'none';
+  // Planning suit la même règle, MAIS reste masqué si la section n'a pas été
+  // explicitement activée par hrBuildPlanningUI (style inline display:none initial).
+  if (planningEl && hasResults) planningEl.style.display = (effective === 'results') ? '' : 'none';
+
+  // Synchronise le bouton Rubik's Cube (remplace l'ancien hrViewToggle).
+  // - Visible uniquement quand il y a des résultats (sinon rien à toggler).
+  // - sync la face avant sur la vue effective sans déclencher d'animation.
+  if (typeof window.rubiksCubeSetVisible === 'function') {
+    window.rubiksCubeSetVisible(hasResults);
+  }
+  if (typeof window.rubiksCubeSyncView === 'function') {
+    window.rubiksCubeSyncView(effective);
+  }
+}
+
+// Backward-compat : appel historique → délègue à hrApplyViewMode.
+function hrUpdateQuestionsLocation() { hrApplyViewMode(); }
+
 function hrBuildQuestions() {
   const wrap = document.getElementById('hrQuestionsWrap');
   if (!wrap) return;
@@ -1442,6 +1483,10 @@ async function hrFetchResults() {
 
 function hrRenderResults(results) {
   HR.lastResults = results;   // garder pour le planning
+  // Auto-switch vers la vue résultats quand de nouvelles données arrivent —
+  // l'utilisateur vient de cliquer "Voir les résultats", on les lui montre.
+  if (results && results.length) HR.viewMode = 'results';
+  if (typeof hrApplyViewMode === 'function') hrApplyViewMode();
   const wrap = document.getElementById('hrResults');
   if (!wrap) return;
 
@@ -1466,7 +1511,6 @@ function hrRenderResults(results) {
           <div class="hr-result-opt">
             <span class="hr-result-emoji">:${opt.emoji}:</span>
             <span class="hr-result-label">${escHR(opt.label)}</span>
-            <span class="hr-result-count">${users.length}</span>
           </div>
           ${users.length ? `<div class="hr-result-users">${users.map(u =>
             `<span class="hr-result-user">${escHR(u.name || u)}</span>`
@@ -1560,15 +1604,29 @@ function hrAutoAssign(results) {
   const uName = u => (typeof u === 'object' ? u.name : u);
   const uObj  = u => (typeof u === 'object' ? u : { id: null, name: u });
 
-  // Collecte tous les utilisateurs dans une Map name → {id, name}
+  // Collecte tous les utilisateurs dans une Map name → {id, name, toFG, toSmash}
+  // — on merge les flags trouvés sur n'importe quelle réaction (le bot peut
+  // ne les annoter que sur une des réactions de la même personne).
   const allUsers = new Map();
   [...q0, ...q1, ...q2].forEach(r => {
     (r.users || []).forEach(u => {
       const obj = uObj(u);
-      if (!allUsers.has(obj.name)) allUsers.set(obj.name, obj);
+      if (!allUsers.has(obj.name)) {
+        allUsers.set(obj.name, {
+          id: obj.id || null,
+          name: obj.name,
+          toFG: !!obj.toFG,
+          toSmash: !!obj.toSmash,
+        });
+      } else {
+        const existing = allUsers.get(obj.name);
+        existing.toFG    = existing.toFG    || !!obj.toFG;
+        existing.toSmash = existing.toSmash || !!obj.toSmash;
+        if (!existing.id && obj.id) existing.id = obj.id;
+      }
     });
   });
-  const getUser = name => allUsers.get(name) || { id: null, name };
+  const getUser = name => allUsers.get(name) || { id: null, name, toFG: false, toSmash: false };
 
   // Sets de noms par option
   const arr  = {};
@@ -1599,6 +1657,13 @@ function hrAutoAssign(results) {
   });
   HR.planRoles.find(r => r.id === 'acc1').users = acc1;
   HR.planRoles.find(r => r.id === 'acc2').users = acc2;
+
+  // TO Smash / TO FG — pré-remplis depuis les flags annotés par le bot.
+  // Un même votant peut figurer dans les deux slots s'il a les deux rôles.
+  const toSmashRole = HR.planRoles.find(r => r.id === 'to_smash');
+  const toFgRole    = HR.planRoles.find(r => r.id === 'to_fg');
+  if (toSmashRole) toSmashRole.users = [...allUsers.values()].filter(u => u.toSmash);
+  if (toFgRole)    toFgRole.users    = [...allUsers.values()].filter(u => u.toFG);
 }
 
 // Construit l'UI planning (chips + textarea)
@@ -1612,14 +1677,15 @@ function hrBuildPlanningUI() {
 
 // Détermine l'équipe d'un user pour la coloration du Mii.
 //   - toSmash true (et toFG false) → 'smash' (bleu, sprite source non teinté)
-//   - toFG true (et toSmash false ou inconnu) → 'fg' (rouge, hue-rotate)
-//   - les deux ou aucun → 'fg' par défaut (l'utilisateur peut toujours réorganiser)
+//   - toFG true (et toSmash false)  → 'fg'    (rouge, hue-rotate 155°)
+//   - les DEUX                       → 'both'  (orange, hue-rotate plus court)
+//   - aucun des deux                 → 'none'  (blanc, grayscale + brighten)
 function hrMiiTeamOf(user) {
-  if (!user) return 'fg';
-  if (user.toSmash && !user.toFG) return 'smash';
-  if (user.toFG && !user.toSmash) return 'fg';
-  if (user.toSmash) return 'smash'; // multi-rôle : Smash en priorité
-  return 'fg';
+  if (!user) return 'none';
+  if (user.toSmash && user.toFG) return 'both';
+  if (user.toSmash) return 'smash';
+  if (user.toFG)    return 'fg';
+  return 'none';
 }
 
 // Détermine le rôle visuel (uniforme) selon le VOTE DE PRIORITÉ (Q3) de la
@@ -1715,11 +1781,17 @@ function hrMiiPriorityRoleFromEmojis(emojis, priorityMap) {
 function hrMiiCardHTML(user, fromRoleId, visualRole) {
   const team = hrMiiTeamOf(user);
   const useUniform = visualRole === 'accueil' || visualRole === 'regie';
-  // Filtre teinte : 'none' pour Smash (couleur source) ou si on porte un uniforme
-  // (qui a ses propres couleurs et ne doit pas être teinté).
-  const tintFilter = (team === 'fg' && !useUniform)
-    ? 'hue-rotate(155deg) saturate(1.25) brightness(0.92)'
-    : 'none';
+  // Filtre teinte (s'applique au t-shirt/bras quand le Mii n'a pas d'uniforme) :
+  //   - team 'smash' → 'none' (sprite source bleu non teinté)
+  //   - team 'fg'    → hue-rotate vers le rouge
+  //   - team 'both'  → hue-rotate vers l'orange (Smash + FG)
+  //   - team 'none'  → désaturation + éclaircissement → t-shirt blanc/gris très clair
+  let tintFilter = 'none';
+  if (!useUniform) {
+    if (team === 'fg')   tintFilter = 'hue-rotate(155deg) saturate(1.25) brightness(0.92)';
+    if (team === 'both') tintFilter = 'hue-rotate(195deg) saturate(1.4) brightness(1.05)';
+    if (team === 'none') tintFilter = 'saturate(0) brightness(1.35) contrast(0.92)';
+  }
 
   const bodySrc = visualRole === 'regie'   ? 'mii/body-regie.png'
                 : visualRole === 'accueil' ? 'mii/body-accueil.png'
@@ -1743,7 +1815,8 @@ function hrMiiCardHTML(user, fromRoleId, visualRole) {
          onpointerdown="hrMiiDragStart(event)"
          onpointermove="hrMiiDragMove(event)"
          onpointerup="hrMiiDragEnd(event)"
-         onpointercancel="hrMiiDragEnd(event)">
+         onpointercancel="hrMiiDragEnd(event)"
+         oncontextmenu="hrMiiContextRemove(event)">
       <div class="hr-mii-frame">
         <div class="hr-mii-stack">
           <img class="hr-mii-part hr-mii-hair-back" src="mii/hair-back.png" draggable="false">
@@ -1763,11 +1836,11 @@ function hrRenderPlanningRoles() {
   const wrap = document.getElementById('hrPlanningRoles');
   if (!wrap) return;
 
-  const allVoters   = hrGetAllVoters(); // [{ id, name, toFG, toSmash }]
-  const assignedNames = new Set(HR.planRoles.flatMap(r => r.users.map(u => u.name || u)));
-  const unassigned  = allVoters.filter(u => !assignedNames.has(u.name));
-  const smashUnassigned = unassigned.filter(u => hrMiiTeamOf(u) === 'smash');
-  const fgUnassigned    = unassigned.filter(u => hrMiiTeamOf(u) === 'fg');
+  const allVoters = hrGetAllVoters(); // [{ id, name, toFG, toSmash }]
+  // Le pool affiche TOUTES les personnes, même celles déjà placées dans un
+  // slot — comme une "librairie" permanente. On peut depuis le pool draguer
+  // un Mii pour le (ré)assigner ; sa présence dans un slot reste affichée
+  // séparément dans la liste de la slot concernée.
 
   // Map nom → emojis votés en Q3 (priorité tâche), pour affichage discret en
   // overlay sur le badge nom du Mii.
@@ -1812,47 +1885,67 @@ function hrRenderPlanningRoles() {
     return prio ? html.replace('<div class="hr-mii-frame">', `<div class="hr-mii-frame">${prio}`) : html;
   };
 
-  let html = '';
+  // Taille des Miis selon le count (mêmes paliers que pour les slots de rôles).
+  const miiSizeForCount = (n) => {
+    if (n <= 6)  return 78;
+    if (n <= 8)  return 64;
+    if (n <= 12) return 54;
+    if (n <= 20) return 46;
+    return 38;
+  };
 
-  // ── Pool des non assignés — 2 colonnes Smash / FG ────────────────────────
+  // ── Pool de tous les votants — UN seul tray, permanent ─────────────────
+  // Tout le monde reste affiché ici, même placé dans un slot. C'est une
+  // librairie de référence + zone de drop pour "retirer d'un slot".
+  const poolSize = miiSizeForCount(allVoters.length);
+
+  let html = '';
   html += `<div class="hr-mii-roster">
-    <div class="hr-mii-roster-team">
-      <div class="hr-mii-roster-head">
-        <div class="hr-mii-roster-title"><span class="hr-mii-team-dot hr-mii-team-smash"></span>TO Smash</div>
-        <div class="hr-mii-roster-meta">${smashUnassigned.length} / ${allVoters.filter(u => hrMiiTeamOf(u) === 'smash').length}</div>
-      </div>
-      <div class="hr-mii-roster-tray" data-dropzone="">
-        ${smashUnassigned.length
-          ? smashUnassigned.map(u => card(u, 'pool')).join('')
-          : '<div class="hr-mii-empty">Tous assignés.</div>'}
-      </div>
-    </div>
-    <div class="hr-mii-roster-team">
-      <div class="hr-mii-roster-head">
-        <div class="hr-mii-roster-title"><span class="hr-mii-team-dot hr-mii-team-fg"></span>TO FG</div>
-        <div class="hr-mii-roster-meta">${fgUnassigned.length} / ${allVoters.filter(u => hrMiiTeamOf(u) === 'fg').length}</div>
-      </div>
-      <div class="hr-mii-roster-tray" data-dropzone="">
-        ${fgUnassigned.length
-          ? fgUnassigned.map(u => card(u, 'pool')).join('')
-          : '<div class="hr-mii-empty">Tous assignés.</div>'}
-      </div>
+    <div class="hr-mii-roster-tray" data-dropzone="" style="--mii-size:${poolSize}px">
+      ${allVoters.length
+        ? allVoters.map(u => card(u, 'pool')).join('')
+        : '<div class="hr-mii-empty">Aucun votant.</div>'}
     </div>
   </div>`;
 
   // ── Cartes de rôles ──────────────────────────────────────────────────────
-  html += `<div class="hr-plan-roles-grid">` + HR.planRoles.map(role => {
+  // Taille des Miis (miiSizeForCount) — déclarée plus haut, partagée entre
+  // roster et slots :
+  //   ≤ 6  : 78px (taille défaut, 2 par rangée × 3 rangées max)
+  //   7-8  : 64px
+  //   9-12 : 54px
+  //   13-20: 46px
+  //   20+  : 38px
+  // Groupe les rôles par catégorie en préservant l'ordre. Map catId → [roles]
+  const rolesByCat = new Map();
+  HR.planRoles.forEach(r => {
+    const cat = r.category || r.id;
+    if (!rolesByCat.has(cat)) rolesByCat.set(cat, []);
+    rolesByCat.get(cat).push(r);
+  });
+
+  const renderRoleCard = (role, isRegieCategory = false) => {
     const cardsHtml = role.users.length
       ? role.users.map(u => card(u.name ? u : { id: null, name: u, toFG: false, toSmash: false }, role.id)).join('')
       : '<div class="hr-mii-empty hr-mii-empty-slot">Déposer ici…</div>';
 
-    const headerLabel = role.slot
-      ? `<span class="hr-plan-title">${role.title}</span><span class="hr-plan-slot">${role.slot}</span>`
-      : `<span class="hr-plan-title">${role.title}</span>`;
+    const miiSize = miiSizeForCount(role.users.length);
 
-    const datalist = `<datalist id="hrPlanDL_${role.id}">
-      ${allVoters.map(u => `<option value="${escHR(u.name)}">`).join('')}
-    </datalist>`;
+    // Pour les slots Régie (dynamiques), le label de plage est éditable au
+    // clic et un ✕ permet de supprimer le slot.
+    const slotLabel = role.slot
+      ? (isRegieCategory
+          ? `<span class="hr-plan-slot hr-plan-slot-editable" onclick="hrEditPlanSlotTime('${hrEscJS(role.id)}')" title="Cliquer pour éditer la plage">${escHR(role.slot)}</span>`
+          : `<span class="hr-plan-slot">${escHR(role.slot)}</span>`)
+      : (isRegieCategory
+          ? `<span class="hr-plan-slot hr-plan-slot-editable hr-plan-slot-empty" onclick="hrEditPlanSlotTime('${hrEscJS(role.id)}')" title="Cliquer pour définir la plage">+ plage</span>`
+          : '');
+
+    const headerLabel = `<span class="hr-plan-title">${role.title}</span>${slotLabel}`;
+
+    const removeBtn = isRegieCategory
+      ? `<button class="hr-plan-role-del-btn" onclick="hrRemovePlanSlot('${hrEscJS(role.id)}')" title="Supprimer cette plage">✕</button>`
+      : '';
 
     return `
       <div class="hr-plan-role" data-dropzone="${hrEscJS(role.id)}">
@@ -1860,17 +1953,58 @@ function hrRenderPlanningRoles() {
           <span class="hr-plan-icon">${role.icon}</span>
           ${headerLabel}
           <span class="hr-plan-count">${role.users.length}</span>
+          ${removeBtn}
         </div>
-        <div class="hr-plan-chips">${cardsHtml}</div>
-        <div class="hr-plan-add-row">
-          <input class="hr-plan-add-input" id="hrPlanAdd_${role.id}" type="text"
-            placeholder="Ajouter…" list="hrPlanDL_${role.id}"
-            onkeydown="if(event.key==='Enter'){hrPlanAddUser('${hrEscJS(role.id)}');event.preventDefault();}">
-          ${datalist}
-          <button class="hr-plan-add-btn" onclick="hrPlanAddUser('${hrEscJS(role.id)}')">+</button>
+        <div class="hr-plan-chips" style="--mii-size:${miiSize}px">${cardsHtml}</div>
+      </div>`;
+  };
+
+  // Helper de rendu d'une catégorie. Pour 'regie', toujours afficher le
+  // header (même avec 1 seul slot) car on a un bouton "+ Ajouter une plage"
+  // qui doit vivre quelque part, et c'est la seule catégorie multi-extensible.
+  const renderCategoryBlock = (catId, roles) => {
+    const catMeta = HR_PLAN_CATEGORIES[catId] || { label: catId, icon: '📌' };
+    const isMulti  = roles.length > 1;
+    const isRegie  = catId === 'regie';
+    const isTo     = catId === 'to';
+    const showHeader = isMulti || isRegie || isTo;
+    const addBtn = isRegie
+      ? `<button class="hr-plan-add-slot-btn" onclick="hrAddPlanSlot('regie')" title="Ajouter une plage horaire">+ Ajouter une plage</button>`
+      : '';
+    return `
+      <div class="hr-plan-category ${isMulti ? 'is-multi' : 'is-single'} ${isRegie ? 'is-regie' : ''} ${isTo ? 'is-to' : ''}" data-cat="${hrEscJS(catId)}">
+        ${showHeader ? `
+          <div class="hr-plan-category-header">
+            <span class="hr-plan-category-icon">${catMeta.icon}</span>
+            <span class="hr-plan-category-label">${escHR(catMeta.label)}</span>
+            ${addBtn}
+          </div>` : ''}
+        <div class="hr-plan-category-slots">
+          ${roles.map(role => renderRoleCard(role, isRegie)).join('')}
         </div>
       </div>`;
-  }).join('') + `</div>`;
+  };
+
+  html += `<div class="hr-plan-cats">`;
+  // Régie d'abord, sur sa propre ligne pleine largeur
+  if (rolesByCat.has('regie')) {
+    html += renderCategoryBlock('regie', rolesByCat.get('regie'));
+    rolesByCat.delete('regie');
+  }
+  // TO réservé pour la fin (en dessous) — extrait avant la rangée wrap
+  const toRoles = rolesByCat.get('to');
+  rolesByCat.delete('to');
+  // Autres catégories en ligne wrap
+  if (rolesByCat.size) {
+    html += `<div class="hr-plan-cats-row">` +
+      [...rolesByCat.entries()].map(([catId, roles]) => renderCategoryBlock(catId, roles)).join('') +
+      `</div>`;
+  }
+  // TO en dessous, sur sa propre ligne pleine largeur
+  if (toRoles && toRoles.length) {
+    html += renderCategoryBlock('to', toRoles);
+  }
+  html += `</div>`;
 
   wrap.innerHTML = html;
   // Lancer la boucle physique (idempotente) maintenant que des cartes existent.
@@ -1957,6 +2091,18 @@ function hrMiiEnsureLoop() {
   if (hrMiiRafId == null) hrMiiRafId = requestAnimationFrame(hrMiiTick);
 }
 
+// Clic droit sur un Mii : supprime la carte de son slot. Le mii vit toujours
+// dans le pool (qui est une "librairie" affichant TOUS les votants), donc le
+// clic droit sur un mii du pool est ignoré — sinon on perdrait la personne.
+function hrMiiContextRemove(e) {
+  e.preventDefault();
+  const card = e.currentTarget;
+  const name = card.dataset.name;
+  const fromRoleId = card.dataset.from;
+  if (!name || !fromRoleId || fromRoleId === 'pool') return;
+  hrPlanRemoveUser(fromRoleId, name);
+}
+
 function hrMiiDragStart(e) {
   if (e.button !== undefined && e.button !== 0) return;
   e.preventDefault();
@@ -2024,26 +2170,52 @@ function hrMiiDragEnd(e) {
   hrMiiCommitMove(name, fromRoleId, toRoleId);
 }
 
-// Identique à l'ancien hrPlanDrop mais paramétrée pour être appelée depuis le
-// nouveau système pointer + le drop sur la même source ne fait rien.
+// Applique un drop. Règles :
+//   - toRoleId === null      → pas de zone détectée, no-op
+//   - toRoleId === ''        → drop dans le pool → retire de la slot source
+//                              (si fromRoleId est un vrai slot)
+//   - toRoleId === <roleId>  → ajoute au slot cible. Une personne PEUT être
+//                              dans plusieurs slots à la fois ; le seul cas
+//                              interdit est "déjà dans CE slot" → feedback
+//                              visuel (slot rouge qui secoue) puis no-op.
 function hrMiiCommitMove(name, fromRoleId, toRoleId) {
   if (!name) return;
-  // Si pas de dropzone détectée OU drop sur la source → no-op
   if (toRoleId === null) return;
-  if (fromRoleId === (toRoleId || 'pool')) return;
 
-  if (fromRoleId && fromRoleId !== 'pool') {
-    const fromRole = HR.planRoles.find(r => r.id === fromRoleId);
-    if (fromRole) fromRole.users = fromRole.users.filter(u => (u.name || u) !== name);
-  }
-  if (toRoleId) {
-    const toRole = HR.planRoles.find(r => r.id === toRoleId);
-    if (toRole && !toRole.users.some(u => (u.name || u) === name)) {
-      const known = hrGetAllVoters().find(v => v.name === name);
-      toRole.users.push(known || { id: null, name, toFG: false, toSmash: false });
+  // Drop dans le pool : retire de la slot source (si on vient d'une slot)
+  if (toRoleId === '') {
+    if (fromRoleId && fromRoleId !== 'pool') {
+      const fromRole = HR.planRoles.find(r => r.id === fromRoleId);
+      if (fromRole) fromRole.users = fromRole.users.filter(u => (u.name || u) !== name);
+      hrRenderPlanningRoles();
     }
+    return;
   }
+
+  // Drop dans une slot : on ajoute SAUF si déjà dans cette slot
+  const toRole = HR.planRoles.find(r => r.id === toRoleId);
+  if (!toRole) return;
+  const alreadyHere = toRole.users.some(u => (u.name || u) === name);
+  if (alreadyHere) {
+    // Feedback visuel : la slot devient rouge et secoue
+    hrMiiFlashError(toRoleId);
+    return;
+  }
+  const known = hrGetAllVoters().find(v => v.name === name);
+  toRole.users.push(known || { id: null, name, toFG: false, toSmash: false });
   hrRenderPlanningRoles();
+}
+
+// Feedback "déjà dans ce slot" : ajoute une classe CSS d'animation rouge+shake
+// sur le slot ciblé, puis l'enlève après la fin de l'anim.
+function hrMiiFlashError(roleId) {
+  const el = document.querySelector(`.hr-plan-role[data-dropzone="${(roleId || '').replace(/"/g, '\\"')}"]`);
+  if (!el) return;
+  el.classList.remove('hr-plan-error'); // reset au cas où l'anim était en cours
+  // Force un reflow pour que retirer puis ré-ajouter relance l'anim
+  void el.offsetWidth;
+  el.classList.add('hr-plan-error');
+  setTimeout(() => el.classList.remove('hr-plan-error'), 500);
 }
 
 // ── Anciens wrappers DnD HTML5 conservés au cas où du code legacy les appelle ─
@@ -2053,6 +2225,78 @@ function hrPlanDragLeave(el) {}
 function hrPlanDrop(e, el, toRoleId) {}
 
 // Retirer un utilisateur d'un rôle
+// ── Gestion dynamique des slots Régie ───────────────────────────────────────
+// L'utilisateur peut ajouter / supprimer / renommer des plages horaires de
+// Régie depuis l'UI. Les changements sont persistés en localStorage pour
+// survivre aux reloads.
+function hrAddPlanSlot(category) {
+  const time = prompt('Plage horaire pour cette nouvelle case :', '20h-21h');
+  if (time == null) return; // cancel
+  const meta = HR_PLAN_CATEGORIES[category] || { icon: '📌', label: category };
+  const id = `${category}_${Date.now()}`;
+  // Insérer après la dernière case de la même catégorie pour garder l'ordre
+  const lastIdx = HR.planRoles.map(r => r.category).lastIndexOf(category);
+  const newRole = {
+    id, category,
+    icon: category === 'regie' ? '💻' : meta.icon,
+    title: category === 'regie' ? 'Régie' : meta.label,
+    slot: time.trim() || '',
+    users: [],
+  };
+  if (lastIdx >= 0) HR.planRoles.splice(lastIdx + 1, 0, newRole);
+  else HR.planRoles.push(newRole);
+  hrSavePlanRolesSkeleton();
+  hrRenderPlanningRoles();
+}
+
+function hrRemovePlanSlot(roleId) {
+  if (!confirm('Supprimer cette plage ? Les personnes assignées seront retirées.')) return;
+  HR.planRoles = HR.planRoles.filter(r => r.id !== roleId);
+  hrSavePlanRolesSkeleton();
+  hrRenderPlanningRoles();
+}
+
+function hrEditPlanSlotTime(roleId) {
+  const r = HR.planRoles.find(rr => rr.id === roleId);
+  if (!r) return;
+  const newTime = prompt('Plage horaire :', r.slot || '');
+  if (newTime == null) return;
+  r.slot = newTime.trim();
+  hrSavePlanRolesSkeleton();
+  hrRenderPlanningRoles();
+}
+
+// Persistance du SKELETON des planRoles (id, category, icon, title, slot)
+// — pas des users assignés qui sont dérivés des votes. Permet aux plages
+// Régie créées par l'utilisateur de survivre aux reloads.
+function hrSavePlanRolesSkeleton() {
+  try {
+    const skel = HR.planRoles.map(r => ({
+      id: r.id, category: r.category, icon: r.icon, title: r.title, slot: r.slot
+    }));
+    localStorage.setItem('hr_plan_roles_skeleton', JSON.stringify(skel));
+  } catch {}
+}
+function hrLoadPlanRolesSkeleton() {
+  try {
+    const raw = localStorage.getItem('hr_plan_roles_skeleton');
+    if (!raw) return;
+    const skel = JSON.parse(raw);
+    if (!Array.isArray(skel) || !skel.length) return;
+    // Remplace HR.planRoles par le skeleton, en préservant users=[] (sera
+    // re-rempli par hrAutoAssign quand les résultats arrivent).
+    HR.planRoles = skel.map(r => ({ ...r, users: [] }));
+    // Migration : si le skeleton sauvegardé date d'avant l'ajout de la
+    // catégorie TO, on injecte les 2 slots TO Smash / TO FG.
+    if (!HR.planRoles.some(r => r.id === 'to_smash')) {
+      HR.planRoles.push({ id: 'to_smash', category: 'to', icon: '💥', title: 'TO Smash', slot: null, users: [] });
+    }
+    if (!HR.planRoles.some(r => r.id === 'to_fg')) {
+      HR.planRoles.push({ id: 'to_fg',    category: 'to', icon: '🎮', title: 'TO FG',    slot: null, users: [] });
+    }
+  } catch {}
+}
+
 function hrPlanRemoveUser(roleId, username) {
   const role = HR.planRoles.find(r => r.id === roleId);
   if (!role) return;
@@ -2144,6 +2388,12 @@ function hrUpdatePlanMsg() {
   if (byId.rangement?.users?.length)
     parts.push(`🧹 Rangement\nA la fermeture : ${hrMention(byId.rangement.users)}`);
 
+  if (byId.to_smash?.users?.length)
+    parts.push(`💥 TO Smash\n${hrMention(byId.to_smash.users)}`);
+
+  if (byId.to_fg?.users?.length)
+    parts.push(`🎮 TO FG\n${hrMention(byId.to_fg.users)}`);
+
   ta.value = parts.join('\n\n');
 }
 
@@ -2174,31 +2424,49 @@ function hrTogglePlanningPreview() {
   }
 }
 
-// Rend une preview HTML qui imite l'embed Discord (barre colorée à gauche,
-// titre, fields). Reflète exactement ce qui sera posté.
-function hrRenderPlanningPreview() {
+// Rend une preview HTML qui imite ce qui sera posté sur Discord : image en
+// premier message, puis message texte en second (avec mentions qui ping).
+// Capture l'image PNG du planning en parallèle.
+async function hrRenderPlanningPreview() {
   const preview = document.getElementById('hrPlanningPreview');
   if (!preview) return;
-  const embed = hrBuildPlanningEmbed();
-  if (!embed) {
+  hrUpdatePlanMsg();
+  const planText = (document.getElementById('hrPlanningMsg')?.value || '').trim();
+  if (!planText) {
     preview.innerHTML = '<div class="hr-embed-empty">Aucun rôle assigné — rien à prévisualiser</div>';
     return;
   }
-  // Couleur en hex pour la barre gauche
-  const hex = '#' + embed.color.toString(16).padStart(6, '0');
+  // Convertit le plain text en HTML avec mention-chips. On échappe d'abord
+  // tout, puis on transforme les &lt;@id&gt; en bulles bleues "@nom" comme
+  // Discord les affiche.
+  const htmlText = hrFormatMentionsForPreview(planText)
+    // Préserver les retours à la ligne du textarea dans le rendu HTML
+    .replace(/\n/g, '<br>');
   preview.innerHTML = `
-    <div class="hr-embed-preview-card" style="border-left-color:${hex};">
-      <div class="hr-embed-preview-title">${escHR(embed.title)}</div>
-      ${embed.fields.map(f => `
-        <div class="hr-embed-preview-field">
-          <div class="hr-embed-preview-field-name">${escHR(f.name)}</div>
-          <div class="hr-embed-preview-field-value">${hrFormatMentionsForPreview(f.value)}</div>
-        </div>
-      `).join('')}
-      <div class="hr-embed-preview-timestamp">${new Date(embed.timestamp).toLocaleString('fr-FR', {dateStyle:'short', timeStyle:'short'})}</div>
+    <div class="hr-embed-preview-image-wrap">
+      <div class="hr-embed-preview-image-placeholder">⏳ Génération de l'image…</div>
     </div>
-    <div class="hr-embed-preview-hint">↑ aperçu de l'embed qui sera posté</div>
+    <div class="hr-content-preview-card">${htmlText}</div>
+    <div class="hr-embed-preview-hint">↑ aperçu de l'image puis du message (les mentions pingueront)</div>
   `;
+
+  // Capture l'image en parallèle (best-effort : si échec, on cache juste
+  // le placeholder). On retient l'élément cible au moment du lancement
+  // pour ne pas écraser une preview plus récente si l'utilisateur a re-toggle.
+  const imgWrap = preview.querySelector('.hr-embed-preview-image-wrap');
+  try {
+    const dataUrl = await hrCapturePlanningPng();
+    // Vérifier que la preview n'a pas été re-rendue entre temps
+    if (!document.body.contains(imgWrap)) return;
+    if (dataUrl) {
+      imgWrap.innerHTML = `<img class="hr-embed-preview-image" src="${dataUrl}" alt="Planning">`;
+    } else {
+      imgWrap.remove();
+    }
+  } catch (e) {
+    console.warn('[hrRenderPlanningPreview] Capture image échouée :', e.message);
+    if (document.body.contains(imgWrap)) imgWrap.remove();
+  }
 }
 
 // Convertit les <@id> en chips de mention pour l'aperçu (Discord les affiche
@@ -2214,6 +2482,174 @@ function hrFormatMentionsForPreview(text) {
   });
 }
 
+// ─── Pré-cuisson des Miis teintés pour html2canvas ─────────────────────────
+// html2canvas v1.4 n'applique PAS les CSS `filter: hue-rotate()` sur les
+// éléments <img> (limitation connue : il rend l'img via drawImage et ignore
+// les filtres inline). Conséquence : tous les miis sortaient en teinte
+// "smash" (image source non teintée) sur l'image Discord, alors qu'à l'écran
+// ils sont colorés par équipe (fg=rouge, both=orange, none=blanc).
+// Solution : on pré-rend chaque combo (src × filter) dans un canvas offscreen
+// avec ctx.filter (qui FONCTIONNE), on récupère la dataURL teintée, et on
+// remplace `img.src` dans le clone juste avant la capture.
+const HR_BAKED_TINTS = new Map(); // `${src}|${filter}` → dataURL teintée
+
+async function hrBakeTintedImage(srcPath, filterStr) {
+  const key = `${srcPath}|${filterStr}`;
+  if (HR_BAKED_TINTS.has(key)) return HR_BAKED_TINTS.get(key);
+  const img = new Image();
+  // Les miis sont same-origin (mii/*.png), pas besoin de CORS — mais on le
+  // met quand même pour être robuste si un jour on les sert via CDN.
+  img.crossOrigin = 'anonymous';
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error('img load failed: ' + srcPath));
+    img.src = srcPath;
+  });
+  const c = document.createElement('canvas');
+  c.width  = img.naturalWidth  || img.width;
+  c.height = img.naturalHeight || img.height;
+  const ctx = c.getContext('2d');
+  ctx.filter = filterStr;
+  ctx.drawImage(img, 0, 0);
+  const dataUrl = c.toDataURL('image/png');
+  HR_BAKED_TINTS.set(key, dataUrl);
+  return dataUrl;
+}
+
+// Pré-cuit tous les combos (src × filter) trouvés sous `rootEl`. Idempotent
+// grâce au cache HR_BAKED_TINTS.
+async function hrPrebakeAllTints(rootEl) {
+  const imgs = rootEl.querySelectorAll('img.hr-mii-part[style*="filter"]');
+  const combos = new Set();
+  imgs.forEach(img => {
+    const f = img.style.filter;
+    if (!f || f === 'none') return;
+    combos.add(`${img.getAttribute('src')}|${f}`);
+  });
+  await Promise.all([...combos].map(key => {
+    const sep = key.indexOf('|');
+    return hrBakeTintedImage(key.slice(0, sep), key.slice(sep + 1));
+  }));
+}
+
+// Charge html2canvas depuis CDN à la demande (idempotent). Renvoie la
+// référence globale `window.html2canvas` une fois prête.
+function hrLoadHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve(window.html2canvas);
+  if (window._hrH2cPromise) return window._hrH2cPromise;
+  window._hrH2cPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = () => resolve(window.html2canvas);
+    s.onerror = () => reject(new Error('html2canvas indisponible (CDN)'));
+    document.head.appendChild(s);
+  });
+  return window._hrH2cPromise;
+}
+
+// Capture les catégories de slots du planning (avec miis) en dataURL PNG.
+// Renvoie null si rien à capturer (rendu pas encore fait, slots vides, etc.).
+// Le pool de votants est volontairement exclu — l'image Discord ne doit
+// montrer que le résultat assigné, pas l'outil de travail.
+async function hrCapturePlanningPng() {
+  const target = document.querySelector('#hrPlanningRoles .hr-plan-cats');
+  if (!target) return null;
+  const h2c = await hrLoadHtml2Canvas();
+  // Pré-cuit toutes les variantes teintées des miis (cf. HR_BAKED_TINTS)
+  // pour contourner la limitation html2canvas qui ignore les CSS filter
+  // sur les <img>. Best-effort : si échec on continue (les miis sortiront
+  // en teinte "smash" par défaut, mieux que rien).
+  try { await hrPrebakeAllTints(target); }
+  catch (e) { console.warn('[hrCapturePlanningPng] Pré-cuisson tints échouée :', e.message); }
+  // backgroundColor:null préserve la transparence si jamais, mais on force
+  // un fond clair pour rester lisible dans Discord (light & dark theme).
+  const canvas = await h2c(target, {
+    // Fond transparent → l'image s'insère naturellement dans le thème
+    // Discord (clair OU sombre) sans cadre blanc autour.
+    backgroundColor: null,
+    scale: window.devicePixelRatio > 1 ? 2 : 1.5, // un peu de SSAA pour la netteté
+    useCORS: true,
+    logging: false,
+    // Skipper les éléments d'UI qui n'ont pas leur place dans le snapshot
+    // partagé sur Discord : bouton "+ Ajouter une plage", boutons ✕ de
+    // suppression de slot, etc.
+    ignoreElements: (el) => {
+      if (!el.classList) return false;
+      return el.classList.contains('hr-plan-add-slot-btn')
+          || el.classList.contains('hr-plan-role-del-btn');
+    },
+    // Réordonne le DOM CLONÉ (uniquement pour l'image, l'UI live reste
+    // inchangée) selon l'ordre vertical voulu pour le partage Discord :
+    //   1. TO        (TO Smash | TO FG)
+    //   2. Setup     (Installation | Rangement)
+    //   3. Accueil   (Accueil1 | Accueil2)
+    //   4. Régie     (1..N plages)
+    //   5. Seeding   (1 slot pleine largeur)
+    // On aplatit d'abord le .hr-plan-cats-row pour que toutes les
+    // catégories deviennent enfants directs de .hr-plan-cats (column flex
+    // → chaque enfant est full-width). On injecte ensuite un style override
+    // pour faire flex-fill les slots des catégories multi (setup, accueil).
+    onclone: (clonedDoc) => {
+      const cats = clonedDoc.querySelector('#hrPlanningRoles .hr-plan-cats');
+      if (!cats) return;
+      // 0) Remplacer les miis teintés par leurs versions pré-cuites
+      //    (cf. HR_BAKED_TINTS). Indispensable car html2canvas ignore les
+      //    CSS filter inline sur <img>.
+      cats.querySelectorAll('img.hr-mii-part').forEach(img => {
+        const f = img.style.filter;
+        if (!f || f === 'none') return;
+        const key = `${img.getAttribute('src')}|${f}`;
+        const baked = HR_BAKED_TINTS.get(key);
+        if (baked) {
+          img.src = baked;
+          img.style.filter = 'none';
+        }
+      });
+      // 1) Aplatir : déplacer les enfants de .hr-plan-cats-row vers .hr-plan-cats
+      cats.querySelectorAll('.hr-plan-cats-row').forEach(row => {
+        while (row.firstChild) cats.appendChild(row.firstChild);
+        row.remove();
+      });
+      // 2) Réordonner par data-cat
+      const order = ['to', 'setup', 'accueil', 'regie', 'seeding'];
+      const byCat = new Map();
+      cats.querySelectorAll(':scope > .hr-plan-category').forEach(node => {
+        byCat.set(node.dataset.cat, node);
+      });
+      order.forEach(catId => {
+        const node = byCat.get(catId);
+        if (node) { cats.appendChild(node); byCat.delete(catId); }
+      });
+      // Catégories non listées (extensions futures) restent à la fin dans
+      // leur ordre courant — déjà OK puisque non re-appended.
+      byCat.forEach(node => cats.appendChild(node));
+      // 3) Override CSS pour que les slots de Setup, Accueil et Seeding
+      //    prennent toute la largeur (par défaut ils sont en width: 200px
+      //    fixe). Seeding n'a qu'un slot → il étire seul à 100%.
+      // Et on dégonfle aussi les min-height par défaut (280px / 160px / 110px)
+      //    pour que chaque case fasse la hauteur de ses miis et pas plus.
+      const style = clonedDoc.createElement('style');
+      style.textContent = `
+        #hrPlanningRoles .hr-plan-category[data-cat="setup"] .hr-plan-role,
+        #hrPlanningRoles .hr-plan-category[data-cat="accueil"] .hr-plan-role,
+        #hrPlanningRoles .hr-plan-category[data-cat="seeding"] .hr-plan-role {
+          flex: 1 1 220px;
+          width: auto;
+          min-width: 0;
+        }
+        #hrPlanningRoles .hr-plan-category[data-cat="seeding"] .hr-plan-category-slots {
+          display: flex;
+        }
+        /* Hauteur des slots = hauteur naturelle des miis (≈ 1 mii row ≈ 110px) */
+        #hrPlanningRoles .hr-plan-role { min-height: 0; }
+        #hrPlanningRoles .hr-plan-chips { min-height: 0; }
+      `;
+      clonedDoc.head.appendChild(style);
+    },
+  });
+  return canvas.toDataURL('image/png');
+}
+
 // Poster le planning via le bot (toujours en embed)
 async function hrPostPlanning() {
   const botUrl    = hrGetBotUrl();
@@ -2223,12 +2659,30 @@ async function hrPostPlanning() {
   if (!botUrl || !secret) { hrPlanningStatus('error', '❌ Configure le bot d\'abord'); return; }
   if (!channelId)         { hrPlanningStatus('error', '❌ Aucun salon sélectionné');   return; }
 
-  const embed = hrBuildPlanningEmbed();
-  if (!embed) { hrPlanningStatus('error', '❌ Aucun rôle assigné'); return; }
-  const body = { channelId, embeds: [embed] };
+  // Construit le message en texte brut (avec `<@id>` qui pingueront pour de
+  // vrai — contrairement à un embed). On laisse tomber l'embed au profit de
+  // ce format "classique" pour que les notifications Discord arrivent bien
+  // chez les personnes mentionnées.
+  hrUpdatePlanMsg(); // s'assure que la textarea est à jour
+  const planText = (document.getElementById('hrPlanningMsg')?.value || '').trim();
+  if (!planText) { hrPlanningStatus('error', '❌ Aucun rôle assigné'); return; }
+  // imageFirst:true → le bot poste l'image en premier message, puis le
+  // content texte en second. Sans ce flag Discord rendrait l'attachment
+  // SOUS le content dans un seul message.
+  const body = { channelId, message: planText, imageFirst: true };
 
   const btn = document.getElementById('hrPostPlanBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi…'; }
+  hrPlanningStatus('loading', '⏳ Capture de l\'image…');
+
+  // Capture du planning en image PNG (best-effort : on continue sans image
+  // si html2canvas échoue pour ne pas bloquer le post).
+  try {
+    const dataUrl = await hrCapturePlanningPng();
+    if (dataUrl) body.image = { name: 'planning.png', dataB64: dataUrl };
+  } catch (e) {
+    console.warn('[hrPostPlanning] Capture image échouée, post sans image :', e.message);
+  }
   hrPlanningStatus('loading', '⏳ Envoi du planning…');
 
   const controller = new AbortController();

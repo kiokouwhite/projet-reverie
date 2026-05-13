@@ -6,7 +6,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const { Client, GatewayIntentBits, EmbedBuilder, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Partials, AttachmentBuilder } = require('discord.js');
 
 const app    = express();
 const client = new Client({
@@ -25,7 +25,10 @@ const client = new Client({
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());               // Autorise les appels depuis ton app web
-app.use(express.json());
+// 10MB pour absorber les snapshots PNG du planning Horaires envoyés en base64
+// par l'app web (route /post-announce avec champ `image`). Discord plafonne
+// les uploads à ~10MB côté bot non-boosté donc 12MB côté Express est large.
+app.use(express.json({ limit: '12mb' }));
 
 // ── RELAY DES TWEETS X VERS DISCORD (poller RSS) ─────────────────────────────
 // On poll un flux RSS représentant un compte X (RSSHub par défaut, ou rss.app
@@ -176,11 +179,11 @@ app.get('/', (req, res) => {
 app.post('/post-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
-  const { channelId, message, embeds } = req.body;
+  const { channelId, message, embeds, image, imageFirst } = req.body;
 
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
-  if (!message && !(Array.isArray(embeds) && embeds.length))
-    return res.status(400).json({ ok: false, error: 'message ou embeds manquant' });
+  if (!message && !(Array.isArray(embeds) && embeds.length) && !image)
+    return res.status(400).json({ ok: false, error: 'message, embeds ou image manquant' });
   if (message && message.length > 2000)
     return res.status(400).json({ ok: false, error: `Message trop long (${message.length}/2000 caractères)` });
 
@@ -193,19 +196,54 @@ app.post('/post-announce', async (req, res) => {
     // Emojis du bot (qui ne sont PAS auto-résolus par Discord côté serveur
     // contrairement à ce qui se passe quand un utilisateur tape).
     const emojiMap = await getAppEmojiMap();
-    const payload = {};
-    if (message) payload.content = substituteAppEmojis(message, emojiMap);
-    if (Array.isArray(embeds) && embeds.length) {
-      payload.embeds = embeds.map(e => {
-        const out = { ...e };
-        if (out.title)       out.title       = substituteAppEmojis(out.title, emojiMap);
-        if (out.description) out.description = substituteAppEmojis(out.description, emojiMap);
-        if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
-        return out;
-      });
+
+    // Construit l'attachment image (optionnel) en Buffer pour AttachmentBuilder
+    let imageAttachment = null;
+    if (image && image.dataB64) {
+      const raw = image.dataB64.startsWith('data:')
+        ? image.dataB64.split(',')[1]
+        : image.dataB64;
+      const buf = Buffer.from(raw, 'base64');
+      const name = image.name || 'planning.png';
+      imageAttachment = new AttachmentBuilder(buf, { name });
     }
+
+    // Embed payload (substitué pour les :emoji:)
+    const embedPayload = (Array.isArray(embeds) && embeds.length)
+      ? embeds.map(e => {
+          const out = { ...e };
+          if (out.title)       out.title       = substituteAppEmojis(out.title, emojiMap);
+          if (out.description) out.description = substituteAppEmojis(out.description, emojiMap);
+          if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
+          return out;
+        })
+      : null;
+    const contentSub = message ? substituteAppEmojis(message, emojiMap) : null;
+
+    // Mode "image au-dessus" : Discord rend les attachments APRÈS le
+    // content/embed dans une même message → on splitte en 2 envois.
+    //   1) message: image seule
+    //   2) message: content + embed (selon ce qui est fourni)
+    // Le content du 2e message peut contenir des `<@id>` qui pingueront
+    // réellement les utilisateurs (les mentions dans un embed ne pingent
+    // pas, donc ce mode "classique" est nécessaire pour les notifications).
+    if (imageFirst && imageAttachment && (contentSub || embedPayload)) {
+      await channel.send({ files: [imageAttachment] });
+      const second = {};
+      if (contentSub)   second.content = contentSub;
+      if (embedPayload) second.embeds  = embedPayload;
+      await channel.send(second);
+      console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) [image puis ${contentSub ? 'content' : ''}${contentSub && embedPayload ? '+' : ''}${embedPayload ? 'embed' : ''}]`);
+      return res.json({ ok: true, channel: channel.name });
+    }
+
+    // Cas standard : tout dans un seul message
+    const payload = {};
+    if (contentSub) payload.content = contentSub;
+    if (embedPayload) payload.embeds = embedPayload;
+    if (imageAttachment) payload.files = [imageAttachment];
     await channel.send(payload);
-    console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}`);
+    console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}${image ? ' [+image]' : ''}`);
     res.json({ ok: true, channel: channel.name });
 
   } catch (e) {

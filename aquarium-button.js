@@ -49,12 +49,44 @@
 
   // ── Init d'un bouton ─────────────────────────────────────────
   function mountAquariumButton(btn) {
-    if (btn.dataset.aqMounted === '1') return;
+    // Si déjà monté : cleanup avant de re-mount (utile sur resize / revisite onglet)
+    if (btn.dataset.aqMounted === '1') {
+      if (btn._aqRaf) cancelAnimationFrame(btn._aqRaf);
+      if (btn._aqResizeObs) btn._aqResizeObs.disconnect();
+      if (btn._aqVisHandler) {
+        document.removeEventListener('visibilitychange', btn._aqVisHandler);
+        btn._aqVisHandler = null;
+      }
+      btn.dataset.aqMounted = '';
+    }
+    // Sauvegarde du texte AVANT que innerHTML soit écrasé (on en aura besoin
+    // au re-mount où btn.textContent contiendrait déjà le DOM aquarium).
+    if (!btn.dataset.aqText) {
+      btn.dataset.aqText = (btn.textContent || 'Poster sur X').trim();
+    }
     btn.dataset.aqMounted = '1';
 
-    const text = (btn.dataset.aqText || btn.textContent || 'Poster sur X').trim();
+    const text = btn.dataset.aqText;
     const W = btn.offsetWidth || 260;
     const H = btn.offsetHeight || 64;
+    // Si le bouton n'est pas encore rendu (largeur 0), on diffère le mount
+    // — sinon les positions calculées via getBoundingClientRect sont à zéro
+    // et toutes les lettres se retrouvent empilées au coin top-left.
+    if (W < 20 || H < 20) {
+      btn.dataset.aqMounted = '';
+      // ResizeObserver pour re-essayer dès que le bouton a une taille réelle
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          if (btn.offsetWidth >= 20 && btn.offsetHeight >= 20) {
+            ro.disconnect();
+            mountAquariumButton(btn);
+          }
+        });
+        ro.observe(btn);
+        btn._aqResizeObs = ro;
+      }
+      return;
+    }
     const R = H / 2;
     const FONT = Math.round(H * 0.34);
     const LOGO_FONT = Math.round(H * 0.46);
@@ -208,6 +240,24 @@
       btn.classList.remove('is-hover');
       state.mouse.over = false;
     });
+
+    // Quand l'utilisateur change d'onglet/fenêtre, mouseleave peut ne pas
+    // se déclencher → on force le reset à la prochaine visibilité pour que
+    // les lettres reviennent à leur position de repos.
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        state.mouse.over = false;
+        state.mouse.vx = 0;
+        state.mouse.vy = 0;
+        btn.classList.remove('is-hover');
+      } else if (document.visibilityState === 'visible') {
+        // Réinitialise le timestamp pour que le premier frame post-resume
+        // ait un dt normal (sinon le clamp à 2 cause un saut visible).
+        state.lastT = performance.now();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    btn._aqVisHandler = onVisChange;
 
     function spawnRipple(x, y, strength = 1) {
       if (state.ripples.length >= 6) return;
@@ -367,8 +417,30 @@
       }
 
       raf = requestAnimationFrame(step);
+      btn._aqRaf = raf;
     }
     let raf = requestAnimationFrame(step);
+    btn._aqRaf = raf;
+
+    // Re-mount si la taille du bouton change significativement (ex : retour
+    // sur l'onglet Top 8 après que le layout ait été recalculé, ou window
+    // resize). Sans ça, les positions des lettres restent calées sur la
+    // taille au moment du mount d'origine et se désynchronisent visuellement.
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const nw = Math.round(e.contentRect.width);
+          const nh = Math.round(e.contentRect.height);
+          if (nw > 0 && nh > 0 && (Math.abs(nw - W) > 4 || Math.abs(nh - H) > 4)) {
+            ro.disconnect();
+            mountAquariumButton(btn);
+            return;
+          }
+        }
+      });
+      ro.observe(btn);
+      btn._aqResizeObs = ro;
+    }
   }
 
   function escapeHtml(s) {

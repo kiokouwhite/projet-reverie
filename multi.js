@@ -82,6 +82,13 @@ async function importAllEvents() {
     const tournament = td?.data?.tournament;
     if (!tournament) { showStatus('error', '❌ Tournoi introuvable.'); btn.disabled=false; btn.textContent='🔍 Chercher'; return; }
 
+    // Auto-détecte le format Magna depuis le nom du tournoi AVANT le
+    // filtrage des events — comme ça si on est en Magna, on peut inclure
+    // tous les events (même sans layout per-game), Magna les rendant tous
+    // via son template universel.
+    if (typeof autoDetectFormat === 'function') autoDetectFormat(tournament.name);
+    const isMagnaFormat = (typeof currentFormat !== 'undefined' && currentFormat === 'magna');
+
     // Tous les events du tournoi (y compris ceux dont numEntrants peut être null)
     const rawEvents = tournament.events || [];
 
@@ -109,6 +116,12 @@ async function importAllEvents() {
           // S'assurer que le layout est enregistré dans LAYOUTS/GAMES
           if (typeof lmRegisterLayout === 'function') lmRegisterLayout(customLayout);
           events.push({ ...e, _resolvedGameId: customLayout.id, _customLayout: customLayout });
+        } else if (isMagnaFormat) {
+          // En Magna : on inclut quand même cet event sans layout, avec un
+          // gameId fallback générique ('ssbu'). Magna ne dépend pas du layout
+          // per-game, et les personnages seront résolus via les images
+          // start.gg (preloadMurals charge automatiquement charImgUrl).
+          events.push({ ...e, _resolvedGameId: builtinId || 'ssbu', _magnaUnknownGame: true });
         } else {
           noLayoutEvents.push(e);
         }
@@ -132,36 +145,56 @@ async function importAllEvents() {
     showStatus('loading', `⏳ Import de ${events.length} event(s) avec layout + ${noLayoutEvents.length} sans layout...`);
     graphs = [];
 
-    // 2. Importer chaque event
-    for (let ei = 0; ei < events.length; ei++) {
-      const ev = events[ei];
-      showStatus('loading', `⏳ Import event ${ei+1}/${events.length} : ${ev.name}...`);
-
+    // 2. Importer chaque event — EN PARALLÈLE pour gagner du temps.
+    // Sur de gros tournois multi-events (ex. Magna Arena), faire un import
+    // séquentiel multiplie la latence par N. Avec Promise.all on est limité
+    // par la requête la plus lente. start.gg rate-limit: 80 req/60s donc
+    // ~3-10 events en parallèle = OK.
+    // Au sein d'un event, on lance aussi standings + sets en parallèle
+    // (sets a ses propres entrant IDs, indépendants des standings).
+    let _completed = 0;
+    const importOneEvent = async (ev) => {
       const gameName = ev.videogame?.displayName || ev.videogame?.name || '';
       const gameId   = ev._resolvedGameId || detectGameFromStartGG(gameName || ev.name) || 'ssbu';
       const isCustom = !!ev._customLayout;
       const layout   = LAYOUTS[gameId];
-      const playerCount = layout?.playerCount || 8;
+      // En Lorem, certains layouts ne montrent que 3 joueurs (SF6, GGST,
+      // T8, 2XKO) — mais en Magna on veut TOUS les standings (jusqu'à 8).
+      // On collecte donc toujours max(layout.playerCount, 8) standings ;
+      // le rendu Lorem clippe naturellement à layout.playerCount via ses
+      // slots définis dans LAYOUTS.
+      const playerCount = Math.max(layout?.playerCount || 8, 8);
 
-      // Standings
-      let evPlayers = Array.from({length: playerCount}, () => ({name:'', team:'', charId:null, costume:1, charId2:null, costume2:1, startggId:null}));
+      const evPlayers = Array.from({length: playerCount}, () => ({name:'', team:'', charId:null, costume:1, charId2:null, costume2:1, startggId:null}));
 
-      // ── Récupérer les standings ──
-      let standingsNodes = [];
-      try {
-        const sd = await gqlFetch(apiKey, `
-          query($slug:String!) { event(slug:$slug) {
-            name
-            standings(query:{perPage:8,page:1}) { nodes {
-              placement
-              entrant { id name participants { player { gamerTag prefix } } }
-            }}
-          }}`, { slug: ev.slug });
-        standingsNodes = (sd?.data?.event?.standings?.nodes || []).sort((a,b)=>a.placement-b.placement);
-        console.log(`[MULTI] "${ev.name}" : ${standingsNodes.length} standings récupérés`);
-      } catch(e) {
-        console.warn(`[MULTI] Standings échouées pour "${ev.name}" (${ev.slug}) :`, e.message);
-      }
+      // ── Lancer standings + sets en parallèle ──
+      const standingsP = gqlFetch(apiKey, `
+        query($slug:String!) { event(slug:$slug) {
+          name
+          standings(query:{perPage:8,page:1}) { nodes {
+            placement
+            entrant { id name participants { player { gamerTag prefix } } }
+          }}
+        }}`, { slug: ev.slug }).catch(e => {
+          console.warn(`[MULTI] Standings échouées pour "${ev.name}" (${ev.slug}) :`, e.message);
+          return null;
+        });
+
+      const setsP = (!isCustom) ? gqlFetch(apiKey, `
+        query($slug:String!,$page:Int!,$perPage:Int!) { event(slug:$slug) {
+          sets(page:$page,perPage:$perPage,sortType:STANDARD) { nodes {
+            games { selections { entrant{id} character{id name images{url type}} } }
+          }}
+        }}`, { slug: ev.slug, page:1, perPage:30 }).catch(e => {
+          console.warn(`[MULTI] Sets fetch error pour "${ev.name}" :`, e.message);
+          return null;
+        }) : Promise.resolve(null);
+
+      const [sd, setsData] = await Promise.all([standingsP, setsP]);
+
+      // ── Traiter standings ──
+      let standingsNodes = (sd?.data?.event?.standings?.nodes || []).sort((a,b)=>a.placement-b.placement);
+      console.log(`[MULTI] "${ev.name}" : ${standingsNodes.length} standings récupérés`);
 
       // ── Fallback entrants si standings vides ──
       if (standingsNodes.length === 0) {
@@ -187,16 +220,19 @@ async function importAllEvents() {
         }
       } else {
         // Traitement normal des standings
+        const isMagna = (typeof currentFormat !== 'undefined' && currentFormat === 'magna');
         standingsNodes.slice(0, playerCount).forEach((s, i) => {
           const p = s.entrant?.participants?.[0];
           evPlayers[i].name       = p?.player?.gamerTag || s.entrant?.name || '???';
           evPlayers[i].team       = p?.player?.prefix || '';
           evPlayers[i].startggId  = s.entrant?.id;
-          // Layout custom : les images de perso viennent du layout (lmchar0, lmchar1, lmchar2)
           if (isCustom) {
             evPlayers[i].charId = `lmchar${i}`;
-          } else {
-            // Appliquer prefs sauvegardées
+          } else if (!isMagna) {
+            // En Lorem on respecte les prefs utilisateur (sets data n'override pas).
+            // En Magna on IGNORE les prefs ici : elles seraient potentiellement
+            // d'un autre jeu (cross-event contamination via startggId), ce qui
+            // bloquerait la détection sets pour le bon perso SF6/Tekken/etc.
             const pref = getPlayerPref(s.entrant?.id);
             if (pref) { evPlayers[i].charId = pref.charId; evPlayers[i].costume = pref.costume; }
           }
@@ -205,39 +241,68 @@ async function importAllEvents() {
 
       console.log(`[MULTI] "${ev.name}" noms :`, evPlayers.slice(0, playerCount).map(p => p.name));
 
-      // Sets → personnages (seulement pour les jeux built-in avec roster)
-      if (!isCustom && standingsNodes.length > 0) {
-        try {
-        const setsData = await gqlFetch(apiKey, `
-          query($slug:String!,$page:Int!,$perPage:Int!) { event(slug:$slug) {
-            sets(page:$page,perPage:$perPage,sortType:STANDARD) { nodes {
-              games { selections { entrant{id} character{name} } }
-            }}
-          }}`, { slug: ev.slug, page:1, perPage:30 });
-
-        const charCount = {};
+      // ── Appliquer sets → personnages (seulement built-in roster + standings ok) ──
+      // On compte aussi l'URL de l'image start.gg par character pour servir de
+      // fallback quand le perso n'est pas dans notre mapping STARTGG_TO_ID
+      // (ex. Alex, mods, personnages exotiques).
+      if (!isCustom && standingsNodes.length > 0 && setsData) {
+        const charCount = {};        // entrantId → { charName: count }
+        const charImage = {};        // charName → URL start.gg (image principale)
         (setsData?.data?.event?.sets?.nodes||[]).forEach(set => {
           (set.games||[]).forEach(game => {
             (game.selections||[]).forEach(sel => {
-              const eid = sel?.entrant?.id, cn = sel?.character?.name;
+              const eid = sel?.entrant?.id;
+              const ch  = sel?.character;
+              const cn  = ch?.name;
               if (!eid||!cn) return;
               if (!charCount[eid]) charCount[eid] = {};
               charCount[eid][cn] = (charCount[eid][cn]||0)+1;
+              // Capture l'URL image start.gg du perso (préfère "primary", sinon
+              // la première dispo). On ne capture qu'une fois par nom.
+              if (!charImage[cn] && Array.isArray(ch.images) && ch.images.length) {
+                const primary = ch.images.find(img => img.type === 'primary') || ch.images[0];
+                if (primary?.url) charImage[cn] = primary.url;
+              }
             });
           });
         });
-
         standingsNodes.slice(0, playerCount).forEach((s, i) => {
           if (evPlayers[i].charId) return;
           const counts = charCount[s.entrant?.id];
-          if (!counts) return;
+          const playerName = evPlayers[i].name;
+          if (!counts) {
+            console.log(`[MULTI] "${ev.name}" — ${playerName} : aucune sélection de perso dans les sets start.gg`);
+            return;
+          }
           const topChar = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0];
-          if (topChar && STARTGG_TO_ID[topChar]) evPlayers[i].charId = STARTGG_TO_ID[topChar];
+          if (!topChar) {
+            console.log(`[MULTI] "${ev.name}" — ${playerName} : counts vides`, counts);
+            return;
+          }
+          // Toujours stocker l'URL start.gg en fallback (au cas où le PNG
+          // local n'existe pas, ex. Alex.png pas encore uploadé sur le repo).
+          // drawMagnaCard tentera le local d'abord puis le fallback start.gg.
+          if (charImage[topChar]) {
+            evPlayers[i].charImgUrl = charImage[topChar];
+            evPlayers[i].charNameStartgg = topChar;
+          }
+          // Si mapping local existe → on utilise aussi le mural haute-qualité
+          if (STARTGG_TO_ID[topChar]) {
+            evPlayers[i].charId = STARTGG_TO_ID[topChar];
+            return;
+          }
+          if (charImage[topChar]) {
+            console.log(`[MULTI] "${ev.name}" — ${playerName} : perso "${topChar}" non mappé localement, fallback image start.gg`);
+            return;
+          }
+          console.warn(`[MULTI] "${ev.name}" — ${playerName} : perso "${topChar}" sans mapping ni image start.gg`);
         });
-        } catch(e) { console.warn('[MULTI] Sets fetch error:', e.message); }
       }
 
-      graphs.push({
+      _completed++;
+      showStatus('loading', `⏳ Events importés ${_completed}/${events.length}...`);
+
+      return {
         eventSlug:  ev.slug,
         eventName:  ev.name,
         game:       gameId,
@@ -245,11 +310,25 @@ async function importAllEvents() {
         players:    evPlayers,
         tournamentName: tournament.name,
         isCustomLayout: isCustom,
-      });
-    }
+      };
+    };
+
+    // Lance tous les events en parallèle. On préserve l'ordre original via
+    // Promise.all (qui retourne les résultats dans l'ordre des inputs).
+    graphs = await Promise.all(events.map(importOneEvent));
+
+    // Note : autoDetectFormat est déjà appelé plus haut (avant le filtrage
+    // des events) pour pouvoir inclure les events sans layout en Magna.
 
     // 3. Générer les canvas pour chaque graph
     showStatus('loading', '⏳ Génération des images...');
+    // En Magna, on attend le logo PNG avant de générer les graphs sinon
+    // le premier graph est rendu avec le placeholder canvas (timing bug)
+    // car le PNG est encore en train de charger en async.
+    if (typeof currentFormat !== 'undefined' && currentFormat === 'magna'
+        && typeof loadMagnaLogo === 'function') {
+      await loadMagnaLogo();
+    }
     await generateAllGraphs();
 
     // 4. Afficher le premier
@@ -279,19 +358,27 @@ async function generateAllGraphs() {
     players     = graph.players;
     if (typeof loadTitleConfig === 'function') loadTitleConfig(); // config titres du bon jeu
 
-    // Charger le fond du jeu (built-in bgFile OU custom bgDataUrl)
-    await new Promise(resolve => {
-      const layout = LAYOUTS[graph.game];
-      const bgSrc = layout?.bgFile || layout?._lm?.bgDataUrl || null;
-      if (bgSrc) {
-        const img = new Image();
-        img.onload = () => { bgImg = img; resolve(); };
-        img.onerror = () => { bgImg = null; resolve(); };
-        img.src = bgSrc;
-      } else { bgImg = null; resolve(); }
-    });
+    const isMagna = (typeof currentFormat !== 'undefined' && currentFormat === 'magna');
 
-    // Précharger les murals (charId + charId2 pour 2XKO) — pas nécessaire pour layouts custom
+    // Charger le fond du jeu — SKIP en format Magna : Magna dessine son
+    // propre fond rouge à rayures, pas besoin du fond per-game.
+    if (!isMagna) {
+      await new Promise(resolve => {
+        const layout = LAYOUTS[graph.game];
+        const bgSrc = layout?.bgFile || layout?._lm?.bgDataUrl || null;
+        if (bgSrc) {
+          const img = new Image();
+          img.onload = () => { bgImg = img; resolve(); };
+          img.onerror = () => { bgImg = null; resolve(); };
+          img.src = bgSrc;
+        } else { bgImg = null; resolve(); }
+      });
+    } else {
+      bgImg = null; // Magna n'utilise pas bgImg
+    }
+
+    // Précharger les murals des personnages : nécessaire pour Magna aussi
+    // depuis Phase 2 (les cartes Magna dessinent le char art).
     if (!graph.isCustomLayout) await preloadMurals(graph.game, players);
 
     // Passer le nom du tournoi pour drawTitles
@@ -349,6 +436,10 @@ function renderMultiPreview() {
   // Mettre à jour le nom du tournoi
   const nameEl = document.getElementById('tournamentName');
   if (nameEl) nameEl.value = graph.tournamentName || '';
+
+  // Auto-détecte le compteur Magna pour matcher cet event spécifique
+  // (chaque event peut avoir un N différent — SF6 top 5 vs Smash top 8).
+  if (typeof autoDetectMagnaCount === 'function') autoDetectMagnaCount();
 
   // Recharger le bon fond pour ce jeu (built-in bgFile OU custom bgDataUrl)
   const layout = LAYOUTS[graph.game];
@@ -639,6 +730,14 @@ function showNoLayoutSection(events) {
   console.log('[showNoLayoutSection] wrap found:', !!wrap, '| list found:', !!list);
 
   if (!wrap || !list) return;
+
+  // En format Magna : on n'a pas besoin de layout per-game, Magna utilise
+  // son propre rendu unifié pour tous les jeux. On masque la section
+  // "Jeux sans layout" peu importe les events détectés.
+  if (typeof currentFormat !== 'undefined' && currentFormat === 'magna') {
+    wrap.style.cssText = 'display:none !important';
+    return;
+  }
 
   if (!events || events.length === 0) {
     wrap.style.cssText = 'display:none !important';

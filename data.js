@@ -14,6 +14,7 @@ const STARTGG_TO_ID = {
   "E. Honda":"honda","Akuma":"akuma","Rashid":"rashid","Ed":"ed",
   "A.K.I.":"aki","Terry":"terry_sf6","Mai":"mai","Elena":"elena",
   "M. Bison":"bison","Ingrid":"ingrid",
+  "Luke":"luke","Sagat":"sagat","Alex":"alex",
 
   // ── TEKKEN 8 ─────────────────────────────────────────────
   "Jin":"jin","Kazuya":"kazuya","Paul":"paul","Law":"law",
@@ -99,6 +100,7 @@ const ICON_BASENAME = {
   honda:"EHonda", akuma:"Akuma", rashid:"Rashid", ed:"Ed",
   aki:"Aki", terry_sf6:"Terry", mai:"Mai", elena:"Elena",
   bison:"Bison", ingrid:"Ingrid",
+  luke:"Luke", sagat:"Sagat", alex:"Alex",
   // Tekken 8
   jin:"Jin", kazuya:"Kazuya", paul:"Paul", law:"Law",
   king:"King", yoshimitsu:"Yoshimitsu", nina:"Nina", hwoarang:"Hwoarang",
