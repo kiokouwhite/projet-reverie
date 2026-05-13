@@ -160,18 +160,34 @@ client.on('messageCreate', async (msg) => {
   try {
     if (msg.author?.bot || !msg.guild) return;
     const cfg = tournamentWatchConfig;
+    // Log pour debug : tout message dans un channel surveillé
+    const isWatched = cfg.channels && cfg.channels.includes(msg.channelId);
+    if (isWatched) {
+      console.log(`🎯 [TW] Message dans #${msg.channel?.name} (surveillé). Content="${(msg.content||'').slice(0,120)}"`);
+    }
     if (!cfg.channels || !cfg.channels.length || !cfg.channels.includes(msg.channelId)) return;
-    if (!cfg.keywords || !cfg.keywords.length) return;
+    if (!cfg.keywords || !cfg.keywords.length) {
+      console.log('🎯 [TW] Channel surveillé mais aucun keyword configuré — skip');
+      return;
+    }
 
     const urlMatch = msg.content.match(/https?:\/\/(?:www\.)?start\.gg\/tournament\/([^\s/?#]+)/i);
-    if (!urlMatch) return;
+    if (!urlMatch) {
+      console.log('🎯 [TW] Pas d\'URL start.gg dans le message');
+      return;
+    }
     const slug = urlMatch[1];
     const slugLower = slug.toLowerCase();
     const matchedKw = cfg.keywords.find(kw => slugLower.includes(String(kw).toLowerCase()));
-    if (!matchedKw) return;
+    if (!matchedKw) {
+      console.log(`🎯 [TW] URL start.gg détectée (slug="${slug}") mais aucun keyword matche [${cfg.keywords.join(', ')}]`);
+      return;
+    }
 
-    // Évite de proposer 2x le même tournoi (déjà enregistré ou popup actif)
-    if (tournamentRegistered.has(slug)) return;
+    if (tournamentRegistered.has(slug)) {
+      console.log(`🎯 [TW] Tournoi "${slug}" déjà enregistré — skip popup`);
+      return;
+    }
 
     const embed = new EmbedBuilder()
       .setTitle('🎯 Tournoi détecté')
@@ -273,9 +289,37 @@ app.get('/', (req, res) => {
 //   { channels: [discordChannelId, ...], keywords: ['Lorem', 'Magna'] }
 // Le bot écoute les messages dans ces channels et, si un lien start.gg
 // est posté dont le slug contient un mot-clé, propose un embed avec 2
-// boutons (Enregistrer / Ignorer). Phase 2 ajoute le listener Discord.
+// boutons (Enregistrer / Ignorer). Persisté dans un JSON file local pour
+// survivre aux redéploiements Railway (best-effort).
+const fs = require('fs');
+const path = require('path');
+const TW_CONFIG_FILE = path.join(__dirname, 'tournament-watch-config.json');
 let tournamentWatchConfig = { channels: [], keywords: ['Lorem', 'Magna'] };
 const tournamentRegistered = new Map(); // slug → { slug, channelId, registeredAt, endAt, ... }
+
+// Charge la config depuis le fichier au démarrage
+try {
+  if (fs.existsSync(TW_CONFIG_FILE)) {
+    const raw = fs.readFileSync(TW_CONFIG_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.channels) && Array.isArray(parsed.keywords)) {
+      tournamentWatchConfig = parsed;
+      console.log(`🎯 [TW] Config restaurée depuis fichier : ${tournamentWatchConfig.channels.length} salon(s), keywords [${tournamentWatchConfig.keywords.join(', ')}]`);
+    }
+  } else {
+    console.log('🎯 [TW] Pas de fichier config existant — config par défaut (vide)');
+  }
+} catch (e) {
+  console.warn('🎯 [TW] Lecture config échouée :', e.message);
+}
+
+function twSaveConfigToFile() {
+  try {
+    fs.writeFileSync(TW_CONFIG_FILE, JSON.stringify(tournamentWatchConfig, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('🎯 [TW] Écriture config échouée :', e.message);
+  }
+}
 
 app.post('/tournament-watch/config', (req, res) => {
   if (!checkSecret(req, res)) return;
@@ -287,6 +331,7 @@ app.post('/tournament-watch/config', (req, res) => {
     channels: channels.filter(c => typeof c === 'string'),
     keywords: keywords.filter(k => typeof k === 'string' && k.trim()).map(k => k.trim()),
   };
+  twSaveConfigToFile();
   console.log(`🎯 [TW] Config mise à jour : ${tournamentWatchConfig.channels.length} salon(s), keywords: [${tournamentWatchConfig.keywords.join(', ')}]`);
   res.json({ ok: true, config: tournamentWatchConfig });
 });

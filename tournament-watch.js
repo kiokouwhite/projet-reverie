@@ -22,6 +22,9 @@ function twInit() {
   twLoadConfig();
   twRenderKeywords();
   twRenderChannels();
+  // Push immédiat au bot pour re-synchroniser après un éventuel redéploiement
+  // Railway (la config bot est en mémoire et peut être perdue).
+  twPushToBot();
 }
 
 // ── CONFIG LOCAL (localStorage) ─────────────────────────────────────────────
