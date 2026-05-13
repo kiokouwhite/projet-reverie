@@ -550,7 +550,30 @@ app.post('/tournament-watch/config', (req, res) => {
 
 app.get('/tournament-watch/config', (req, res) => {
   if (!checkSecret(req, res)) return;
-  res.json({ ok: true, config: tournamentWatchConfig, registered: [...tournamentRegistered.values()] });
+  // On ne renvoie pas la clé start.gg en clair (juste un indicateur de présence)
+  const safeConfig = {
+    channels: tournamentWatchConfig.channels,
+    keywords: tournamentWatchConfig.keywords,
+    hasStartggKey: !!tournamentWatchConfig.startggKey,
+  };
+  res.json({ ok: true, config: safeConfig, registered: [...tournamentRegistered.values()] });
+});
+
+// Désinscrit un tournoi enregistré (clear timer + retire de la liste + sauvegarde)
+app.delete('/tournament-watch/registered/:slug', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const slug = req.params.slug;
+  if (!tournamentRegistered.has(slug)) {
+    return res.status(404).json({ ok: false, error: 'Slug inconnu' });
+  }
+  tournamentRegistered.delete(slug);
+  if (tournamentTimers.has(slug)) {
+    clearTimeout(tournamentTimers.get(slug));
+    tournamentTimers.delete(slug);
+  }
+  twSaveRegisteredToFile();
+  console.log(`🗑️ [TW] Tournoi désinscrit manuellement : ${slug}`);
+  res.json({ ok: true });
 });
 
 // ── ROUTE : Poster une annonce ────────────────────────────────────────────────

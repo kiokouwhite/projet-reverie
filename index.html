@@ -878,6 +878,16 @@
           </div>
           <small>Sélectionne un ou plusieurs salons. La liste vient du bot — vérifie qu'il est connecté à ton serveur.</small>
         </div>
+        <div class="cfg-field">
+          <label>Tournois enregistrés</label>
+          <div id="cfgTwRegisteredList" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--panel);min-height:48px;">
+            <div style="font-size:12px;color:var(--text-soft);font-style:italic;">Chargement…</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <small>En attente de fin du tournoi. Le bot postera le lien d'import automatiquement à <code>endAt</code>.</small>
+            <button type="button" class="dc-add-sched-btn" onclick="twLoadRegistered()" title="Rafraîchir la liste" style="padding:4px 10px;font-size:12px;">🔄</button>
+          </div>
+        </div>
         <div id="cfgTwStatus" class="cfg-status" style="display:none;"></div>
       </div>
 
