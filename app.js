@@ -879,11 +879,20 @@ function initHeaderScroll() {
   if (app) app.classList.add('app--header-hidden');
   document.body.classList.add('header-hidden');
 
-  // Vérifie si l'élément (ou un ancêtre) est lui-même scrollable
-  function _insideScrollable(el) {
+  // Vérifie si l'élément (ou un ancêtre) consomme le wheel — i.e. peut
+  // scroller dans la direction demandée. Retourne false si on est à la
+  // boundary (scrollTop=0 et scroll-up, ou bottom et scroll-down), pour
+  // que le wheel "déborde" et puisse déclencher show/hide du header.
+  // Évite que l'utilisateur soit bloqué en haut d'une page interne et
+  // ne puisse plus faire réapparaître le header.
+  function _insideScrollableConsumes(el, deltaY) {
     while (el && el !== document.body && el !== document.documentElement) {
       const ov = window.getComputedStyle(el).overflowY;
-      if ((ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight) return true;
+      if ((ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight) {
+        if (deltaY < 0 && el.scrollTop > 0) return true;            // peut scroller up
+        if (deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true; // peut scroller down
+        return false; // boundary atteinte → laisse bubbler
+      }
       el = el.parentElement;
     }
     return false;
@@ -898,7 +907,7 @@ function initHeaderScroll() {
   // contenu vit dans un panneau scrollable).
   document.addEventListener('wheel', e => {
     if (e.deltaY < 0) {
-      if (_insideScrollable(e.target)) return;
+      if (_insideScrollableConsumes(e.target, e.deltaY)) return;
       _show();
     } else if (e.deltaY > 0) {
       _hide();
