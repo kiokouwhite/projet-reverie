@@ -538,8 +538,14 @@ function dlxOnDragMove(ev) {
   if (!_dlxDrag) return;
   const s = dlxPlan.elements.find(x => x.id === _dlxDrag.id);
   if (!s) return;
-  const dx = ev.clientX - _dlxDrag.startX;
-  const dy = ev.clientY - _dlxDrag.startY;
+  let dx = ev.clientX - _dlxDrag.startX;
+  let dy = ev.clientY - _dlxDrag.startY;
+  // Shift maintenu = snap au mouvement axial (horizontal OU vertical seulement,
+  // selon la direction dominante du drag). Utile pour étirer un mur sans
+  // créer d'angle non voulu, ou aligner une station horizontalement.
+  if (ev.shiftKey) {
+    if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0;
+  }
   if (_dlxDrag.mode === 'move') {
     // Clamp pour rester dans le canvas (l'élément en entier doit rester visible)
     s.x = Math.max(0, Math.min(DLX_CANVAS_W - s.w, _dlxDrag.origX + dx));
