@@ -685,6 +685,16 @@ function dlxOnWallLineMouseDown(ev) {
     if ((Math.abs(p.x - pa.x) < 1 && Math.abs(p.y - pa.y) < 1) ||
         (Math.abs(p.x - pb.x) < 1 && Math.abs(p.y - pb.y) < 1)) moveSet.add(i);
   });
+  // Vecteur perpendiculaire au segment cliqué : le déplacement est
+  // contraint à cette direction. Pour une pièce rectangulaire, pousser un
+  // pan de mur perpendiculairement à lui-même fait coulisser ses
+  // extrémités le long des murs voisins → ceux-ci restent droits, la
+  // pièce s'agrandit/rétrécit proprement sans créer de diagonale.
+  let perp = null;
+  const segLen = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+  if (segLen > 0.001) {
+    perp = { x: -(pb.y - pa.y) / segLen, y: (pb.x - pa.x) / segLen };
+  }
   _dlxDrag = {
     id: wallId,
     mode: 'wall-translate',
@@ -692,6 +702,7 @@ function dlxOnWallLineMouseDown(ev) {
     startY: ev.clientY,
     origPoints: w.points.map(p => ({ x: p.x, y: p.y })),
     moveIndices: Array.from(moveSet),
+    perp,
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
@@ -1005,15 +1016,22 @@ function dlxOnDragMove(ev) {
       }
     } else {
       // wall-translate : applique le delta UNIQUEMENT aux vertices du
-      // segment cliqué (moveIndices). Les autres restent fixes → seul ce
-      // pan de mur bouge, les segments voisins s'étirent pour le suivre.
+      // segment cliqué (moveIndices), et contraint le déplacement à la
+      // perpendiculaire du segment → les murs voisins restent droits.
       if (s.points && _dlxDrag.origPoints) {
         const moveIdx = _dlxDrag.moveIndices;
+        let mdx = cdx, mdy = cdy;
+        if (_dlxDrag.perp && !ev.shiftKey) {
+          // Projection du delta sur la perpendiculaire du segment
+          const proj = cdx * _dlxDrag.perp.x + cdy * _dlxDrag.perp.y;
+          mdx = proj * _dlxDrag.perp.x;
+          mdy = proj * _dlxDrag.perp.y;
+        }
         s.points = _dlxDrag.origPoints.map((p, i) => {
           if (moveIdx && moveIdx.indexOf(i) === -1) return { x: p.x, y: p.y };
           return {
-            x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + cdx)),
-            y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + cdy)),
+            x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + mdx)),
+            y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + mdy)),
           };
         });
       }
