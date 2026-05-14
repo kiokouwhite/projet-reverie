@@ -182,9 +182,16 @@ function dlxInit() {
       if (dlxMode !== 'edit' || !dlxSelectedId) return;
       const cv = document.getElementById('dlxCanvas');
       const panel = document.getElementById('dlxPropsPanel');
-      // Clic dans le canvas → géré par les handlers internes (select/deselect)
-      if (cv && cv.contains(ev.target)) return;
-      // Clic dans le panneau de propriétés → on garde la sélection
+      // IMPORTANT : on teste par COORDONNÉES, pas par cv.contains(ev.target).
+      // Raison : dlxSelect() fait un dlxRender() qui détache ev.target du
+      // DOM, donc .contains() renverrait false à tort et désélectionnerait
+      // juste après la sélection. Les coordonnées, elles, restent valides.
+      if (cv) {
+        const r = cv.getBoundingClientRect();
+        if (ev.clientX >= r.left && ev.clientX <= r.right &&
+            ev.clientY >= r.top  && ev.clientY <= r.bottom) return;
+      }
+      // Le panneau de propriétés ne re-render pas → .contains OK ici
       if (panel && panel.contains(ev.target)) return;
       // Clic ailleurs → désélection
       dlxDeselect();
