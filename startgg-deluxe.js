@@ -342,6 +342,64 @@ function dlxRender() {
   if (dlxMode === 'edit') dlxAttachDragHandlers();
 }
 
+// ── DÉCOUPE DES MURS PAR LES PORTES ────────────────────────────────────────
+// Clipping Liang-Barsky : trouve [tEnter, tExit] du segment a→b à l'intérieur
+// du rectangle (rx,ry,rw,rh). Renvoie null si pas d'intersection.
+function dlxClipSegmentToRect(a, b, rx, ry, rw, rh) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  let t0 = 0, t1 = 1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [a.x - rx, rx + rw - a.x, a.y - ry, ry + rh - a.y];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return null; // parallèle au bord et hors du rect
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
+      else          { if (t < t0) return null; if (t < t1) t1 = t; }
+    }
+  }
+  return (t0 < t1) ? [t0, t1] : null;
+}
+
+// Découpe une polyline de mur en plusieurs sous-polylines, en retirant
+// les portions couvertes par une porte (élément type 'door' dont la box
+// chevauche le mur). Retourne un tableau de tableaux de points.
+function dlxCutWallByDoors(wall) {
+  if (!wall.points || wall.points.length < 2) return [wall.points || []];
+  const doors = dlxPlan.elements.filter(e => e.type === 'door');
+  if (!doors.length) return [wall.points];
+
+  const pieces = [];
+  for (let i = 0; i < wall.points.length - 1; i++) {
+    const a = wall.points[i], b = wall.points[i + 1];
+    // Collecte les portions [t0,t1] du segment couvertes par une porte
+    const covered = [];
+    for (const d of doors) {
+      const clip = dlxClipSegmentToRect(a, b, d.x, d.y, d.w, d.h);
+      if (clip) covered.push(clip);
+    }
+    if (!covered.length) { pieces.push([a, b]); continue; }
+    // Fusionne les portions qui se chevauchent
+    covered.sort((r1, r2) => r1[0] - r2[0]);
+    const merged = [covered[0].slice()];
+    for (let j = 1; j < covered.length; j++) {
+      const last = merged[merged.length - 1];
+      if (covered[j][0] <= last[1]) last[1] = Math.max(last[1], covered[j][1]);
+      else merged.push(covered[j].slice());
+    }
+    // Les portions VISIBLES = complément des portions couvertes dans [0,1]
+    const lerp = (t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    let cursor = 0;
+    for (const [t0, t1] of merged) {
+      if (t0 > cursor) pieces.push([lerp(cursor), lerp(t0)]);
+      cursor = Math.max(cursor, t1);
+    }
+    if (cursor < 1) pieces.push([lerp(cursor), lerp(1)]);
+  }
+  return pieces;
+}
+
 // SVG d'un mur (polyline) + handles de vertex en mode édition.
 // Si un élément NON-mur est sélectionné (room/station/projector), on
 // désactive les interactions des murs (pas de vertex visible, pas de
@@ -349,7 +407,7 @@ function dlxRender() {
 // être interceptés par les coins de mur qui se trouvent derrière.
 function dlxWallSvg(w) {
   if (!w.points || w.points.length < 2) return '';
-  const pts = w.points.map(p => `${p.x},${p.y}`).join(' ');
+  const ptsFull = w.points.map(p => `${p.x},${p.y}`).join(' ');
   const isEdit = dlxMode === 'edit';
   const isSelected = dlxSelectedId === w.id;
   const selectedEl = dlxSelectedId ? dlxPlan.elements.find(x => x.id === dlxSelectedId) : null;
@@ -359,13 +417,24 @@ function dlxWallSvg(w) {
     `<circle class="dlx-wall-vertex" data-wall="${w.id}" data-vertex="${i}"
              cx="${p.x}" cy="${p.y}" r="7" />`
   ).join('') : '';
-  return `<g class="dlx-wall-group ${isSelected ? 'selected' : ''}">
-    <polyline class="dlx-wall-line" data-id="${w.id}"
-              points="${pts}" stroke="${w.color || '#2a2a2a'}"
+  // Le mur VISIBLE est découpé par les portes (trous). On dessine donc N
+  // sous-polylines (les morceaux non couverts). La hit-area et les handles,
+  // eux, utilisent la polyline COMPLÈTE (on garde le mur cliquable/éditable
+  // même là où une porte le traverse).
+  const pieces = dlxCutWallByDoors(w);
+  const visibleSegs = pieces
+    .filter(piece => piece && piece.length >= 2)
+    .map(piece => {
+      const pp = piece.map(p => `${p.x},${p.y}`).join(' ');
+      return `<polyline class="dlx-wall-line" data-id="${w.id}"
+              points="${pp}" stroke="${w.color || '#2a2a2a'}"
               stroke-width="${w.thickness || 4}" fill="none"
-              stroke-linecap="square" stroke-linejoin="miter" />
+              stroke-linecap="square" stroke-linejoin="miter" />`;
+    }).join('');
+  return `<g class="dlx-wall-group ${isSelected ? 'selected' : ''}">
+    ${visibleSegs}
     ${(isEdit && wallsInteractive) ? `<polyline class="dlx-wall-hitarea" data-id="${w.id}"
-              points="${pts}" stroke="transparent" stroke-width="20"
+              points="${ptsFull}" stroke="transparent" stroke-width="20"
               fill="none" />` : ''}
     ${handles}
   </g>`;
@@ -709,15 +778,15 @@ function dlxOnDragEnd() {
   if (!_dlxDrag) return;
   document.removeEventListener('mousemove', dlxOnDragMove);
   const draggedId = _dlxDrag.id;
-  const wasResize = _dlxDrag.mode === 'resize';
   const el = document.querySelector(`.dlx-el[data-id="${draggedId}"]`);
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
-  // Si on a resize une porte, le SVG (viewBox basé sur w/h) doit être
-  // re-généré sinon il reste étiré aux anciennes proportions.
   const s = dlxPlan.elements.find(x => x.id === draggedId);
-  if (wasResize && s && s.type === 'door') {
+  // Re-render complet après tout drag de porte :
+  //  - resize : régénère le SVG (viewBox basé sur w/h)
+  //  - move/resize : recalcule la découpe des murs traversés par la porte
+  if (s && s.type === 'door') {
     dlxRender();
     dlxSelect(draggedId);
   }
