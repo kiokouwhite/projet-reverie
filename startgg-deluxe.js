@@ -9,19 +9,10 @@
 //   { id, type, label, x, y, w, h, color? }
 //
 // Types supportés :
-//   - 'wall'           — mur opaque sombre
-//   - 'room'           — zone label (background coloré translucide)
-//   - 'table-classique'— table rectangulaire gris clair
-//   - 'table-ronde'    — table circulaire marron
-//   - 'table-grande'   — grande table marron foncé
-//   - 'desk'           — bureau à roulette
-//   - 'exit'           — sortie de secours (pictogramme vert)
-//   - 'microphone'     — micro
-//   - 'laptop'         — ordinateur portable
-//   - 'whiteboard'     — tableau blanc
-//   - 'projector'      — vidéoprojecteur
-//   - 'outlet'         — prise / multiprise (label = 1/2/3)
-//   - 'station'        — slot de match (drop target Phase 4)
+//   - 'wall'    — mur (polyline, vertices draggables)
+//   - 'room'    — zone label (background coloré translucide)
+//   - 'door'    — porte (simple/double, découpe les murs)
+//   - 'station' — slot de match (drop target Phase 4)
 //
 // Storage : top8_deluxe_plan = { elements: [...] }
 // ============================================================
@@ -29,7 +20,7 @@
 const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
-const DLX_PLAN_VERSION = 6;
+const DLX_PLAN_VERSION = 7;
 // Dimensions du canvas — utilisées pour les clamps de positionnement
 // (empêchent les éléments / vertices de sortir du cadre visible).
 const DLX_CANVAS_W = 600;
@@ -55,7 +46,6 @@ const DLX_TYPES = {
   'wall':      { icon: '🧱',  label: 'Mur',              defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
   'room':      { icon: '🏠',  label: 'Zone (label)',     defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
   'door':      { icon: '🚪',  label: 'Porte',            defaultW: 60,  defaultH: 60,  color: '#2a2a2a', z: 4, rotatable: true },
-  'projector': { icon: '📽️', label: 'Vidéoprojecteur',  defaultW: 30,  defaultH: 24,  color: '#444',    z: 5, rotatable: true },
   'station':   { icon: '🎮',  label: 'Setup (station)',  defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
 
@@ -137,8 +127,7 @@ function dlxDefaultPlan() {
   }
 
   // ═══ ZONE STREAM ══════════════════════════════════════════════════════
-  add('stream-1', 'station',   'Stream', 180, 680, 320, 120, '#7c5cff');
-  add('proj-1',   'projector', 'Projo',  510, 700,  30,  24);
+  add('stream-1', 'station', 'Stream', 180, 680, 320, 120, '#7c5cff');
 
   // ═══ COIN SMASH ═══════════════════════════════════════════════════════
   // 5 stations de chaque côté, collées au mur, stackées sans gap.
@@ -468,12 +457,6 @@ function dlxElementHTML(el) {
       return `<div class="dlx-el dlx-el-room" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;${rotCss}">
         <div class="dlx-el-room-label">${safeLabel}</div>
-        ${removeBtn}${resizeHandle}</div>`;
-
-    case 'projector':
-      return `<div class="dlx-el dlx-el-icon" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:#fff;${rotCss}">
-        <span class="dlx-el-icon-glyph">${def.icon}</span>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'door':
