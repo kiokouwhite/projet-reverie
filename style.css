@@ -5081,7 +5081,9 @@ canvas { width: 100%; display: block; }
   background: rgba(255,255,255,0.6);
   border: 2px dashed rgba(155,127,184,0.4);
   border-radius: 16px;
-  padding: 0;
+  /* marge interne : laisse de la place aux poignées (vertices de murs,
+     handles de resize) qui dépassent légèrement des bords du canvas */
+  padding: 16px;
   position: relative;
 }
 .dlx-canvas {
@@ -5091,7 +5093,9 @@ canvas { width: 100%; display: block; }
   margin: 0 auto;
   background: #f5e8d0; /* parquet beige clair */
   border-radius: 12px;
-  overflow: hidden;
+  /* overflow visible : les poignées des murs/éléments collés au bord
+     restent entièrement visibles et cliquables au lieu d'être coupées */
+  overflow: visible;
   background-image:
     linear-gradient(rgba(120,80,40,0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(120,80,40,0.04) 1px, transparent 1px);
@@ -5127,6 +5131,7 @@ canvas { width: 100%; display: block; }
   top: 0; left: 0;
   width: 100%;
   height: 100%;
+  overflow: visible; /* les vertices collés au bord ne sont pas rognés */
   pointer-events: none; /* le svg lui-même n'attrape rien — les enfants oui */
   z-index: 3;
 }
