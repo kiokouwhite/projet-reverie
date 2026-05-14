@@ -157,15 +157,36 @@ function dlxInstallKeyboardShortcuts() {
     // pas de sens pour les autres onglets).
     const deluxePage = document.getElementById('pageDeluxe');
     if (!deluxePage || deluxePage.style.display === 'none') return;
-    // Ignore si on tape dans un input/textarea — laisse le undo natif faire
+    // Ignore si on tape dans un input/textarea — laisse le comportement
+    // natif faire (undo de texte, suppression de caractère, etc.)
     const tag = (ev.target.tagName || '').toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || ev.target.isContentEditable) return;
-    // Ctrl+Z (ou Cmd+Z sur Mac)
+    // Ctrl+Z (ou Cmd+Z sur Mac) = undo
     if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z') {
       ev.preventDefault();
       dlxUndo();
+      return;
+    }
+    // Suppr / Delete / Backspace = supprime l'élément sélectionné (mur inclus).
+    // Pas de confirm() : action volontaire + Ctrl+Z pour annuler.
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && dlxSelectedId) {
+      ev.preventDefault();
+      dlxDeleteSelected();
     }
   });
+}
+
+// Supprime l'élément actuellement sélectionné (sans confirm — l'undo
+// Ctrl+Z permet de revenir en arrière).
+function dlxDeleteSelected() {
+  if (!dlxSelectedId) return;
+  dlxPushHistory();
+  dlxPlan.elements = dlxPlan.elements.filter(s => s.id !== dlxSelectedId);
+  dlxSelectedId = null;
+  const panel = document.getElementById('dlxPropsPanel');
+  if (panel) panel.style.display = 'none';
+  dlxSavePlan();
+  dlxRender();
 }
 
 // Construit le <select> des types pour le bouton "+ Ajouter"
