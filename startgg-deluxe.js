@@ -861,6 +861,7 @@ function dlxBuildGroupDragState() {
   });
   return {
     items,
+    bbox: { minX, minY, maxX, maxY },
     minDx: -minX, maxDx: DLX_CANVAS_W - maxX,
     minDy: -minY, maxDy: DLX_CANVAS_H - maxY,
   };
@@ -904,6 +905,13 @@ function dlxOnDragMove(ev) {
     if (ev.shiftKey) { if (Math.abs(cdx) > Math.abs(cdy)) cdy = 0; else cdx = 0; }
     cdx = Math.max(g.minDx, Math.min(g.maxDx, cdx));
     cdy = Math.max(g.minDy, Math.min(g.maxDy, cdy));
+    // Magnétisme : snap la bounding-box du groupe aux autres éléments / au
+    // canvas (Shift désactive le snap, comme pour un déplacement simple).
+    if (!ev.shiftKey) {
+      const snap = dlxComputeSnapForGroup(g.bbox, cdx, cdy);
+      cdx = Math.max(g.minDx, Math.min(g.maxDx, cdx + snap.dx));
+      cdy = Math.max(g.minDy, Math.min(g.maxDy, cdy + snap.dy));
+    }
     g.items.forEach(it => {
       const el = dlxPlan.elements.find(x => x.id === it.id);
       if (!el) return;
@@ -1104,13 +1112,14 @@ function dlxUpdateElDom(r) {
 const DLX_SNAP_THRESHOLD = 8; // px de tolérance pour le snap
 
 // Collecte tous les "candidats" de snap en X et en Y (bords des autres
-// éléments, vertices des murs, bords du canvas). Exclut l'élément
-// actuellement draggé (par id).
+// éléments, vertices des murs, bords du canvas). Exclut l'élément (ou les
+// éléments) actuellement draggé(s) : excludeId peut être un id ou un Set d'ids.
 function dlxCollectSnapCandidates(excludeId) {
+  const isSet = excludeId && typeof excludeId.has === 'function';
   const xs = [0, DLX_CANVAS_W]; // bords du canvas
   const ys = [0, DLX_CANVAS_H];
   dlxPlan.elements.forEach(o => {
-    if (o.id === excludeId) return;
+    if (isSet ? excludeId.has(o.id) : o.id === excludeId) return;
     if (o.type === 'wall') {
       (o.points || []).forEach(p => { xs.push(p.x); ys.push(p.y); });
     } else if (typeof o.x === 'number') {
@@ -1143,6 +1152,23 @@ function dlxComputeSnapForMove(s, nx, ny) {
   const w = s.w || 0, h = s.h || 0;
   const dx = dlxBestSnap([nx, nx + w/2, nx + w], cand.xs);
   const dy = dlxBestSnap([ny, ny + h/2, ny + h], cand.ys);
+  return { dx, dy };
+}
+
+// Magnétisme pour un MOVE de GROUPE : snap les bords (left/center/right,
+// top/middle/bottom) de la bounding-box du groupe aux candidats des AUTRES
+// éléments. Retourne le delta supplémentaire à ajouter à (cdx, cdy).
+function dlxComputeSnapForGroup(bbox, cdx, cdy) {
+  const excludeSet = new Set(dlxSelectedIds);
+  const cand = dlxCollectSnapCandidates(excludeSet);
+  const left   = bbox.minX + cdx;
+  const right  = bbox.maxX + cdx;
+  const top    = bbox.minY + cdy;
+  const bottom = bbox.maxY + cdy;
+  const cx = (left + right) / 2;
+  const cy = (top + bottom) / 2;
+  const dx = dlxBestSnap([left, cx, right], cand.xs);
+  const dy = dlxBestSnap([top, cy, bottom], cand.ys);
   return { dx, dy };
 }
 
