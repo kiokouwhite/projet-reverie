@@ -29,7 +29,7 @@
 const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
-const DLX_PLAN_VERSION = 5;
+const DLX_PLAN_VERSION = 6;
 // Dimensions du canvas — utilisées pour les clamps de positionnement
 // (empêchent les éléments / vertices de sortir du cadre visible).
 const DLX_CANVAS_W = 600;
@@ -49,20 +49,13 @@ const dlxMaxHistory = 50;
 // ── DÉFINITION DES TYPES D'ÉLÉMENTS ─────────────────────────────────────────
 // Chaque type a : icône, label menu, taille par défaut, couleur, z-index.
 // `rotatable: true` permet la rotation 90° via bouton du panneau props
+// Set minimaliste : juste mur / zone / projecteur / station. Les autres
+// types (tables, sorties, micro, etc.) ont été retirés à la demande user.
 const DLX_TYPES = {
-  'wall':            { icon: '🧱',  label: 'Mur',                 defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
-  'room':            { icon: '🏠',  label: 'Zone (label)',        defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
-  'table-classique': { icon: '▭',   label: 'Table classique',     defaultW: 80,  defaultH: 50,  color: '#d8d8d8', z: 4, rotatable: true },
-  'table-ronde':     { icon: '●',   label: 'Table ronde',         defaultW: 50,  defaultH: 50,  color: '#5c3a1f', z: 4 },
-  'table-grande':    { icon: '▬',   label: 'Grande table',        defaultW: 120, defaultH: 70,  color: '#7d4a2a', z: 4, rotatable: true },
-  'desk':            { icon: '💻',  label: 'Bureau à roulette',   defaultW: 60,  defaultH: 40,  color: '#c8a888', z: 4, rotatable: true },
-  'exit':            { icon: '🚪',  label: 'Sortie de secours',   defaultW: 36,  defaultH: 36,  color: '#46d18f', z: 5 },
-  'microphone':      { icon: '🎤',  label: 'Microphone',          defaultW: 30,  defaultH: 30,  color: '#7a5fca', z: 5 },
-  'laptop':          { icon: '💻',  label: 'Ordinateur portable', defaultW: 40,  defaultH: 28,  color: '#888',    z: 5, rotatable: true },
-  'whiteboard':      { icon: '◻',   label: 'Tableau blanc',       defaultW: 90,  defaultH: 12,  color: '#fafafa', z: 4, rotatable: true },
-  'projector':       { icon: '📽️', label: 'Vidéoprojecteur',     defaultW: 30,  defaultH: 24,  color: '#444',    z: 5, rotatable: true },
-  'outlet':          { icon: '🔌',  label: 'Prise / multiprise',  defaultW: 22,  defaultH: 22,  color: '#222',    z: 6 },
-  'station':         { icon: '🎮',  label: 'Setup (station)',     defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
+  'wall':      { icon: '🧱',  label: 'Mur',              defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
+  'room':      { icon: '🏠',  label: 'Zone (label)',     defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
+  'projector': { icon: '📽️', label: 'Vidéoprojecteur',  defaultW: 30,  defaultH: 24,  color: '#444',    z: 5, rotatable: true },
+  'station':   { icon: '🎮',  label: 'Setup (station)',  defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
 
 // Plan par défaut basé sur le venue de l'asso (Projet Reverie).
@@ -115,13 +108,9 @@ function dlxDefaultPlan() {
     add(`fg-R${i+1}`, 'station', `${i+5}`, 378, FG_TOP + i*FG_STATION_H, 200, FG_STATION_H, '#e85a8a');
   }
 
-  // ═══ ALCÔVE TO (FG) ═══════════════════════════════════════════════════
-  add('table-to-fg', 'table-classique', 'TO FG',  40, 540, 140, 60);
-
   // ═══ ZONE STREAM ══════════════════════════════════════════════════════
-  add('stream-1', 'station',    'Stream',     180, 680, 320, 120, '#7c5cff');
-  add('mic-1',    'microphone', 'Micro',      120, 700,  30,  30);
-  add('proj-1',   'projector',  'Projo',      510, 700,  30,  24);
+  add('stream-1', 'station',   'Stream', 180, 680, 320, 120, '#7c5cff');
+  add('proj-1',   'projector', 'Projo',  510, 700,  30,  24);
 
   // ═══ COIN SMASH ═══════════════════════════════════════════════════════
   // 5 stations de chaque côté, collées au mur, stackées sans gap.
@@ -132,14 +121,6 @@ function dlxDefaultPlan() {
     add(`smash-L${i+1}`, 'station', `${i+1}`,  22, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
     add(`smash-R${i+1}`, 'station', `${i+6}`, 378, SMASH_TOP + i*SMASH_STATION_H, 200, SMASH_STATION_H, '#46d18f');
   }
-
-  // ═══ TABLES TO SMASH + ACCUEIL ════════════════════════════════════════
-  add('table-to-smash', 'table-grande', 'TO',       60, 1340, 200, 80);
-  add('table-accueil',  'table-grande', 'Accueil', 330, 1340, 200, 80);
-
-  // ═══ SORTIES DE SECOURS ═══════════════════════════════════════════════
-  add('exit-top', 'exit', '',  470,  30, 36, 36);
-  add('exit-mid', 'exit', '',  470, 890, 36, 36);
 
   return { version: DLX_PLAN_VERSION, elements: e };
 }
@@ -323,34 +304,10 @@ function dlxElementHTML(el) {
         <div class="dlx-el-room-label">${safeLabel}</div>
         ${removeBtn}${resizeHandle}</div>`;
 
-    case 'table-ronde':
-      return `<div class="dlx-el dlx-el-table-ronde" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};${rotCss}">
-        ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
-        ${removeBtn}${resizeHandle}</div>`;
-
-    case 'table-classique':
-    case 'table-grande':
-      return `<div class="dlx-el dlx-el-table" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:${el.type==='table-grande' ? '#fff' : '#333'};${rotCss}">
-        ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
-        ${removeBtn}${resizeHandle}</div>`;
-
-    case 'desk':
-    case 'whiteboard':
     case 'projector':
-    case 'laptop':
-    case 'microphone':
-    case 'exit':
       return `<div class="dlx-el dlx-el-icon" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:#fff;${rotCss}">
         <span class="dlx-el-icon-glyph">${def.icon}</span>
-        ${removeBtn}${resizeHandle}</div>`;
-
-    case 'outlet':
-      return `<div class="dlx-el dlx-el-outlet" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};${rotCss}">
-        <span class="dlx-el-outlet-num">${safeLabel || '🔌'}</span>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'station':
