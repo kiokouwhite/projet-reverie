@@ -36,6 +36,12 @@ let dlxInitDone = false;
 let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
 let dlxSelectedId = null;   // élément actuellement sélectionné pour édition fine
 
+// Historique pour Ctrl+Z. On stocke des snapshots JSON du plan AVANT chaque
+// modification (move/resize/add/remove/rotate/prop change), puis on pop
+// quand l'user fait Ctrl+Z. Cap à 50 entrées pour éviter d'exploser la mémoire.
+const dlxHistory = [];
+const dlxMaxHistory = 50;
+
 // ── DÉFINITION DES TYPES D'ÉLÉMENTS ─────────────────────────────────────────
 // Chaque type a : icône, label menu, taille par défaut, couleur, z-index.
 // `rotatable: true` permet la rotation 90° via bouton du panneau props
@@ -141,6 +147,29 @@ function dlxInit() {
   dlxLoadPlan();
   dlxBuildAddTypeSelector();
   dlxRender();
+  dlxInstallKeyboardShortcuts();
+}
+
+// Installe les raccourcis clavier : Ctrl+Z = undo. Listener global mais
+// gardé inactif quand l'utilisateur tape dans un input texte (laisse le
+// undo natif du navigateur s'occuper du texte).
+function dlxInstallKeyboardShortcuts() {
+  if (dlxInstallKeyboardShortcuts._done) return;
+  dlxInstallKeyboardShortcuts._done = true;
+  document.addEventListener('keydown', (ev) => {
+    // Vérifie qu'on est bien sur la page Deluxe (sinon le shortcut n'a
+    // pas de sens pour les autres onglets).
+    const deluxePage = document.getElementById('pageDeluxe');
+    if (!deluxePage || deluxePage.style.display === 'none') return;
+    // Ignore si on tape dans un input/textarea — laisse le undo natif faire
+    const tag = (ev.target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || ev.target.isContentEditable) return;
+    // Ctrl+Z (ou Cmd+Z sur Mac)
+    if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z') {
+      ev.preventDefault();
+      dlxUndo();
+    }
+  });
 }
 
 // Construit le <select> des types pour le bouton "+ Ajouter"
@@ -177,8 +206,34 @@ function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
 }
 
+// Push une copie profonde du plan actuel dans l'historique d'undo.
+// À appeler AVANT toute modification (drag start, add, remove, rotate, prop).
+function dlxPushHistory() {
+  try {
+    dlxHistory.push(JSON.stringify(dlxPlan));
+    if (dlxHistory.length > dlxMaxHistory) dlxHistory.shift();
+  } catch (e) {
+    console.warn('[DLX] Push history échec :', e.message);
+  }
+}
+
+// Restaure le dernier snapshot poppé de l'historique. Appelé sur Ctrl+Z.
+function dlxUndo() {
+  if (!dlxHistory.length) return;
+  try {
+    const prev = dlxHistory.pop();
+    dlxPlan = JSON.parse(prev);
+    dlxSavePlan();
+    dlxDeselect();
+    dlxRender();
+  } catch (e) {
+    console.warn('[DLX] Undo échec :', e.message);
+  }
+}
+
 function dlxResetDefaultPlan() {
   if (!confirm('Restaurer le plan par défaut ? Tu vas perdre tes modifications actuelles.')) return;
+  dlxPushHistory();
   dlxPlan = dlxDefaultPlan();
   dlxSavePlan();
   dlxRender();
@@ -351,6 +406,7 @@ function dlxOnWallVertexMouseDown(ev) {
   const vertexIdx = parseInt(ev.currentTarget.dataset.vertex, 10);
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points || !w.points[vertexIdx]) return;
+  dlxPushHistory();
   dlxSelect(wallId);
   _dlxDrag = {
     id: wallId,
@@ -377,6 +433,7 @@ function dlxOnWallLineMouseDown(ev) {
   const wallId = ev.currentTarget.dataset.id;
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points) return;
+  dlxPushHistory();
   dlxSelect(wallId);
   _dlxDrag = {
     id: wallId,
@@ -396,6 +453,7 @@ function dlxOnWallRightClick(ev) {
   const wallId = ev.currentTarget.dataset.id;
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points || w.points.length < 2) return;
+  dlxPushHistory();
   const click = dlxScreenToCanvas(ev);
   // Trouve le segment le plus proche du clic et y insère le vertex
   const insertIdx = dlxFindBestInsertIndex(w.points, click);
@@ -442,6 +500,7 @@ function dlxOnElMouseDown(ev) {
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   ev.preventDefault();
+  dlxPushHistory(); // snapshot pour Ctrl+Z
   // Sélectionne l'élément (ouvre le panneau de propriétés)
   dlxSelect(id);
   _dlxDrag = {
@@ -461,6 +520,7 @@ function dlxOnResizeMouseDown(ev) {
   const id = ev.currentTarget.dataset.resize;
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
+  dlxPushHistory();
   _dlxDrag = {
     id, mode: 'resize',
     startX: ev.clientX, startY: ev.clientY,
@@ -578,6 +638,7 @@ function dlxAddElement() {
   const type = dlxAddType;
   const def = DLX_TYPES[type];
   if (!def) return;
+  dlxPushHistory();
   const id = `${type}-${Date.now()}`;
   dlxPlan.elements.push({
     id,
@@ -597,6 +658,7 @@ function dlxAddStation() { dlxAddType = 'station'; dlxAddElement(); }
 
 function dlxRemoveElement(id) {
   if (!confirm('Supprimer cet élément ?')) return;
+  dlxPushHistory();
   dlxPlan.elements = dlxPlan.elements.filter(s => s.id !== id);
   dlxSavePlan();
   dlxRender();
@@ -638,6 +700,7 @@ function dlxRotateSelected() {
   if (!s) return;
   const def = DLX_TYPES[s.type] || {};
   if (!def.rotatable) return;
+  dlxPushHistory();
   s.rotation = ((s.rotation || 0) + 90) % 360;
   dlxSavePlan();
   // Re-render pour appliquer le transform (et re-sélection pour garder
@@ -664,11 +727,25 @@ function dlxSyncPropsInputs(s) {
   if (c) c.value = s.color || '#888888';
 }
 
-// Mise à jour live d'une propriété depuis un champ input
+// Mise à jour live d'une propriété depuis un champ input.
+// On push à l'historique uniquement à la PREMIÈRE édition d'une propriété
+// (pas à chaque keystroke), via _dlxPropEditingKey qui se reset au blur.
+let _dlxPropEditingKey = null;
 function dlxUpdateProp(prop, value) {
   if (!dlxSelectedId) return;
   const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
   if (!s) return;
+  // Une seule entrée d'historique par "rafale" d'édition sur une même prop
+  const editKey = `${s.id}:${prop}`;
+  if (_dlxPropEditingKey !== editKey) {
+    dlxPushHistory();
+    _dlxPropEditingKey = editKey;
+    // Reset le flag au prochain blur ou changement de prop
+    setTimeout(() => {
+      const reset = () => { _dlxPropEditingKey = null; };
+      document.addEventListener('blur', reset, { once: true, capture: true });
+    }, 0);
+  }
   if (prop === 'label' || prop === 'color') {
     s[prop] = value;
   } else {
