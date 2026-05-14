@@ -603,6 +603,13 @@ function dlxOnDragMove(ev) {
     elNode.style.width  = s.w + 'px';
     elNode.style.height = s.h + 'px';
   }
+  // Push des rooms : si on bouge/redimensionne une room, les rooms en-dessous
+  // qui se chevauchent horizontalement sont poussées (et rétrécissent si
+  // elles dépasseraient le canvas). MAJ DOM ciblée des rooms modifiées.
+  if (s.type === 'room' && (_dlxDrag.mode === 'move' || _dlxDrag.mode === 'resize')) {
+    const moved = dlxPushRoomsBelow(s);
+    moved.forEach(dlxUpdateElDom);
+  }
   // Sync les champs du panneau de propriétés si cet élément est sélectionné
   if (dlxSelectedId === s.id) dlxSyncPropsInputs(s);
 }
@@ -614,6 +621,57 @@ function dlxOnDragEnd() {
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
+}
+
+// ── PUSH DES ZONES (rooms) ─────────────────────────────────────────────────
+// Quand une room est agrandie ou déplacée, les rooms situées EN-DESSOUS et
+// qui se chevauchent horizontalement avec elle sont poussées vers le bas
+// pour ne pas se superposer. La dernière room poussée rétrécit si elle
+// dépasserait le bas du canvas. Retourne la liste des rooms modifiées
+// (pour MAJ DOM ciblée sans full re-render).
+const DLX_MIN_ROOM_H = 30;
+function dlxPushRoomsBelow(resizedRoom) {
+  if (!resizedRoom || resizedRoom.type !== 'room') return [];
+  const modified = [];
+  // Toutes les rooms triées par Y croissant
+  const rooms = dlxPlan.elements
+    .filter(e => e.type === 'room')
+    .sort((a, b) => a.y - b.y);
+  // Frontier = la coord Y minimale que la prochaine room peut avoir.
+  // Initialisée au bas de la room redimensionnée.
+  let frontier = resizedRoom.y + resizedRoom.h;
+  for (const r of rooms) {
+    if (r.id === resizedRoom.id) continue;
+    if (r.y < resizedRoom.y) continue; // ignore les rooms au-dessus
+    // Chevauchement horizontal avec la room redimensionnée ?
+    const overlapX = !(r.x + r.w <= resizedRoom.x || r.x >= resizedRoom.x + resizedRoom.w);
+    if (!overlapX) continue;
+    let changed = false;
+    // Pousse vers le bas si elle empiète sur la frontier
+    if (r.y < frontier) {
+      r.y = frontier;
+      changed = true;
+    }
+    // Rétrécit si elle dépasserait le bas du canvas
+    if (r.y + r.h > DLX_CANVAS_H) {
+      r.h = Math.max(DLX_MIN_ROOM_H, DLX_CANVAS_H - r.y);
+      changed = true;
+    }
+    if (changed) modified.push(r);
+    frontier = r.y + r.h;
+  }
+  return modified;
+}
+
+// Met à jour le DOM d'une room sans full re-render (utilisé pendant le drag)
+function dlxUpdateElDom(r) {
+  const node = document.querySelector(`.dlx-el[data-id="${r.id}"]`);
+  if (node) {
+    node.style.left   = r.x + 'px';
+    node.style.top    = r.y + 'px';
+    node.style.width  = r.w + 'px';
+    node.style.height = r.h + 'px';
+  }
 }
 
 // ── MAGNÉTISME (snap aux bords / vertices) ─────────────────────────────────
@@ -886,6 +944,11 @@ function dlxUpdateProp(prop, value) {
       const labelEl = elNode.querySelector('.dlx-el-station-label, .dlx-el-label-mini, .dlx-el-room-label, .dlx-el-outlet-num');
       if (labelEl) labelEl.textContent = s.label || '';
     }
+  }
+  // Push des rooms si on a changé une dimension/position d'une room
+  if (s.type === 'room' && ['x','y','w','h'].includes(prop)) {
+    const moved = dlxPushRoomsBelow(s);
+    moved.forEach(dlxUpdateElDom);
   }
   dlxSavePlan();
 }
