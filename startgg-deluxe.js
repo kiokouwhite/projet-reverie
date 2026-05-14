@@ -30,6 +30,10 @@ const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
 const DLX_PLAN_VERSION = 5;
+// Dimensions du canvas — utilisées pour les clamps de positionnement
+// (empêchent les éléments / vertices de sortir du cadre visible).
+const DLX_CANVAS_W = 600;
+const DLX_CANVAS_H = 1500;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -537,12 +541,13 @@ function dlxOnDragMove(ev) {
   const dx = ev.clientX - _dlxDrag.startX;
   const dy = ev.clientY - _dlxDrag.startY;
   if (_dlxDrag.mode === 'move') {
-    s.x = Math.max(0, _dlxDrag.origX + dx);
-    s.y = Math.max(0, _dlxDrag.origY + dy);
+    // Clamp pour rester dans le canvas (l'élément en entier doit rester visible)
+    s.x = Math.max(0, Math.min(DLX_CANVAS_W - s.w, _dlxDrag.origX + dx));
+    s.y = Math.max(0, Math.min(DLX_CANVAS_H - s.h, _dlxDrag.origY + dy));
   } else if (_dlxDrag.mode === 'resize') {
-    // min 4px pour permettre des murs très fins
-    s.w = Math.max(4, _dlxDrag.origW + dx);
-    s.h = Math.max(4, _dlxDrag.origH + dy);
+    // min 4px pour permettre des murs très fins, max = bord du canvas - x
+    s.w = Math.max(4, Math.min(DLX_CANVAS_W - s.x, _dlxDrag.origW + dx));
+    s.h = Math.max(4, Math.min(DLX_CANVAS_H - s.y, _dlxDrag.origH + dy));
   } else if (_dlxDrag.mode === 'vertex' || _dlxDrag.mode === 'wall-translate') {
     // Drag de vertex OU translate du mur entier. Convertir delta screen → canvas
     const canvas = document.getElementById('dlxCanvas');
@@ -557,15 +562,16 @@ function dlxOnDragMove(ev) {
     if (_dlxDrag.mode === 'vertex') {
       const idx = _dlxDrag.vertexIdx;
       if (s.points && s.points[idx]) {
-        s.points[idx].x = Math.max(0, _dlxDrag.origX + cdx);
-        s.points[idx].y = Math.max(0, _dlxDrag.origY + cdy);
+        // Clamp dans les bornes du canvas
+        s.points[idx].x = Math.max(0, Math.min(DLX_CANVAS_W, _dlxDrag.origX + cdx));
+        s.points[idx].y = Math.max(0, Math.min(DLX_CANVAS_H, _dlxDrag.origY + cdy));
       }
     } else {
-      // wall-translate : applique le même delta à TOUS les vertices
+      // wall-translate : applique le même delta à TOUS les vertices, clampé
       if (s.points && _dlxDrag.origPoints) {
         s.points = _dlxDrag.origPoints.map(p => ({
-          x: Math.max(0, p.x + cdx),
-          y: Math.max(0, p.y + cdy),
+          x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + cdx)),
+          y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + cdy)),
         }));
       }
     }
@@ -751,7 +757,11 @@ function dlxUpdateProp(prop, value) {
   } else {
     const n = parseInt(value, 10);
     if (Number.isNaN(n)) return;
-    s[prop] = (prop === 'w' || prop === 'h') ? Math.max(1, n) : Math.max(0, n);
+    // Clamp dans les bornes du canvas (l'élément doit rester visible)
+    if (prop === 'x') s.x = Math.max(0, Math.min(DLX_CANVAS_W - (s.w || 1), n));
+    else if (prop === 'y') s.y = Math.max(0, Math.min(DLX_CANVAS_H - (s.h || 1), n));
+    else if (prop === 'w') s.w = Math.max(1, Math.min(DLX_CANVAS_W - (s.x || 0), n));
+    else if (prop === 'h') s.h = Math.max(1, Math.min(DLX_CANVAS_H - (s.y || 0), n));
   }
   // Mise à jour DOM directe sans full re-render (préserve la sélection
   // et évite le flicker des champs en cours d'édition)
