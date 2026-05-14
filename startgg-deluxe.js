@@ -172,6 +172,24 @@ function dlxInit() {
       if (ev.target === canvas) dlxDeselect();
     });
   }
+  // Désélection globale : tout clic HORS du canvas et HORS du panneau de
+  // propriétés désélectionne. Couvre le cas où les rooms couvrent tout le
+  // canvas (pas de fond vide cliquable) — un clic sur la toolbar, le mode
+  // toggle, ou ailleurs dans la page ferme la sélection.
+  if (!dlxInstallKeyboardShortcuts._deselectBound) {
+    dlxInstallKeyboardShortcuts._deselectBound = true;
+    document.addEventListener('mousedown', (ev) => {
+      if (dlxMode !== 'edit' || !dlxSelectedId) return;
+      const cv = document.getElementById('dlxCanvas');
+      const panel = document.getElementById('dlxPropsPanel');
+      // Clic dans le canvas → géré par les handlers internes (select/deselect)
+      if (cv && cv.contains(ev.target)) return;
+      // Clic dans le panneau de propriétés → on garde la sélection
+      if (panel && panel.contains(ev.target)) return;
+      // Clic ailleurs → désélection
+      dlxDeselect();
+    });
+  }
 }
 
 // Installe les raccourcis clavier : Ctrl+Z = undo. Listener global mais
