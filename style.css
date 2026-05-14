@@ -5245,6 +5245,30 @@ canvas { width: 100%; display: block; }
   z-index: 1000;
 }
 .dlx-el-resize:hover { background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.85) 50%); }
+
+/* 8 handles autour de l'élément sélectionné (4 coins + 4 côtés). Permet
+   de resize depuis n'importe quel bord. */
+.dlx-el-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 2px solid #7c5cff;
+  border-radius: 2px;
+  z-index: 1001;
+  box-sizing: border-box;
+}
+.dlx-el-handle:hover { background: #f0eaff; }
+/* Coins */
+.dlx-el-handle-nw { top: -6px; left: -6px;  cursor: nwse-resize; }
+.dlx-el-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.dlx-el-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.dlx-el-handle-sw { bottom: -6px; left: -6px;  cursor: nesw-resize; }
+/* Côtés (centrés sur leur arête) */
+.dlx-el-handle-n  { top: -6px;    left: calc(50% - 5px); cursor: ns-resize; }
+.dlx-el-handle-s  { bottom: -6px; left: calc(50% - 5px); cursor: ns-resize; }
+.dlx-el-handle-w  { left: -6px;   top: calc(50% - 5px);  cursor: ew-resize; }
+.dlx-el-handle-e  { right: -6px;  top: calc(50% - 5px);  cursor: ew-resize; }
 .dlx-el-remove {
   position: absolute;
   top: 2px;

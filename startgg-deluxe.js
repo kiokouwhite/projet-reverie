@@ -295,8 +295,13 @@ function dlxElementHTML(el) {
   const removeBtn = isEdit
     ? `<button class="dlx-el-remove" onclick="dlxRemoveElement('${el.id}')" title="Supprimer">✕</button>`
     : '';
-  const resizeHandle = isEdit
-    ? `<div class="dlx-el-resize" data-resize="${el.id}"></div>`
+  // 8 handles de resize (4 côtés + 4 coins) — visibles uniquement quand
+  // l'élément est sélectionné (sinon le canvas serait sur-chargé).
+  const isSelected = dlxSelectedId === el.id;
+  const resizeHandle = (isEdit && isSelected)
+    ? ['nw','n','ne','e','se','s','sw','w'].map(dir =>
+        `<div class="dlx-el-handle dlx-el-handle-${dir}" data-resize="${el.id}" data-dir="${dir}"></div>`
+      ).join('')
     : '';
   // Rotation 0/90/180/270 — appliquée via CSS transform (transform-origin center)
   const rot = el.rotation || 0;
@@ -337,6 +342,10 @@ function dlxAttachDragHandlers() {
     el.addEventListener('dblclick',  dlxOnElDblClick);
   });
   canvas.querySelectorAll('.dlx-el-resize').forEach(el => {
+    el.addEventListener('mousedown', dlxOnResizeMouseDown);
+  });
+  // 8 handles directionnels (n/s/e/w/ne/nw/se/sw) sur l'élément sélectionné
+  canvas.querySelectorAll('.dlx-el-handle').forEach(el => {
     el.addEventListener('mousedown', dlxOnResizeMouseDown);
   });
   // Handlers spécifiques aux murs (SVG)
@@ -462,6 +471,7 @@ function dlxDistanceToSegment(p, a, b) {
 function dlxOnElMouseDown(ev) {
   if (ev.target.classList.contains('dlx-el-remove')) return;
   if (ev.target.classList.contains('dlx-el-resize')) return;
+  if (ev.target.classList.contains('dlx-el-handle')) return;
   if (dlxMode !== 'edit') return;
   const el = ev.currentTarget;
   const id = el.dataset.id;
@@ -486,13 +496,15 @@ function dlxOnResizeMouseDown(ev) {
   ev.preventDefault();
   ev.stopPropagation();
   const id = ev.currentTarget.dataset.resize;
+  const dir = ev.currentTarget.dataset.dir || 'se'; // fallback bottom-right
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   dlxPushHistory();
   _dlxDrag = {
     id, mode: 'resize',
+    dir,
     startX: ev.clientX, startY: ev.clientY,
-    origW: s.w, origH: s.h,
+    origX: s.x, origY: s.y, origW: s.w, origH: s.h,
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
@@ -511,13 +523,39 @@ function dlxOnDragMove(ev) {
     if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0;
   }
   if (_dlxDrag.mode === 'move') {
-    // Clamp pour rester dans le canvas (l'élément en entier doit rester visible)
-    s.x = Math.max(0, Math.min(DLX_CANVAS_W - s.w, _dlxDrag.origX + dx));
-    s.y = Math.max(0, Math.min(DLX_CANVAS_H - s.h, _dlxDrag.origY + dy));
+    let nx = _dlxDrag.origX + dx;
+    let ny = _dlxDrag.origY + dy;
+    // Magnétisme : snap aux bords des autres éléments / au canvas (Shift désactive)
+    if (!ev.shiftKey) {
+      const snap = dlxComputeSnapForMove(s, nx, ny);
+      nx += snap.dx;
+      ny += snap.dy;
+    }
+    s.x = Math.max(0, Math.min(DLX_CANVAS_W - s.w, nx));
+    s.y = Math.max(0, Math.min(DLX_CANVAS_H - s.h, ny));
   } else if (_dlxDrag.mode === 'resize') {
-    // min 4px pour permettre des murs très fins, max = bord du canvas - x
-    s.w = Math.max(4, Math.min(DLX_CANVAS_W - s.x, _dlxDrag.origW + dx));
-    s.h = Math.max(4, Math.min(DLX_CANVAS_H - s.y, _dlxDrag.origH + dy));
+    // Resize multi-directionnel selon _dlxDrag.dir (n/s/e/w/ne/nw/se/sw)
+    const dir = _dlxDrag.dir || 'se';
+    let { origX, origY, origW, origH } = _dlxDrag;
+    let nx = origX, ny = origY, nw = origW, nh = origH;
+    if (dir.includes('e')) nw = origW + dx;
+    if (dir.includes('w')) { nx = origX + dx; nw = origW - dx; }
+    if (dir.includes('s')) nh = origH + dy;
+    if (dir.includes('n')) { ny = origY + dy; nh = origH - dy; }
+    // Magnétisme sur les bords actifs (Shift désactive)
+    if (!ev.shiftKey) {
+      const snap = dlxComputeSnapForResize(s, dir, nx, ny, nw, nh);
+      nx += snap.dx; ny += snap.dy; nw += snap.dw; nh += snap.dh;
+    }
+    // Min size 4px et empêche d'inverser (w h restent positifs)
+    if (nw < 4) { if (dir.includes('w')) nx = origX + origW - 4; nw = 4; }
+    if (nh < 4) { if (dir.includes('n')) ny = origY + origH - 4; nh = 4; }
+    // Clamp dans le canvas
+    nx = Math.max(0, nx);
+    ny = Math.max(0, ny);
+    nw = Math.min(DLX_CANVAS_W - nx, nw);
+    nh = Math.min(DLX_CANVAS_H - ny, nh);
+    s.x = nx; s.y = ny; s.w = nw; s.h = nh;
   } else if (_dlxDrag.mode === 'vertex' || _dlxDrag.mode === 'wall-translate') {
     // Drag de vertex OU translate du mur entier. Convertir delta screen → canvas
     const canvas = document.getElementById('dlxCanvas');
@@ -576,6 +614,81 @@ function dlxOnDragEnd() {
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
+}
+
+// ── MAGNÉTISME (snap aux bords / vertices) ─────────────────────────────────
+const DLX_SNAP_THRESHOLD = 8; // px de tolérance pour le snap
+
+// Collecte tous les "candidats" de snap en X et en Y (bords des autres
+// éléments, vertices des murs, bords du canvas). Exclut l'élément
+// actuellement draggé (par id).
+function dlxCollectSnapCandidates(excludeId) {
+  const xs = [0, DLX_CANVAS_W]; // bords du canvas
+  const ys = [0, DLX_CANVAS_H];
+  dlxPlan.elements.forEach(o => {
+    if (o.id === excludeId) return;
+    if (o.type === 'wall') {
+      (o.points || []).forEach(p => { xs.push(p.x); ys.push(p.y); });
+    } else if (typeof o.x === 'number') {
+      xs.push(o.x, o.x + (o.w || 0));
+      ys.push(o.y, o.y + (o.h || 0));
+    }
+  });
+  return { xs, ys };
+}
+
+// Trouve le meilleur snap : pour chaque "valeur" à snapper (ex. left edge),
+// cherche le candidat le plus proche < threshold. Retourne le delta à
+// ajouter pour atteindre le candidat (ou 0 si aucun snap).
+function dlxBestSnap(values, candidates) {
+  let bestDelta = 0;
+  let bestDist = DLX_SNAP_THRESHOLD;
+  for (const v of values) {
+    for (const c of candidates) {
+      const d = Math.abs(v - c);
+      if (d < bestDist) { bestDist = d; bestDelta = c - v; }
+    }
+  }
+  return bestDelta;
+}
+
+// Magnétisme pour un MOVE : snap left/right/center edges de l'élément
+// aux bords des autres éléments / vertices murs / bords canvas.
+function dlxComputeSnapForMove(s, nx, ny) {
+  const cand = dlxCollectSnapCandidates(s.id);
+  const w = s.w || 0, h = s.h || 0;
+  const dx = dlxBestSnap([nx, nx + w/2, nx + w], cand.xs);
+  const dy = dlxBestSnap([ny, ny + h/2, ny + h], cand.ys);
+  return { dx, dy };
+}
+
+// Magnétisme pour un RESIZE : ne snap que les BORDS qui bougent selon dir.
+function dlxComputeSnapForResize(s, dir, nx, ny, nw, nh) {
+  const cand = dlxCollectSnapCandidates(s.id);
+  let dx = 0, dy = 0, dw = 0, dh = 0;
+  // Bord droit (e) : snap (x + w) aux candidats x → delta s'applique à w
+  if (dir.includes('e')) {
+    const delta = dlxBestSnap([nx + nw], cand.xs);
+    dw = delta;
+  }
+  // Bord gauche (w) : snap x aux candidats x → delta s'applique à x ET inverse à w
+  if (dir.includes('w')) {
+    const delta = dlxBestSnap([nx], cand.xs);
+    dx = delta;
+    dw = -delta;
+  }
+  // Bord bas (s) : snap (y + h) aux candidats y → delta s'applique à h
+  if (dir.includes('s')) {
+    const delta = dlxBestSnap([ny + nh], cand.ys);
+    dh = delta;
+  }
+  // Bord haut (n) : snap y aux candidats y → delta s'applique à y ET inverse à h
+  if (dir.includes('n')) {
+    const delta = dlxBestSnap([ny], cand.ys);
+    dy = delta;
+    dh = -delta;
+  }
+  return { dx, dy, dw, dh };
 }
 
 // Conversion auto des walls ancien format (x,y,w,h rectangle) vers nouveau
@@ -652,13 +765,10 @@ function dlxSelect(id) {
     dlxSelectedId = wasSelected;
     return;
   }
-  // Si on bascule entre sélection mur ↔ non-mur, on doit re-render le SVG
-  // des murs pour montrer/cacher les vertices (cf. dlxWallSvg).
-  const prev = wasSelected ? dlxPlan.elements.find(x => x.id === wasSelected) : null;
-  const wasWall = prev && prev.type === 'wall';
-  const isWall  = s.type === 'wall';
-  const needsFullRender = !!prev !== true || wasWall !== isWall;
-  if (needsFullRender) {
+  // Full re-render quand on change de sélection : il faut MAJ les handles
+  // de resize (8 handles n'apparaissent que sur l'élément sélectionné), et
+  // bascule mur ↔ non-mur pour afficher/cacher les vertices SVG.
+  if (wasSelected !== id) {
     dlxRender();
   }
   // Highlight visuel : retire ancien, ajoute nouveau
