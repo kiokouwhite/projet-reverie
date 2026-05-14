@@ -68,33 +68,37 @@ const dlxMaxHistory = 50;
 const DLX_TYPES = {
   'wall':      { icon: '🧱',  label: 'Mur',              defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
   'room':      { icon: '🏠',  label: 'Zone (label)',     defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
-  'door':      { icon: '🚪',  label: 'Porte',            defaultW: 60,  defaultH: 60,  color: '#2a2a2a', z: 4, rotatable: true },
+  'door':      { icon: '🚪',  label: 'Porte',            defaultW: 70,  defaultH: 140, color: '#2a2a2a', z: 4, rotatable: true },
   'station':   { icon: '🎮',  label: 'Setup (station)',  defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
 
 // Génère le SVG du symbole architectural d'une porte (battant + arc de
 // débattement) dans une box w×h. doorType : 'simple' ou 'double'.
-// La porte est dessinée avec son ouverture sur le bord BAS de la box ;
-// utiliser la rotation pour l'orienter sur n'importe quel mur.
+// IMPORTANT : l'ouverture passe par le CENTRE VERTICAL de la box (y = h/2).
+// Comme la box est centrée sur le mur et que le trou est découpé au niveau
+// de la box, le symbole, le mur et le trou sont ainsi parfaitement alignés
+// — quelle que soit la rotation. Le débattement est dessiné dans la moitié
+// haute (= la pièce dans laquelle la porte s'ouvre).
 function dlxDoorSvg(w, h, doorType, color) {
   const c = color || '#2a2a2a';
   const sw = 2.5;
+  const cy = h / 2; // ligne d'ouverture = centre vertical
   if (doorType === 'double') {
-    const r = w / 2; // chaque battant fait la moitié de la largeur
-    // Battant gauche : charnière en (0,h), ouvre vers le haut
-    const leftLeaf = `<line x1="0" y1="${h}" x2="0" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
-    const leftArc  = `<path d="M 0 ${h-r} A ${r} ${r} 0 0 1 ${r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
-    // Battant droit : charnière en (w,h), ouvre vers le haut (miroir)
-    const rightLeaf = `<line x1="${w}" y1="${h}" x2="${w}" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
-    const rightArc  = `<path d="M ${w} ${h-r} A ${r} ${r} 0 0 0 ${w-r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+    const r = Math.min(w / 2, cy); // chaque battant = moitié de la largeur
+    // Battant gauche : charnière en (0, cy), ouvre vers le haut
+    const leftLeaf = `<line x1="0" y1="${cy}" x2="0" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
+    const leftArc  = `<path d="M 0 ${cy - r} A ${r} ${r} 0 0 1 ${r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+    // Battant droit : charnière en (w, cy), miroir
+    const rightLeaf = `<line x1="${w}" y1="${cy}" x2="${w}" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
+    const rightArc  = `<path d="M ${w} ${cy - r} A ${r} ${r} 0 0 0 ${w - r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
     return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
       ${leftLeaf}${leftArc}${rightLeaf}${rightArc}</svg>`;
   }
-  // Porte simple : charnière en bas-gauche (0,h), battant vertical, arc
-  // jusqu'au bord droit du débattement.
-  const r = Math.min(w, h);
-  const leaf = `<line x1="0" y1="${h}" x2="0" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
-  const arc  = `<path d="M 0 ${h-r} A ${r} ${r} 0 0 1 ${r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+  // Porte simple : charnière en (0, cy), battant vertical vers le haut,
+  // arc jusqu'au bord droit du débattement.
+  const r = Math.min(w, cy);
+  const leaf = `<line x1="0" y1="${cy}" x2="0" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
+  const arc  = `<path d="M 0 ${cy - r} A ${r} ${r} 0 0 1 ${r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
   return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
     ${leaf}${arc}</svg>`;
 }
