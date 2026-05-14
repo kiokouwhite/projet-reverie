@@ -555,6 +555,12 @@ function dlxOnWallLineMouseDown(ev) {
   const wallId = ev.currentTarget.dataset.id;
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points) return;
+  // Si "Porte" est le type sélectionné dans le dropdown → poser une porte
+  // directement sur le mur au point cliqué (au lieu de drag le mur).
+  if (dlxAddType === 'door') {
+    dlxPlaceDoorOnWall(w, ev);
+    return;
+  }
   dlxPushHistory();
   dlxSelect(wallId);
   _dlxDrag = {
@@ -566,6 +572,53 @@ function dlxOnWallLineMouseDown(ev) {
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
+}
+
+// Pose une porte directement sur le mur cliqué, au point cliqué, en la
+// projetant sur le segment le plus proche et en l'orientant selon ce segment.
+function dlxPlaceDoorOnWall(wall, ev) {
+  if (!wall || !wall.points || wall.points.length < 2) return;
+  dlxPushHistory();
+  const click = dlxScreenToCanvas(ev);
+  const def = DLX_TYPES['door'];
+  const w = def.defaultW, h = def.defaultH;
+
+  // Cherche le segment le plus proche + le point projeté sur ce segment
+  let bestDist = Infinity, bestProj = null, bestSeg = null;
+  for (let i = 0; i < wall.points.length - 1; i++) {
+    const a = wall.points[i], b = wall.points[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : ((click.x - a.x) * dx + (click.y - a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = { x: a.x + t * dx, y: a.y + t * dy };
+    const d = Math.hypot(click.x - proj.x, click.y - proj.y);
+    if (d < bestDist) { bestDist = d; bestProj = proj; bestSeg = [a, b]; }
+  }
+  const center = bestProj || click;
+
+  // Orientation : segment plutôt vertical → porte tournée à 90°
+  let rotation = 0;
+  if (bestSeg) {
+    const sdx = Math.abs(bestSeg[1].x - bestSeg[0].x);
+    const sdy = Math.abs(bestSeg[1].y - bestSeg[0].y);
+    rotation = (sdy > sdx) ? 90 : 0;
+  }
+
+  let x = center.x - w / 2;
+  let y = center.y - h / 2;
+  x = Math.max(0, Math.min(DLX_CANVAS_W - w, x));
+  y = Math.max(0, Math.min(DLX_CANVAS_H - h, y));
+
+  const id = `door-${Date.now()}`;
+  dlxPlan.elements.push({
+    id, type: 'door', label: '',
+    x, y, w, h,
+    color: def.color, doorType: 'simple', rotation,
+  });
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(id);
 }
 
 // Right-click sur un VERTEX : le supprime (si le mur garde ≥ 2 points).
