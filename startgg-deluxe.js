@@ -258,12 +258,19 @@ function dlxRender() {
 }
 
 // SVG d'un mur (polyline) + handles de vertex en mode édition.
+// Si un élément NON-mur est sélectionné (room/station/projector), on
+// désactive les interactions des murs (pas de vertex visible, pas de
+// hit-area) pour que les clics aillent à l'élément sélectionné sans
+// être interceptés par les coins de mur qui se trouvent derrière.
 function dlxWallSvg(w) {
   if (!w.points || w.points.length < 2) return '';
   const pts = w.points.map(p => `${p.x},${p.y}`).join(' ');
   const isEdit = dlxMode === 'edit';
   const isSelected = dlxSelectedId === w.id;
-  const handles = isEdit ? w.points.map((p, i) =>
+  const selectedEl = dlxSelectedId ? dlxPlan.elements.find(x => x.id === dlxSelectedId) : null;
+  const wallsInteractive = !selectedEl || selectedEl.type === 'wall';
+  const showVertices = isEdit && wallsInteractive;
+  const handles = showVertices ? w.points.map((p, i) =>
     `<circle class="dlx-wall-vertex" data-wall="${w.id}" data-vertex="${i}"
              cx="${p.x}" cy="${p.y}" r="7" />`
   ).join('') : '';
@@ -272,7 +279,7 @@ function dlxWallSvg(w) {
               points="${pts}" stroke="${w.color || '#2a2a2a'}"
               stroke-width="${w.thickness || 4}" fill="none"
               stroke-linecap="square" stroke-linejoin="miter" />
-    ${isEdit ? `<polyline class="dlx-wall-hitarea" data-id="${w.id}"
+    ${(isEdit && wallsInteractive) ? `<polyline class="dlx-wall-hitarea" data-id="${w.id}"
               points="${pts}" stroke="transparent" stroke-width="20"
               fill="none" />` : ''}
     ${handles}
@@ -638,13 +645,26 @@ function dlxRemoveStation(id) { dlxRemoveElement(id); }
 
 // ── PANNEAU DE PROPRIÉTÉS (sélection + édition fine) ───────────────────────
 function dlxSelect(id) {
+  const wasSelected = dlxSelectedId;
   dlxSelectedId = id;
+  const s = dlxPlan.elements.find(x => x.id === id);
+  if (!s) {
+    dlxSelectedId = wasSelected;
+    return;
+  }
+  // Si on bascule entre sélection mur ↔ non-mur, on doit re-render le SVG
+  // des murs pour montrer/cacher les vertices (cf. dlxWallSvg).
+  const prev = wasSelected ? dlxPlan.elements.find(x => x.id === wasSelected) : null;
+  const wasWall = prev && prev.type === 'wall';
+  const isWall  = s.type === 'wall';
+  const needsFullRender = !!prev !== true || wasWall !== isWall;
+  if (needsFullRender) {
+    dlxRender();
+  }
   // Highlight visuel : retire ancien, ajoute nouveau
   document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
   const elNode = document.querySelector(`.dlx-el[data-id="${id}"]`);
   if (elNode) elNode.classList.add('selected');
-  const s = dlxPlan.elements.find(x => x.id === id);
-  if (!s) return;
   const panel = document.getElementById('dlxPropsPanel');
   if (!panel) return;
   panel.style.display = '';
@@ -679,10 +699,13 @@ function dlxRotateSelected() {
 }
 
 function dlxDeselect() {
+  const hadSelection = dlxSelectedId !== null;
   dlxSelectedId = null;
   document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
   const panel = document.getElementById('dlxPropsPanel');
   if (panel) panel.style.display = 'none';
+  // Si on désélectionne un non-mur, on doit ré-afficher les vertices des murs
+  if (hadSelection) dlxRender();
 }
 
 function dlxSyncPropsInputs(s) {
