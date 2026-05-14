@@ -133,6 +133,17 @@ function dlxInit() {
   dlxBuildAddTypeSelector();
   dlxRender();
   dlxInstallKeyboardShortcuts();
+  // Click sur le fond du canvas (pas sur un élément) = désélection.
+  // ev.target === canvas signifie qu'on a cliqué sur le fond beige et pas
+  // sur un élément enfant (les clics sur éléments ont leur target = l'élément).
+  const canvas = document.getElementById('dlxCanvas');
+  if (canvas && !canvas._dlxDeselectBound) {
+    canvas._dlxDeselectBound = true;
+    canvas.addEventListener('mousedown', (ev) => {
+      if (dlxMode !== 'edit') return;
+      if (ev.target === canvas) dlxDeselect();
+    });
+  }
 }
 
 // Installe les raccourcis clavier : Ctrl+Z = undo. Listener global mais
