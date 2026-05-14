@@ -29,8 +29,24 @@ let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
 let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
-let dlxSelectedId = null;   // élément actuellement sélectionné pour édition fine
-let dlxClipboard = null;    // snapshot JSON du dernier élément copié (Ctrl+C)
+let dlxSelectedId = null;   // élément "primaire" sélectionné (pilote le panneau de props)
+let dlxSelectedIds = [];    // tous les éléments sélectionnés (multi-sélection Shift+clic)
+let dlxClipboard = null;    // snapshot JSON du/des élément(s) copié(s) (Ctrl+C)
+
+// Vrai si l'élément fait partie de la sélection courante
+function dlxIsSelected(id) { return dlxSelectedIds.indexOf(id) !== -1; }
+
+// Ré-applique la classe .selected aux noeuds DOM des éléments sélectionnés
+// (les murs portent leur état via le re-render, donc seuls les .dlx-el sont
+// concernés ici). À appeler après tout dlxRender() qui ne passe pas par
+// dlxSelect (ex : pendant un drag de groupe).
+function dlxApplySelectionClasses() {
+  document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
+  dlxSelectedIds.forEach(sid => {
+    const node = document.querySelector(`.dlx-el[data-id="${sid}"]`);
+    if (node) node.classList.add('selected');
+  });
+}
 
 // Historique pour Ctrl+Z. On stocke des snapshots JSON du plan AVANT chaque
 // modification (move/resize/add/remove/rotate/prop change), puis on pop
@@ -169,7 +185,9 @@ function dlxInit() {
   if (!dlxInstallKeyboardShortcuts._deselectBound) {
     dlxInstallKeyboardShortcuts._deselectBound = true;
     document.addEventListener('mousedown', (ev) => {
-      if (dlxMode !== 'edit' || !dlxSelectedId) return;
+      if (dlxMode !== 'edit' || !dlxSelectedIds.length) return;
+      // Shift+clic ailleurs : ne pas casser la multi-sélection en cours
+      if (ev.shiftKey) return;
       const cv = document.getElementById('dlxCanvas');
       const panel = document.getElementById('dlxPropsPanel');
       // IMPORTANT : on teste par COORDONNÉES, pas par cv.contains(ev.target).
@@ -210,9 +228,9 @@ function dlxInstallKeyboardShortcuts() {
       dlxUndo();
       return;
     }
-    // Ctrl+C = copie l'élément sélectionné dans le presse-papier interne
+    // Ctrl+C = copie le(s) élément(s) sélectionné(s) dans le presse-papier interne
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'c') {
-      if (dlxSelectedId) {
+      if (dlxSelectedIds.length) {
         ev.preventDefault();
         dlxCopySelected();
       }
@@ -228,57 +246,71 @@ function dlxInstallKeyboardShortcuts() {
     }
     // Suppr / Delete / Backspace = supprime l'élément sélectionné (mur inclus).
     // Pas de confirm() : action volontaire + Ctrl+Z pour annuler.
-    if ((ev.key === 'Delete' || ev.key === 'Backspace') && dlxSelectedId) {
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && dlxSelectedIds.length) {
       ev.preventDefault();
       dlxDeleteSelected();
     }
   });
 }
 
-// Copie l'élément sélectionné (snapshot JSON) dans le presse-papier interne.
+// Copie le/les élément(s) sélectionné(s) (snapshots JSON) dans le
+// presse-papier interne. Gère la multi-sélection.
 function dlxCopySelected() {
-  if (!dlxSelectedId) return;
-  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
-  if (!s) return;
-  dlxClipboard = JSON.stringify(s);
+  if (!dlxSelectedIds.length) return;
+  const els = dlxSelectedIds
+    .map(id => dlxPlan.elements.find(x => x.id === id))
+    .filter(Boolean);
+  if (!els.length) return;
+  dlxClipboard = JSON.stringify(els);
 }
 
-// Colle une copie de l'élément du presse-papier, décalée de 24px, et la
-// sélectionne. Gère aussi bien les murs (points) que les éléments rect.
+// Colle une copie de chaque élément du presse-papier, décalée de 24px, et
+// sélectionne le(s) nouvel(aux) élément(s). Gère murs (points) et rects.
 function dlxPasteClipboard() {
   if (!dlxClipboard) return;
   let src;
   try { src = JSON.parse(dlxClipboard); } catch { return; }
   if (!src) return;
+  // Rétro-compat : ancien format = un seul objet
+  const list = Array.isArray(src) ? src : [src];
+  if (!list.length) return;
   dlxPushHistory();
   const OFF = 24;
-  const copy = JSON.parse(JSON.stringify(src));
-  copy.id = `${copy.type || 'el'}-${Date.now()}`;
-  if (Array.isArray(copy.points)) {
-    // Mur : décale tous les vertices, en restant dans le cadre
-    let dx = OFF, dy = OFF;
-    const maxX = Math.max(...copy.points.map(p => p.x));
-    const maxY = Math.max(...copy.points.map(p => p.y));
-    if (maxX + dx > DLX_CANVAS_W) dx = -OFF;
-    if (maxY + dy > DLX_CANVAS_H) dy = -OFF;
-    copy.points = copy.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-  } else {
-    copy.x = Math.max(0, Math.min(DLX_CANVAS_W - (copy.w || 0), (copy.x || 0) + OFF));
-    copy.y = Math.max(0, Math.min(DLX_CANVAS_H - (copy.h || 0), (copy.y || 0) + OFF));
-  }
-  dlxPlan.elements.push(copy);
+  const newIds = [];
+  list.forEach((item, i) => {
+    const copy = JSON.parse(JSON.stringify(item));
+    copy.id = `${copy.type || 'el'}-${Date.now()}-${i}`;
+    if (Array.isArray(copy.points)) {
+      let dx = OFF, dy = OFF;
+      const maxX = Math.max(...copy.points.map(p => p.x));
+      const maxY = Math.max(...copy.points.map(p => p.y));
+      if (maxX + dx > DLX_CANVAS_W) dx = -OFF;
+      if (maxY + dy > DLX_CANVAS_H) dy = -OFF;
+      copy.points = copy.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+    } else {
+      copy.x = Math.max(0, Math.min(DLX_CANVAS_W - (copy.w || 0), (copy.x || 0) + OFF));
+      copy.y = Math.max(0, Math.min(DLX_CANVAS_H - (copy.h || 0), (copy.y || 0) + OFF));
+    }
+    dlxPlan.elements.push(copy);
+    newIds.push(copy.id);
+  });
   dlxSavePlan();
   dlxRender();
-  dlxSelect(copy.id);
+  // Sélectionne la copie : simple si 1 élément, multi sinon
+  dlxSelectedIds = [];
+  dlxSelectedId = null;
+  newIds.forEach(id => dlxSelect(id, true));
 }
 
 // Supprime l'élément actuellement sélectionné (sans confirm — l'undo
 // Ctrl+Z permet de revenir en arrière).
 function dlxDeleteSelected() {
-  if (!dlxSelectedId) return;
+  if (!dlxSelectedIds.length) return;
   dlxPushHistory();
-  dlxPlan.elements = dlxPlan.elements.filter(s => s.id !== dlxSelectedId);
+  const toDelete = new Set(dlxSelectedIds);
+  dlxPlan.elements = dlxPlan.elements.filter(s => !toDelete.has(s.id));
   dlxSelectedId = null;
+  dlxSelectedIds = [];
   const panel = document.getElementById('dlxPropsPanel');
   if (panel) panel.style.display = 'none';
   dlxSavePlan();
@@ -452,9 +484,15 @@ function dlxWallSvg(w) {
   if (!w.points || w.points.length < 2) return '';
   const ptsFull = w.points.map(p => `${p.x},${p.y}`).join(' ');
   const isEdit = dlxMode === 'edit';
-  const isSelected = dlxSelectedId === w.id;
-  const selectedEl = dlxSelectedId ? dlxPlan.elements.find(x => x.id === dlxSelectedId) : null;
-  const wallsInteractive = !selectedEl || selectedEl.type === 'wall';
+  const isSelected = dlxIsSelected(w.id);
+  // Les murs restent interactifs tant qu'aucun élément NON-mur n'est
+  // sélectionné (sinon les vertices/hit-areas captureraient les clics
+  // destinés à l'élément sélectionné qui est derrière).
+  const selectedEls = dlxSelectedIds
+    .map(id => dlxPlan.elements.find(x => x.id === id))
+    .filter(Boolean);
+  const wallsInteractive = selectedEls.length === 0
+    || selectedEls.every(e => e.type === 'wall');
   const showVertices = isEdit && wallsInteractive;
   const handles = showVertices ? w.points.map((p, i) =>
     `<circle class="dlx-wall-vertex" data-wall="${w.id}" data-vertex="${i}"
@@ -493,9 +531,10 @@ function dlxElementHTML(el) {
     ? `<button class="dlx-el-remove" onclick="dlxRemoveElement('${el.id}')" title="Supprimer">✕</button>`
     : '';
   // 8 handles de resize (4 côtés + 4 coins) — visibles uniquement quand
-  // l'élément est sélectionné (sinon le canvas serait sur-chargé).
-  const isSelected = dlxSelectedId === el.id;
-  const resizeHandle = (isEdit && isSelected)
+  // l'élément est le SEUL sélectionné (en multi-sélection on ne redimensionne
+  // pas, on ne fait que déplacer le groupe).
+  const isSelected = dlxIsSelected(el.id);
+  const resizeHandle = (isEdit && isSelected && dlxSelectedIds.length === 1)
     ? ['nw','n','ne','e','se','s','sw','w'].map(dir =>
         `<div class="dlx-el-handle dlx-el-handle-${dir}" data-resize="${el.id}" data-dir="${dir}"></div>`
       ).join('')
@@ -609,6 +648,11 @@ function dlxOnWallLineMouseDown(ev) {
   const wallId = ev.currentTarget.dataset.id;
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points) return;
+  // Shift+clic = ajoute/retire le mur de la multi-sélection (pas de drag)
+  if (ev.shiftKey) {
+    dlxSelect(wallId, true);
+    return;
+  }
   // Si "Porte" est le type sélectionné dans le dropdown → poser une porte
   // directement sur le mur au point cliqué (au lieu de drag le mur).
   if (dlxAddType === 'door') {
@@ -616,6 +660,17 @@ function dlxOnWallLineMouseDown(ev) {
     return;
   }
   dlxPushHistory();
+  // Si le mur fait partie d'une multi-sélection → déplace tout le groupe
+  if (dlxSelectedIds.length > 1 && dlxIsSelected(wallId)) {
+    _dlxDrag = {
+      mode: 'move-group',
+      startX: ev.clientX, startY: ev.clientY,
+      group: dlxBuildGroupDragState(),
+    };
+    document.addEventListener('mousemove', dlxOnDragMove);
+    document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
+    return;
+  }
   dlxSelect(wallId);
   _dlxDrag = {
     id: wallId,
@@ -749,8 +804,29 @@ function dlxOnElMouseDown(ev) {
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
   ev.preventDefault();
+
+  // Shift+clic = ajoute/retire l'élément de la multi-sélection (pas de drag)
+  if (ev.shiftKey) {
+    dlxSelect(id, true);
+    return;
+  }
+
   dlxPushHistory(); // snapshot pour Ctrl+Z
-  // Sélectionne l'élément (ouvre le panneau de propriétés)
+
+  // Si l'élément fait déjà partie d'une multi-sélection → on déplace
+  // tout le groupe ensemble, sans toucher à la sélection.
+  if (dlxSelectedIds.length > 1 && dlxIsSelected(id)) {
+    _dlxDrag = {
+      mode: 'move-group',
+      startX: ev.clientX, startY: ev.clientY,
+      group: dlxBuildGroupDragState(),
+    };
+    document.addEventListener('mousemove', dlxOnDragMove);
+    document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
+    return;
+  }
+
+  // Sélection simple : ouvre le panneau de propriétés et déplace l'élément
   dlxSelect(id);
   _dlxDrag = {
     id, mode: 'move',
@@ -760,6 +836,34 @@ function dlxOnElMouseDown(ev) {
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
   el.classList.add('dragging');
+}
+
+// Construit l'état de départ d'un drag de groupe : positions d'origine de
+// chaque élément sélectionné + bornes de décalage (dx/dy) pour que tout le
+// groupe reste dans le cadre.
+function dlxBuildGroupDragState() {
+  const items = [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  dlxSelectedIds.forEach(id => {
+    const s = dlxPlan.elements.find(x => x.id === id);
+    if (!s) return;
+    if (Array.isArray(s.points)) {
+      items.push({ id, points: s.points.map(p => ({ x: p.x, y: p.y })) });
+      s.points.forEach(p => {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      });
+    } else {
+      items.push({ id, x: s.x, y: s.y });
+      minX = Math.min(minX, s.x);          maxX = Math.max(maxX, s.x + (s.w || 0));
+      minY = Math.min(minY, s.y);          maxY = Math.max(maxY, s.y + (s.h || 0));
+    }
+  });
+  return {
+    items,
+    minDx: -minX, maxDx: DLX_CANVAS_W - maxX,
+    minDy: -minY, maxDy: DLX_CANVAS_H - maxY,
+  };
 }
 
 function dlxOnResizeMouseDown(ev) {
@@ -783,6 +887,38 @@ function dlxOnResizeMouseDown(ev) {
 
 function dlxOnDragMove(ev) {
   if (!_dlxDrag) return;
+
+  // Déplacement de groupe (multi-sélection) : applique le même delta, en
+  // pixels-canvas, à tous les éléments du groupe, borné au cadre.
+  if (_dlxDrag.mode === 'move-group') {
+    const canvas = document.getElementById('dlxCanvas');
+    let scaleX = 1, scaleY = 1;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      scaleX = DLX_CANVAS_W / rect.width;
+      scaleY = DLX_CANVAS_H / rect.height;
+    }
+    const g = _dlxDrag.group;
+    let cdx = (ev.clientX - _dlxDrag.startX) * scaleX;
+    let cdy = (ev.clientY - _dlxDrag.startY) * scaleY;
+    if (ev.shiftKey) { if (Math.abs(cdx) > Math.abs(cdy)) cdy = 0; else cdx = 0; }
+    cdx = Math.max(g.minDx, Math.min(g.maxDx, cdx));
+    cdy = Math.max(g.minDy, Math.min(g.maxDy, cdy));
+    g.items.forEach(it => {
+      const el = dlxPlan.elements.find(x => x.id === it.id);
+      if (!el) return;
+      if (it.points) {
+        el.points = it.points.map(p => ({ x: p.x + cdx, y: p.y + cdy }));
+      } else {
+        el.x = it.x + cdx;
+        el.y = it.y + cdy;
+      }
+    });
+    dlxRender();
+    dlxApplySelectionClasses();
+    return;
+  }
+
   const s = dlxPlan.elements.find(x => x.id === _dlxDrag.id);
   if (!s) return;
   let dx = ev.clientX - _dlxDrag.startX;
@@ -888,6 +1024,16 @@ function dlxOnDragMove(ev) {
 function dlxOnDragEnd() {
   if (!_dlxDrag) return;
   document.removeEventListener('mousemove', dlxOnDragMove);
+
+  // Fin de déplacement de groupe : sauve + re-render + ré-applique le highlight
+  if (_dlxDrag.mode === 'move-group') {
+    _dlxDrag = null;
+    dlxSavePlan();
+    dlxRender();
+    dlxApplySelectionClasses();
+    return;
+  }
+
   const draggedId = _dlxDrag.id;
   const el = document.querySelector(`.dlx-el[data-id="${draggedId}"]`);
   if (el) el.classList.remove('dragging');
@@ -1095,26 +1241,46 @@ function dlxRemoveElement(id) {
 function dlxRemoveStation(id) { dlxRemoveElement(id); }
 
 // ── PANNEAU DE PROPRIÉTÉS (sélection + édition fine) ───────────────────────
-function dlxSelect(id) {
-  const wasSelected = dlxSelectedId;
-  dlxSelectedId = id;
-  const s = dlxPlan.elements.find(x => x.id === id);
-  if (!s) {
-    dlxSelectedId = wasSelected;
-    return;
+// dlxSelect(id)            → sélection simple : remplace toute la sélection
+// dlxSelect(id, true)      → mode additif (Shift+clic) : bascule l'élément
+//                            dans/hors de la multi-sélection
+function dlxSelect(id, additive) {
+  const exists = dlxPlan.elements.some(x => x.id === id);
+  if (!exists) return;
+  const prevKey = dlxSelectedIds.join(',');
+
+  if (additive) {
+    const idx = dlxSelectedIds.indexOf(id);
+    if (idx !== -1) {
+      // Déjà sélectionné → on le retire de la sélection
+      dlxSelectedIds.splice(idx, 1);
+      dlxSelectedId = dlxSelectedIds[dlxSelectedIds.length - 1] || null;
+    } else {
+      dlxSelectedIds.push(id);
+      dlxSelectedId = id;
+    }
+  } else {
+    dlxSelectedIds = [id];
+    dlxSelectedId = id;
   }
-  // Full re-render quand on change de sélection : il faut MAJ les handles
-  // de resize (8 handles n'apparaissent que sur l'élément sélectionné), et
+
+  // Full re-render quand la sélection change : MAJ des handles de resize et
   // bascule mur ↔ non-mur pour afficher/cacher les vertices SVG.
-  if (wasSelected !== id) {
+  if (prevKey !== dlxSelectedIds.join(',')) {
     dlxRender();
   }
-  // Highlight visuel : retire ancien, ajoute nouveau
-  document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
-  const elNode = document.querySelector(`.dlx-el[data-id="${id}"]`);
-  if (elNode) elNode.classList.add('selected');
+  // Highlight visuel : retire tous les anciens, applique aux sélectionnés
+  dlxApplySelectionClasses();
+
   const panel = document.getElementById('dlxPropsPanel');
   if (!panel) return;
+  // Le panneau de propriétés n'a de sens que pour UN seul élément
+  if (dlxSelectedIds.length !== 1) {
+    panel.style.display = 'none';
+    return;
+  }
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s) { panel.style.display = 'none'; return; }
   panel.style.display = '';
   const title = document.getElementById('dlxPropsTitle');
   if (title) {
@@ -1168,8 +1334,9 @@ function dlxRotateSelected() {
 }
 
 function dlxDeselect() {
-  const hadSelection = dlxSelectedId !== null;
+  const hadSelection = dlxSelectedId !== null || dlxSelectedIds.length > 0;
   dlxSelectedId = null;
+  dlxSelectedIds = [];
   document.querySelectorAll('.dlx-el.selected').forEach(el => el.classList.remove('selected'));
   const panel = document.getElementById('dlxPropsPanel');
   if (panel) panel.style.display = 'none';
