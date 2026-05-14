@@ -501,6 +501,19 @@ function dlxClipSegmentToRect(a, b, rx, ry, rw, rh) {
   return (t0 < t1) ? [t0, t1] : null;
 }
 
+// Rectangle EFFECTIF d'une porte une fois sa rotation appliquée. Pour une
+// porte tournée à 90°/270°, la box visible a sa largeur et sa hauteur
+// échangées (autour du même centre). Indispensable pour que la découpe du
+// mur corresponde à la porte telle qu'elle est affichée — sinon les portes
+// "sur le côté" (murs verticaux) ne créent pas de trou correct.
+function dlxDoorEffectiveRect(d) {
+  const rot = (((d.rotation || 0) % 360) + 360) % 360;
+  const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
+  let w = d.w, h = d.h;
+  if (rot === 90 || rot === 270) { w = d.h; h = d.w; }
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
 // Découpe une polyline de mur en plusieurs sous-polylines, en retirant
 // les portions couvertes par une porte (élément type 'door' dont la box
 // chevauche le mur). Retourne un tableau de tableaux de points.
@@ -515,7 +528,8 @@ function dlxCutWallByDoors(wall) {
     // Collecte les portions [t0,t1] du segment couvertes par une porte
     const covered = [];
     for (const d of doors) {
-      const clip = dlxClipSegmentToRect(a, b, d.x, d.y, d.w, d.h);
+      const r = dlxDoorEffectiveRect(d);
+      const clip = dlxClipSegmentToRect(a, b, r.x, r.y, r.w, r.h);
       if (clip) covered.push(clip);
     }
     if (!covered.length) { pieces.push([a, b]); continue; }
