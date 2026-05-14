@@ -21,10 +21,16 @@ const DLX_LS_KEY = 'top8_deluxe_plan';
 // Version du modèle de plan. Bumper quand le default change radicalement
 // pour forcer le rechargement automatique chez les users existants.
 const DLX_PLAN_VERSION = 7;
-// Dimensions du canvas — utilisées pour les clamps de positionnement
-// (empêchent les éléments / vertices de sortir du cadre visible).
-const DLX_CANVAS_W = 600;
-const DLX_CANVAS_H = 1500;
+// Dimensions du canvas. DYNAMIQUES : le canvas s'agrandit automatiquement
+// pour suivre le contenu (murs/zones qu'on étire au-delà du cadre). Les
+// constantes _MIN sont la taille plancher (le canvas ne rétrécit jamais
+// en-dessous). DLX_COORD_LIMIT = garde-fou anti-emballement.
+const DLX_CANVAS_W_MIN = 600;
+const DLX_CANVAS_H_MIN = 1500;
+const DLX_COORD_LIMIT  = 50000;
+const DLX_FIT_MARGIN   = 150; // marge laissée autour du contenu
+let DLX_CANVAS_W = DLX_CANVAS_W_MIN;
+let DLX_CANVAS_H = DLX_CANVAS_H_MIN;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -338,6 +344,7 @@ function dlxLoadPlan() {
           && parsed.version === DLX_PLAN_VERSION) {
         dlxMigrateWalls(parsed); // sécurité : convertit walls si format mixte
         dlxPlan = parsed;
+        dlxSyncCanvasSize();
         return;
       }
     }
@@ -345,10 +352,60 @@ function dlxLoadPlan() {
     console.warn('[DLX] Load plan échec :', e.message);
   }
   dlxPlan = dlxDefaultPlan();
+  dlxSyncCanvasSize();
 }
 
 function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
+}
+
+// Synchronise les dimensions courantes du canvas depuis le plan chargé
+// (fallback sur le plancher si le plan ne contient pas encore ces champs).
+function dlxSyncCanvasSize() {
+  DLX_CANVAS_W = Math.max(DLX_CANVAS_W_MIN, dlxPlan.canvasW || 0);
+  DLX_CANVAS_H = Math.max(DLX_CANVAS_H_MIN, dlxPlan.canvasH || 0);
+}
+
+// Recalcule la taille du canvas pour qu'il englobe tout le contenu + une
+// marge. Si du contenu est passé en coordonnées négatives (mur tiré vers
+// le haut/gauche), TOUT est décalé pour rester dans le cadre. Retourne le
+// décalage appliqué { dx, dy } (utile pour recaler un drag en cours).
+function dlxFitCanvasToContent() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  dlxPlan.elements.forEach(e => {
+    if (Array.isArray(e.points)) {
+      e.points.forEach(p => {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      });
+    } else if (typeof e.x === 'number') {
+      minX = Math.min(minX, e.x); maxX = Math.max(maxX, e.x + (e.w || 0));
+      minY = Math.min(minY, e.y); maxY = Math.max(maxY, e.y + (e.h || 0));
+    }
+  });
+  if (!isFinite(minX)) return { dx: 0, dy: 0 }; // plan vide
+
+  // Décalage si du contenu déborde en haut/à gauche (coords négatives ou
+  // trop proches du bord) → on pousse tout pour garder une marge.
+  let dx = 0, dy = 0;
+  if (minX < DLX_FIT_MARGIN) dx = DLX_FIT_MARGIN - minX;
+  if (minY < DLX_FIT_MARGIN) dy = DLX_FIT_MARGIN - minY;
+  if (dx || dy) {
+    dlxPlan.elements.forEach(e => {
+      if (Array.isArray(e.points)) {
+        e.points.forEach(p => { p.x += dx; p.y += dy; });
+      } else if (typeof e.x === 'number') {
+        e.x += dx; e.y += dy;
+      }
+    });
+    maxX += dx; maxY += dy;
+  }
+  // Le canvas englobe le contenu décalé + marge, jamais sous le plancher.
+  DLX_CANVAS_W = Math.max(DLX_CANVAS_W_MIN, Math.ceil((maxX + DLX_FIT_MARGIN) / 50) * 50);
+  DLX_CANVAS_H = Math.max(DLX_CANVAS_H_MIN, Math.ceil((maxY + DLX_FIT_MARGIN) / 50) * 50);
+  dlxPlan.canvasW = DLX_CANVAS_W;
+  dlxPlan.canvasH = DLX_CANVAS_H;
+  return { dx, dy };
 }
 
 // Push une copie profonde du plan actuel dans l'historique d'undo.
@@ -368,6 +425,7 @@ function dlxUndo() {
   try {
     const prev = dlxHistory.pop();
     dlxPlan = JSON.parse(prev);
+    dlxSyncCanvasSize();
     dlxSavePlan();
     dlxDeselect();
     dlxRender();
@@ -380,6 +438,7 @@ function dlxResetDefaultPlan() {
   if (!confirm('Restaurer le plan par défaut ? Tu vas perdre tes modifications actuelles.')) return;
   dlxPushHistory();
   dlxPlan = dlxDefaultPlan();
+  dlxSyncCanvasSize();
   dlxSavePlan();
   dlxRender();
 }
@@ -403,6 +462,11 @@ function dlxSetMode(mode) {
 function dlxRender() {
   const canvas = document.getElementById('dlxCanvas');
   if (!canvas) return;
+  // Le canvas s'adapte au contenu : on recalcule ses dimensions (et on
+  // recale le contenu s'il a débordé en haut/à gauche) avant de dessiner.
+  dlxFitCanvasToContent();
+  canvas.style.width  = DLX_CANVAS_W + 'px';
+  canvas.style.height = DLX_CANVAS_H + 'px';
   // Séparer murs (SVG) du reste (DOM positionné). Walls sont rendus dans
   // un <svg> overlay pour pouvoir avoir des polylines avec angles.
   const walls    = dlxPlan.elements.filter(e => e.type === 'wall');
@@ -410,7 +474,7 @@ function dlxRender() {
   // Trier les non-walls par z-index pour ordre DOM correct
   nonWalls.sort((a, b) => (DLX_TYPES[a.type]?.z || 0) - (DLX_TYPES[b.type]?.z || 0));
 
-  const wallsSvg = `<svg class="dlx-walls-svg" viewBox="0 0 600 1500" preserveAspectRatio="none">
+  const wallsSvg = `<svg class="dlx-walls-svg" viewBox="0 0 ${DLX_CANVAS_W} ${DLX_CANVAS_H}" preserveAspectRatio="none">
     ${walls.map(dlxWallSvg).join('')}
   </svg>`;
   canvas.innerHTML = wallsSvg + nonWalls.map(dlxElementHTML).join('');
@@ -601,10 +665,10 @@ function dlxScreenToCanvas(ev) {
   const canvas = document.getElementById('dlxCanvas');
   if (!canvas) return { x: 0, y: 0 };
   const rect = canvas.getBoundingClientRect();
-  // Le canvas est en pixels réels (600×1500) sans transform, donc le
-  // mapping est direct via les bounding rects.
-  const scaleX = 600 / rect.width;
-  const scaleY = 1500 / rect.height;
+  // Le canvas est en pixels réels (taille dynamique) sans transform, donc
+  // le mapping est direct via les bounding rects.
+  const scaleX = DLX_CANVAS_W / rect.width;
+  const scaleY = DLX_CANVAS_H / rect.height;
   return {
     x: (ev.clientX - rect.left) * scaleX,
     y: (ev.clientY - rect.top)  * scaleY,
@@ -971,8 +1035,9 @@ function dlxOnDragMove(ev) {
       nx += snap.dx;
       ny += snap.dy;
     }
-    s.x = Math.max(0, Math.min(DLX_CANVAS_W - s.w, nx));
-    s.y = Math.max(0, Math.min(DLX_CANVAS_H - s.h, ny));
+    // Pas de clamp au cadre : le canvas s'agrandira pour suivre l'élément.
+    s.x = Math.max(-DLX_COORD_LIMIT, Math.min(DLX_COORD_LIMIT, nx));
+    s.y = Math.max(-DLX_COORD_LIMIT, Math.min(DLX_COORD_LIMIT, ny));
   } else if (_dlxDrag.mode === 'resize') {
     // Resize multi-directionnel selon _dlxDrag.dir (n/s/e/w/ne/nw/se/sw)
     const dir = _dlxDrag.dir || 'se';
@@ -990,11 +1055,12 @@ function dlxOnDragMove(ev) {
     // Min size 4px et empêche d'inverser (w h restent positifs)
     if (nw < 4) { if (dir.includes('w')) nx = origX + origW - 4; nw = 4; }
     if (nh < 4) { if (dir.includes('n')) ny = origY + origH - 4; nh = 4; }
-    // Clamp dans le canvas
-    nx = Math.max(0, nx);
-    ny = Math.max(0, ny);
-    nw = Math.min(DLX_CANVAS_W - nx, nw);
-    nh = Math.min(DLX_CANVAS_H - ny, nh);
+    // Pas de clamp au cadre : le canvas s'agrandit pour suivre. On borne
+    // juste à un garde-fou large pour éviter tout emballement.
+    nx = Math.max(-DLX_COORD_LIMIT, nx);
+    ny = Math.max(-DLX_COORD_LIMIT, ny);
+    nw = Math.min(DLX_COORD_LIMIT, nw);
+    nh = Math.min(DLX_COORD_LIMIT, nh);
     s.x = nx; s.y = ny; s.w = nw; s.h = nh;
   } else if (_dlxDrag.mode === 'vertex' || _dlxDrag.mode === 'wall-translate') {
     // Drag de vertex OU translate du mur entier. Convertir delta screen → canvas
@@ -1002,17 +1068,20 @@ function dlxOnDragMove(ev) {
     let scaleX = 1, scaleY = 1;
     if (canvas) {
       const rect = canvas.getBoundingClientRect();
-      scaleX = 600 / rect.width;
-      scaleY = 1500 / rect.height;
+      scaleX = DLX_CANVAS_W / rect.width;
+      scaleY = DLX_CANVAS_H / rect.height;
     }
     const cdx = dx * scaleX;
     const cdy = dy * scaleY;
+    // Pendant un drag de mur on NE clampe PAS au cadre courant : on borne
+    // juste à un garde-fou large. Le canvas s'agrandira pour suivre (refit
+    // au render / à la fin du drag) → on peut étirer une pièce sans limite.
+    const clampCoord = (v) => Math.max(-DLX_COORD_LIMIT, Math.min(DLX_COORD_LIMIT, v));
     if (_dlxDrag.mode === 'vertex') {
       const idx = _dlxDrag.vertexIdx;
       if (s.points && s.points[idx]) {
-        // Clamp dans les bornes du canvas
-        s.points[idx].x = Math.max(0, Math.min(DLX_CANVAS_W, _dlxDrag.origX + cdx));
-        s.points[idx].y = Math.max(0, Math.min(DLX_CANVAS_H, _dlxDrag.origY + cdy));
+        s.points[idx].x = clampCoord(_dlxDrag.origX + cdx);
+        s.points[idx].y = clampCoord(_dlxDrag.origY + cdy);
       }
     } else {
       // wall-translate : applique le delta UNIQUEMENT aux vertices du
@@ -1030,39 +1099,47 @@ function dlxOnDragMove(ev) {
         s.points = _dlxDrag.origPoints.map((p, i) => {
           if (moveIdx && moveIdx.indexOf(i) === -1) return { x: p.x, y: p.y };
           return {
-            x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + mdx)),
-            y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + mdy)),
+            x: clampCoord(p.x + mdx),
+            y: clampCoord(p.y + mdy),
           };
         });
       }
     }
-    // Live update du SVG : on remet à jour les polylines et tous les circles
-    const ptsStr = s.points.map(p => `${p.x},${p.y}`).join(' ');
-    const polylines = canvas.querySelectorAll(`polyline[data-id="${s.id}"]`);
-    polylines.forEach(pl => pl.setAttribute('points', ptsStr));
-    s.points.forEach((p, i) => {
-      const circle = canvas.querySelector(`.dlx-wall-vertex[data-wall="${s.id}"][data-vertex="${i}"]`);
-      if (circle) {
-        circle.setAttribute('cx', p.x);
-        circle.setAttribute('cy', p.y);
+    // Le canvas s'adapte au mur qu'on étire : refit (agrandit + recale le
+    // contenu s'il déborde en haut/à gauche), puis re-render complet. Si un
+    // recalage a eu lieu, on décale aussi les références du drag en cours
+    // pour que le calcul du delta reste cohérent à la frame suivante.
+    const shift = dlxFitCanvasToContent();
+    if (shift.dx || shift.dy) {
+      if (_dlxDrag.origPoints) {
+        _dlxDrag.origPoints.forEach(p => { p.x += shift.dx; p.y += shift.dy; });
       }
-    });
+      if (typeof _dlxDrag.origX === 'number') {
+        _dlxDrag.origX += shift.dx;
+        _dlxDrag.origY += shift.dy;
+      }
+    }
+    dlxRender();
+    dlxApplySelectionClasses();
     return;
   }
-  const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
-  if (elNode) {
-    elNode.style.left   = s.x + 'px';
-    elNode.style.top    = s.y + 'px';
-    elNode.style.width  = s.w + 'px';
-    elNode.style.height = s.h + 'px';
-  }
   // Push des rooms : si on bouge/redimensionne une room, les rooms en-dessous
-  // qui se chevauchent horizontalement sont poussées (et rétrécissent si
-  // elles dépasseraient le canvas). MAJ DOM ciblée des rooms modifiées.
+  // qui se chevauchent horizontalement sont poussées vers le bas.
   if (s.type === 'room' && (_dlxDrag.mode === 'move' || _dlxDrag.mode === 'resize')) {
-    const moved = dlxPushRoomsBelow(s);
-    moved.forEach(dlxUpdateElDom);
+    dlxPushRoomsBelow(s);
   }
+  // Le canvas s'adapte à l'élément déplacé/redimensionné : refit (agrandit
+  // + recale si débordement haut/gauche) puis re-render complet. Le shift
+  // éventuel est répercuté sur les références du drag en cours.
+  const shift = dlxFitCanvasToContent();
+  if (shift.dx || shift.dy) {
+    if (typeof _dlxDrag.origX === 'number') {
+      _dlxDrag.origX += shift.dx;
+      _dlxDrag.origY += shift.dy;
+    }
+  }
+  dlxRender();
+  dlxApplySelectionClasses();
   // Sync les champs du panneau de propriétés si cet élément est sélectionné
   if (dlxSelectedId === s.id) dlxSyncPropsInputs(s);
 }
@@ -1085,14 +1162,10 @@ function dlxOnDragEnd() {
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
-  const s = dlxPlan.elements.find(x => x.id === draggedId);
-  // Re-render complet après tout drag de porte :
-  //  - resize : régénère le SVG (viewBox basé sur w/h)
-  //  - move/resize : recalcule la découpe des murs traversés par la porte
-  if (s && s.type === 'door') {
-    dlxRender();
-    dlxSelect(draggedId);
-  }
+  // Re-render final : recale le canvas sur le contenu, régénère les SVG
+  // (portes, découpe des murs) et ré-applique le highlight de sélection.
+  dlxRender();
+  dlxApplySelectionClasses();
 }
 
 // ── PUSH DES ZONES (rooms) ─────────────────────────────────────────────────

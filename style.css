@@ -5085,6 +5085,9 @@ canvas { width: 100%; display: block; }
      handles de resize) qui dépassent légèrement des bords du canvas */
   padding: 16px;
   position: relative;
+  /* le canvas grandit avec le contenu → viewport scrollable dans les 2 axes */
+  overflow: auto;
+  max-height: 78vh;
 }
 .dlx-canvas {
   position: relative;
