@@ -636,11 +636,10 @@ function dlxOnWallVertexMouseDown(ev) {
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
 }
 
-// Click sur la zone hit-area d'un mur (mais pas sur un vertex) →
-// translate ALL vertices par le même delta. Permet de déplacer le mur
-// entier pour redimensionner les pièces (le sens du drag est libre,
-// l'user peut bouger un mur horizontal verticalement pour étendre la
-// salle vers le bas par exemple).
+// Click sur la zone hit-area d'un mur (mais pas sur un vertex) → déplace
+// UNIQUEMENT le segment cliqué (ses 2 extrémités). Les segments adjacents
+// suivent en s'étirant, ce qui permet d'agrandir/rétrécir une pièce en
+// poussant un seul pan de mur — sans déplacer toute la polyline.
 function dlxOnWallLineMouseDown(ev) {
   if (dlxMode !== 'edit') return;
   if (ev.button !== 0) return; // right-click géré par contextmenu
@@ -672,12 +671,27 @@ function dlxOnWallLineMouseDown(ev) {
     return;
   }
   dlxSelect(wallId);
+  // Trouve le segment cliqué : ses 2 extrémités sont les seuls vertices
+  // qui bougeront. On ne déplace donc QUE ce pan de mur, pas la polyline
+  // entière (les segments voisins s'étirent pour rester connectés).
+  const click = dlxScreenToCanvas(ev);
+  let segIdx = dlxFindBestInsertIndex(w.points, click) - 1;
+  segIdx = Math.max(0, Math.min(w.points.length - 2, segIdx));
+  const moveSet = new Set([segIdx, segIdx + 1]);
+  // Polyline fermée (1er point ≈ dernier) : inclure les vertices coïncidant
+  // avec une des 2 extrémités pour ne pas créer de trou dans le contour.
+  const pa = w.points[segIdx], pb = w.points[segIdx + 1];
+  w.points.forEach((p, i) => {
+    if ((Math.abs(p.x - pa.x) < 1 && Math.abs(p.y - pa.y) < 1) ||
+        (Math.abs(p.x - pb.x) < 1 && Math.abs(p.y - pb.y) < 1)) moveSet.add(i);
+  });
   _dlxDrag = {
     id: wallId,
     mode: 'wall-translate',
     startX: ev.clientX,
     startY: ev.clientY,
     origPoints: w.points.map(p => ({ x: p.x, y: p.y })),
+    moveIndices: Array.from(moveSet),
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
@@ -990,12 +1004,18 @@ function dlxOnDragMove(ev) {
         s.points[idx].y = Math.max(0, Math.min(DLX_CANVAS_H, _dlxDrag.origY + cdy));
       }
     } else {
-      // wall-translate : applique le même delta à TOUS les vertices, clampé
+      // wall-translate : applique le delta UNIQUEMENT aux vertices du
+      // segment cliqué (moveIndices). Les autres restent fixes → seul ce
+      // pan de mur bouge, les segments voisins s'étirent pour le suivre.
       if (s.points && _dlxDrag.origPoints) {
-        s.points = _dlxDrag.origPoints.map(p => ({
-          x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + cdx)),
-          y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + cdy)),
-        }));
+        const moveIdx = _dlxDrag.moveIndices;
+        s.points = _dlxDrag.origPoints.map((p, i) => {
+          if (moveIdx && moveIdx.indexOf(i) === -1) return { x: p.x, y: p.y };
+          return {
+            x: Math.max(0, Math.min(DLX_CANVAS_W, p.x + cdx)),
+            y: Math.max(0, Math.min(DLX_CANVAS_H, p.y + cdy)),
+          };
+        });
       }
     }
     // Live update du SVG : on remet à jour les polylines et tous les circles
