@@ -844,7 +844,10 @@
       <div id="dlxPropsPanel" class="dlx-props-panel" style="display:none;">
         <div class="dlx-props-header">
           <span id="dlxPropsTitle" class="dlx-props-title">Élément</span>
-          <button type="button" class="dlx-props-close" onclick="dlxDeselect()" title="Fermer">✕</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button id="dlxPropsRotate" type="button" class="dlx-props-rotate" onclick="dlxRotateSelected()" title="Rotation 90°" style="display:none;">↻ 90°</button>
+            <button type="button" class="dlx-props-close" onclick="dlxDeselect()" title="Fermer">✕</button>
+          </div>
         </div>
         <div class="dlx-props-grid">
           <label>Label</label><input id="dlxPropsLabel" type="text" oninput="dlxUpdateProp('label', this.value)">

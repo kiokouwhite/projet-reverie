@@ -38,20 +38,21 @@ let dlxSelectedId = null;   // élément actuellement sélectionné pour éditio
 
 // ── DÉFINITION DES TYPES D'ÉLÉMENTS ─────────────────────────────────────────
 // Chaque type a : icône, label menu, taille par défaut, couleur, z-index.
+// `rotatable: true` permet la rotation 90° via bouton du panneau props
 const DLX_TYPES = {
   'wall':            { icon: '🧱',  label: 'Mur',                 defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
   'room':            { icon: '🏠',  label: 'Zone (label)',        defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
-  'table-classique': { icon: '▭',   label: 'Table classique',     defaultW: 80,  defaultH: 50,  color: '#d8d8d8', z: 4 },
+  'table-classique': { icon: '▭',   label: 'Table classique',     defaultW: 80,  defaultH: 50,  color: '#d8d8d8', z: 4, rotatable: true },
   'table-ronde':     { icon: '●',   label: 'Table ronde',         defaultW: 50,  defaultH: 50,  color: '#5c3a1f', z: 4 },
-  'table-grande':    { icon: '▬',   label: 'Grande table',        defaultW: 120, defaultH: 70,  color: '#7d4a2a', z: 4 },
-  'desk':            { icon: '💻',  label: 'Bureau à roulette',   defaultW: 60,  defaultH: 40,  color: '#c8a888', z: 4 },
+  'table-grande':    { icon: '▬',   label: 'Grande table',        defaultW: 120, defaultH: 70,  color: '#7d4a2a', z: 4, rotatable: true },
+  'desk':            { icon: '💻',  label: 'Bureau à roulette',   defaultW: 60,  defaultH: 40,  color: '#c8a888', z: 4, rotatable: true },
   'exit':            { icon: '🚪',  label: 'Sortie de secours',   defaultW: 36,  defaultH: 36,  color: '#46d18f', z: 5 },
   'microphone':      { icon: '🎤',  label: 'Microphone',          defaultW: 30,  defaultH: 30,  color: '#7a5fca', z: 5 },
-  'laptop':          { icon: '💻',  label: 'Ordinateur portable', defaultW: 40,  defaultH: 28,  color: '#888',    z: 5 },
-  'whiteboard':      { icon: '◻',   label: 'Tableau blanc',       defaultW: 90,  defaultH: 12,  color: '#fafafa', z: 4 },
-  'projector':       { icon: '📽️', label: 'Vidéoprojecteur',     defaultW: 30,  defaultH: 24,  color: '#444',    z: 5 },
+  'laptop':          { icon: '💻',  label: 'Ordinateur portable', defaultW: 40,  defaultH: 28,  color: '#888',    z: 5, rotatable: true },
+  'whiteboard':      { icon: '◻',   label: 'Tableau blanc',       defaultW: 90,  defaultH: 12,  color: '#fafafa', z: 4, rotatable: true },
+  'projector':       { icon: '📽️', label: 'Vidéoprojecteur',     defaultW: 30,  defaultH: 24,  color: '#444',    z: 5, rotatable: true },
   'outlet':          { icon: '🔌',  label: 'Prise / multiprise',  defaultW: 22,  defaultH: 22,  color: '#222',    z: 6 },
-  'station':         { icon: '🎮',  label: 'Setup (station)',     defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7 },
+  'station':         { icon: '🎮',  label: 'Setup (station)',     defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
 
 // Plan par défaut basé sur le venue de l'asso (Projet Reverie).
@@ -250,26 +251,29 @@ function dlxElementHTML(el) {
   const resizeHandle = isEdit
     ? `<div class="dlx-el-resize" data-resize="${el.id}"></div>`
     : '';
+  // Rotation 0/90/180/270 — appliquée via CSS transform (transform-origin center)
+  const rot = el.rotation || 0;
+  const rotCss = rot ? `transform:rotate(${rot}deg);` : '';
 
   // Rendu spécifique par type. Walls passent par dlxWallSvg (SVG overlay),
   // pas par ce switch.
   switch (el.type) {
     case 'room':
       return `<div class="dlx-el dlx-el-room" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;${rotCss}">
         <div class="dlx-el-room-label">${safeLabel}</div>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'table-ronde':
       return `<div class="dlx-el dlx-el-table-ronde" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};${rotCss}">
         ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'table-classique':
     case 'table-grande':
       return `<div class="dlx-el dlx-el-table" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:${el.type==='table-grande' ? '#fff' : '#333'};">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:${el.type==='table-grande' ? '#fff' : '#333'};${rotCss}">
         ${safeLabel ? `<div class="dlx-el-label-mini">${safeLabel}</div>` : ''}
         ${removeBtn}${resizeHandle}</div>`;
 
@@ -280,20 +284,20 @@ function dlxElementHTML(el) {
     case 'microphone':
     case 'exit':
       return `<div class="dlx-el dlx-el-icon" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:#fff;">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};color:#fff;${rotCss}">
         <span class="dlx-el-icon-glyph">${def.icon}</span>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'outlet':
       return `<div class="dlx-el dlx-el-outlet" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};${rotCss}">
         <span class="dlx-el-outlet-num">${safeLabel || '🔌'}</span>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'station':
     default:
       return `<div class="dlx-el dlx-el-station" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};">
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};${rotCss}">
         <div class="dlx-el-station-label">${safeLabel}</div>
         ${removeBtn}${resizeHandle}</div>`;
   }
@@ -361,12 +365,28 @@ function dlxOnWallVertexMouseDown(ev) {
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
 }
 
-// Click sur la zone hit-area d'un mur (mais pas sur un vertex)
+// Click sur la zone hit-area d'un mur (mais pas sur un vertex) →
+// translate ALL vertices par le même delta. Permet de déplacer le mur
+// entier pour redimensionner les pièces (le sens du drag est libre,
+// l'user peut bouger un mur horizontal verticalement pour étendre la
+// salle vers le bas par exemple).
 function dlxOnWallLineMouseDown(ev) {
   if (dlxMode !== 'edit') return;
-  if (ev.button !== 0) return; // ignore right-click ici (géré par contextmenu)
+  if (ev.button !== 0) return; // right-click géré par contextmenu
+  ev.preventDefault();
   const wallId = ev.currentTarget.dataset.id;
+  const w = dlxPlan.elements.find(x => x.id === wallId);
+  if (!w || !w.points) return;
   dlxSelect(wallId);
+  _dlxDrag = {
+    id: wallId,
+    mode: 'wall-translate',
+    startX: ev.clientX,
+    startY: ev.clientY,
+    origPoints: w.points.map(p => ({ x: p.x, y: p.y })),
+  };
+  document.addEventListener('mousemove', dlxOnDragMove);
+  document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
 }
 
 // Right-click sur un mur : insère un nouveau vertex au point cliqué
@@ -463,8 +483,8 @@ function dlxOnDragMove(ev) {
     // min 4px pour permettre des murs très fins
     s.w = Math.max(4, _dlxDrag.origW + dx);
     s.h = Math.max(4, _dlxDrag.origH + dy);
-  } else if (_dlxDrag.mode === 'vertex') {
-    // Drag d'un vertex de polyline (mur). Convertir delta screen → canvas
+  } else if (_dlxDrag.mode === 'vertex' || _dlxDrag.mode === 'wall-translate') {
+    // Drag de vertex OU translate du mur entier. Convertir delta screen → canvas
     const canvas = document.getElementById('dlxCanvas');
     let scaleX = 1, scaleY = 1;
     if (canvas) {
@@ -472,22 +492,34 @@ function dlxOnDragMove(ev) {
       scaleX = 600 / rect.width;
       scaleY = 1500 / rect.height;
     }
-    const idx = _dlxDrag.vertexIdx;
-    if (s.points && s.points[idx]) {
-      s.points[idx].x = Math.max(0, _dlxDrag.origX + dx * scaleX);
-      s.points[idx].y = Math.max(0, _dlxDrag.origY + dy * scaleY);
-      // Live update du SVG sans full re-render : on remet à jour le points
-      // attribute des deux polylines (visible + hitarea) et la position du
-      // handle circle qui a été draggé.
-      const ptsStr = s.points.map(p => `${p.x},${p.y}`).join(' ');
-      const polylines = canvas.querySelectorAll(`polyline[data-id="${s.id}"]`);
-      polylines.forEach(pl => pl.setAttribute('points', ptsStr));
-      const circle = canvas.querySelector(`.dlx-wall-vertex[data-wall="${s.id}"][data-vertex="${idx}"]`);
-      if (circle) {
-        circle.setAttribute('cx', s.points[idx].x);
-        circle.setAttribute('cy', s.points[idx].y);
+    const cdx = dx * scaleX;
+    const cdy = dy * scaleY;
+    if (_dlxDrag.mode === 'vertex') {
+      const idx = _dlxDrag.vertexIdx;
+      if (s.points && s.points[idx]) {
+        s.points[idx].x = Math.max(0, _dlxDrag.origX + cdx);
+        s.points[idx].y = Math.max(0, _dlxDrag.origY + cdy);
+      }
+    } else {
+      // wall-translate : applique le même delta à TOUS les vertices
+      if (s.points && _dlxDrag.origPoints) {
+        s.points = _dlxDrag.origPoints.map(p => ({
+          x: Math.max(0, p.x + cdx),
+          y: Math.max(0, p.y + cdy),
+        }));
       }
     }
+    // Live update du SVG : on remet à jour les polylines et tous les circles
+    const ptsStr = s.points.map(p => `${p.x},${p.y}`).join(' ');
+    const polylines = canvas.querySelectorAll(`polyline[data-id="${s.id}"]`);
+    polylines.forEach(pl => pl.setAttribute('points', ptsStr));
+    s.points.forEach((p, i) => {
+      const circle = canvas.querySelector(`.dlx-wall-vertex[data-wall="${s.id}"][data-vertex="${i}"]`);
+      if (circle) {
+        circle.setAttribute('cx', p.x);
+        circle.setAttribute('cy', p.y);
+      }
+    });
     return;
   }
   const elNode = document.querySelector(`.dlx-el[data-id="${s.id}"]`);
@@ -590,7 +622,28 @@ function dlxSelect(id) {
     const def = DLX_TYPES[s.type] || {};
     title.textContent = `${def.icon || ''} ${def.label || s.type} — ${s.id}`;
   }
+  // Affiche le bouton "↻ 90°" si le type supporte la rotation
+  const rotBtn = document.getElementById('dlxPropsRotate');
+  if (rotBtn) {
+    const def = DLX_TYPES[s.type] || {};
+    rotBtn.style.display = def.rotatable ? '' : 'none';
+  }
   dlxSyncPropsInputs(s);
+}
+
+// Rotation 90° de l'élément sélectionné (incrément circulaire 0→90→180→270→0)
+function dlxRotateSelected() {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s) return;
+  const def = DLX_TYPES[s.type] || {};
+  if (!def.rotatable) return;
+  s.rotation = ((s.rotation || 0) + 90) % 360;
+  dlxSavePlan();
+  // Re-render pour appliquer le transform (et re-sélection pour garder
+  // le panneau ouvert)
+  dlxRender();
+  dlxSelect(s.id);
 }
 
 function dlxDeselect() {

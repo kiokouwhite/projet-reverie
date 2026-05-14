@@ -5312,6 +5312,21 @@ canvas { width: 100%; display: block; }
   font-size: 12px;
 }
 .dlx-props-close:hover { background: rgba(0,0,0,0.05); }
+.dlx-props-rotate {
+  background: rgba(124,92,255,0.12);
+  border: 1px solid rgba(124,92,255,0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5b3fb0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dlx-props-rotate:hover { background: rgba(124,92,255,0.25); }
+
+/* Garantir que l'élément a une transform-origin centrée pour les rotations */
+.dlx-el { transform-origin: center; }
 .dlx-props-grid {
   display: grid;
   grid-template-columns: 80px 1fr 80px 1fr 80px 1fr;
