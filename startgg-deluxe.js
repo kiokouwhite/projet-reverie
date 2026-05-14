@@ -54,9 +54,37 @@ const dlxMaxHistory = 50;
 const DLX_TYPES = {
   'wall':      { icon: '🧱',  label: 'Mur',              defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
   'room':      { icon: '🏠',  label: 'Zone (label)',     defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
+  'door':      { icon: '🚪',  label: 'Porte',            defaultW: 60,  defaultH: 60,  color: '#2a2a2a', z: 4, rotatable: true },
   'projector': { icon: '📽️', label: 'Vidéoprojecteur',  defaultW: 30,  defaultH: 24,  color: '#444',    z: 5, rotatable: true },
   'station':   { icon: '🎮',  label: 'Setup (station)',  defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
+
+// Génère le SVG du symbole architectural d'une porte (battant + arc de
+// débattement) dans une box w×h. doorType : 'simple' ou 'double'.
+// La porte est dessinée avec son ouverture sur le bord BAS de la box ;
+// utiliser la rotation pour l'orienter sur n'importe quel mur.
+function dlxDoorSvg(w, h, doorType, color) {
+  const c = color || '#2a2a2a';
+  const sw = 2.5;
+  if (doorType === 'double') {
+    const r = w / 2; // chaque battant fait la moitié de la largeur
+    // Battant gauche : charnière en (0,h), ouvre vers le haut
+    const leftLeaf = `<line x1="0" y1="${h}" x2="0" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
+    const leftArc  = `<path d="M 0 ${h-r} A ${r} ${r} 0 0 1 ${r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+    // Battant droit : charnière en (w,h), ouvre vers le haut (miroir)
+    const rightLeaf = `<line x1="${w}" y1="${h}" x2="${w}" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
+    const rightArc  = `<path d="M ${w} ${h-r} A ${r} ${r} 0 0 0 ${w-r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+    return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
+      ${leftLeaf}${leftArc}${rightLeaf}${rightArc}</svg>`;
+  }
+  // Porte simple : charnière en bas-gauche (0,h), battant vertical, arc
+  // jusqu'au bord droit du débattement.
+  const r = Math.min(w, h);
+  const leaf = `<line x1="0" y1="${h}" x2="0" y2="${h-r}" stroke="${c}" stroke-width="${sw}" />`;
+  const arc  = `<path d="M 0 ${h-r} A ${r} ${r} 0 0 1 ${r} ${h}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
+  return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
+    ${leaf}${arc}</svg>`;
+}
 
 // Plan par défaut basé sur le venue de l'asso (Projet Reverie).
 // Layout approximatif, asymétrique : alcôve TO FG sur la gauche au milieu,
@@ -354,6 +382,12 @@ function dlxElementHTML(el) {
         <span class="dlx-el-icon-glyph">${def.icon}</span>
         ${removeBtn}${resizeHandle}</div>`;
 
+    case 'door':
+      return `<div class="dlx-el dlx-el-door" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;${rotCss}">
+        ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color)}
+        ${removeBtn}${resizeHandle}</div>`;
+
     case 'station':
     default:
       return `<div class="dlx-el dlx-el-station" data-id="${el.id}"
@@ -649,10 +683,19 @@ function dlxOnDragMove(ev) {
 function dlxOnDragEnd() {
   if (!_dlxDrag) return;
   document.removeEventListener('mousemove', dlxOnDragMove);
-  const el = document.querySelector(`.dlx-el[data-id="${_dlxDrag.id}"]`);
+  const draggedId = _dlxDrag.id;
+  const wasResize = _dlxDrag.mode === 'resize';
+  const el = document.querySelector(`.dlx-el[data-id="${draggedId}"]`);
   if (el) el.classList.remove('dragging');
   _dlxDrag = null;
   dlxSavePlan();
+  // Si on a resize une porte, le SVG (viewBox basé sur w/h) doit être
+  // re-généré sinon il reste étiré aux anciennes proportions.
+  const s = dlxPlan.elements.find(x => x.id === draggedId);
+  if (wasResize && s && s.type === 'door') {
+    dlxRender();
+    dlxSelect(draggedId);
+  }
 }
 
 // ── PUSH DES ZONES (rooms) ─────────────────────────────────────────────────
@@ -879,7 +922,28 @@ function dlxSelect(id) {
     const def = DLX_TYPES[s.type] || {};
     rotBtn.style.display = def.rotatable ? '' : 'none';
   }
+  // Affiche le bouton simple/double porte uniquement pour les portes
+  const doorBtn = document.getElementById('dlxPropsDoorType');
+  if (doorBtn) {
+    doorBtn.style.display = s.type === 'door' ? '' : 'none';
+    if (s.type === 'door') {
+      const dt = s.doorType || 'simple';
+      doorBtn.textContent = dt === 'simple' ? '🚪 → Double' : '🚪 → Simple';
+    }
+  }
   dlxSyncPropsInputs(s);
+}
+
+// Bascule le type d'une porte sélectionnée entre 'simple' et 'double'
+function dlxToggleDoorType() {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s || s.type !== 'door') return;
+  dlxPushHistory();
+  s.doorType = (s.doorType === 'double') ? 'simple' : 'double';
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(s.id);
 }
 
 // Rotation 90° de l'élément sélectionné (incrément circulaire 0→90→180→270→0)
@@ -981,6 +1045,11 @@ function dlxUpdateProp(prop, value) {
   if (s.type === 'room' && ['x','y','w','h'].includes(prop)) {
     const moved = dlxPushRoomsBelow(s);
     moved.forEach(dlxUpdateElDom);
+  }
+  // Si on a resize une porte, le SVG doit se régénérer (viewBox = w/h)
+  if (s.type === 'door' && (prop === 'w' || prop === 'h')) {
+    dlxRender();
+    dlxSelect(s.id);
   }
   dlxSavePlan();
 }
