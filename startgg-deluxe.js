@@ -30,6 +30,7 @@ let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
 let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
 let dlxSelectedId = null;   // élément actuellement sélectionné pour édition fine
+let dlxClipboard = null;    // snapshot JSON du dernier élément copié (Ctrl+C)
 
 // Historique pour Ctrl+Z. On stocke des snapshots JSON du plan AVANT chaque
 // modification (move/resize/add/remove/rotate/prop change), puis on pop
@@ -209,6 +210,22 @@ function dlxInstallKeyboardShortcuts() {
       dlxUndo();
       return;
     }
+    // Ctrl+C = copie l'élément sélectionné dans le presse-papier interne
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'c') {
+      if (dlxSelectedId) {
+        ev.preventDefault();
+        dlxCopySelected();
+      }
+      return;
+    }
+    // Ctrl+V = colle une copie décalée de l'élément copié
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'v') {
+      if (dlxClipboard) {
+        ev.preventDefault();
+        dlxPasteClipboard();
+      }
+      return;
+    }
     // Suppr / Delete / Backspace = supprime l'élément sélectionné (mur inclus).
     // Pas de confirm() : action volontaire + Ctrl+Z pour annuler.
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && dlxSelectedId) {
@@ -216,6 +233,43 @@ function dlxInstallKeyboardShortcuts() {
       dlxDeleteSelected();
     }
   });
+}
+
+// Copie l'élément sélectionné (snapshot JSON) dans le presse-papier interne.
+function dlxCopySelected() {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s) return;
+  dlxClipboard = JSON.stringify(s);
+}
+
+// Colle une copie de l'élément du presse-papier, décalée de 24px, et la
+// sélectionne. Gère aussi bien les murs (points) que les éléments rect.
+function dlxPasteClipboard() {
+  if (!dlxClipboard) return;
+  let src;
+  try { src = JSON.parse(dlxClipboard); } catch { return; }
+  if (!src) return;
+  dlxPushHistory();
+  const OFF = 24;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = `${copy.type || 'el'}-${Date.now()}`;
+  if (Array.isArray(copy.points)) {
+    // Mur : décale tous les vertices, en restant dans le cadre
+    let dx = OFF, dy = OFF;
+    const maxX = Math.max(...copy.points.map(p => p.x));
+    const maxY = Math.max(...copy.points.map(p => p.y));
+    if (maxX + dx > DLX_CANVAS_W) dx = -OFF;
+    if (maxY + dy > DLX_CANVAS_H) dy = -OFF;
+    copy.points = copy.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+  } else {
+    copy.x = Math.max(0, Math.min(DLX_CANVAS_W - (copy.w || 0), (copy.x || 0) + OFF));
+    copy.y = Math.max(0, Math.min(DLX_CANVAS_H - (copy.h || 0), (copy.y || 0) + OFF));
+  }
+  dlxPlan.elements.push(copy);
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(copy.id);
 }
 
 // Supprime l'élément actuellement sélectionné (sans confirm — l'undo
