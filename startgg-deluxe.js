@@ -511,6 +511,7 @@ function dlxAttachDragHandlers() {
   // Handlers spécifiques aux murs (SVG)
   canvas.querySelectorAll('.dlx-wall-vertex').forEach(el => {
     el.addEventListener('mousedown', dlxOnWallVertexMouseDown);
+    el.addEventListener('contextmenu', dlxOnWallVertexRightClick);
   });
   canvas.querySelectorAll('.dlx-wall-hitarea').forEach(el => {
     // Click sur le mur (pas un vertex) : sélectionne + permet right-click
@@ -537,6 +538,7 @@ function dlxScreenToCanvas(ev) {
 // Drag d'un vertex de mur
 function dlxOnWallVertexMouseDown(ev) {
   if (dlxMode !== 'edit') return;
+  if (ev.button !== 0) return; // ignore le clic droit (géré par contextmenu)
   ev.preventDefault();
   ev.stopPropagation();
   const wallId = ev.currentTarget.dataset.wall;
@@ -581,6 +583,25 @@ function dlxOnWallLineMouseDown(ev) {
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
+}
+
+// Right-click sur un VERTEX : le supprime (si le mur garde ≥ 2 points).
+// Symétrique du right-click sur la ligne du mur qui, lui, AJOUTE un vertex.
+function dlxOnWallVertexRightClick(ev) {
+  if (dlxMode !== 'edit') return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const wallId = ev.currentTarget.dataset.wall;
+  const vertexIdx = parseInt(ev.currentTarget.dataset.vertex, 10);
+  const w = dlxPlan.elements.find(x => x.id === wallId);
+  if (!w || !w.points) return;
+  // Un mur doit garder au moins 2 points (sinon ce n'est plus un segment)
+  if (w.points.length <= 2) return;
+  dlxPushHistory();
+  w.points.splice(vertexIdx, 1);
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(wallId);
 }
 
 // Right-click sur un mur : insère un nouveau vertex au point cliqué
