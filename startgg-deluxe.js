@@ -4115,19 +4115,24 @@ function dlxSaveCalls() {
   try { localStorage.setItem(DLX_CALLS_LS_KEY, JSON.stringify(_dlxCalls)); } catch (e) {}
 }
 
-// Calcule les joueurs présents dans 2+ events du tournoi chargé
+// Calcule les joueurs présents dans 2+ events du tournoi chargé.
+// IMPORTANT : on regroupe par NOM (normalisé) et non par entrant.id, car
+// start.gg attribue un id d'entrant DIFFÉRENT par event pour un même
+// joueur. La clé id seule manquerait donc les joueurs multi-bracket.
 function dlxComputeMultiBracketPlayers() {
   const map = {};
+  const norm = (s) => String(s || '').trim().toLowerCase();
   (dlxBracket.events || []).forEach(ev => {
     (ev.sets || []).forEach(s => {
       (s.slots || []).forEach(slot => {
-        if (slot && slot.entrant && slot.entrant.id != null && slot.entrant.name) {
-          const pid = String(slot.entrant.id);
-          if (!map[pid]) {
-            map[pid] = { id: pid, name: slot.entrant.name, events: [] };
+        if (slot && slot.entrant && slot.entrant.name) {
+          const key = norm(slot.entrant.name);
+          if (!key) return;
+          if (!map[key]) {
+            map[key] = { id: key, name: slot.entrant.name, events: [] };
           }
-          if (!map[pid].events.find(e => String(e.id) === String(ev.id))) {
-            map[pid].events.push({ id: ev.id, name: ev.name, img: ev.videogameImg });
+          if (!map[key].events.find(e => String(e.id) === String(ev.id))) {
+            map[key].events.push({ id: ev.id, name: ev.name, img: ev.videogameImg });
           }
         }
       });
