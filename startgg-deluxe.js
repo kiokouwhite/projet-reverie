@@ -2214,6 +2214,7 @@ let _dlxReportSetId = null;
 let _dlxCharCache = {};       // videogameId → liste de personnages (cache)
 let _dlxReportCharList = [];  // personnages du jeu du match en cours
 let _dlxReportChars = {};     // sélection courante : clé "game_player" → characterId
+let _dlxReportGameWins = {};  // vainqueur par game : clé game → 1 (p1) ou 2 (p2)
 
 // Récupère (et cache) la liste des personnages d'un jeu start.gg
 const DLX_SGG_CHARS_QUERY = `
@@ -2265,8 +2266,9 @@ function dlxSggOpenReport(setId) {
   if (btn) btn.disabled = !ready;
   dlxReportStatus(ready ? '' : 'error',
     ready ? '' : 'Les deux joueurs ne sont pas encore déterminés pour ce match.');
-  // Réinitialise la sélection de personnages et charge la liste du jeu
+  // Réinitialise la sélection de personnages / vainqueurs et charge la liste
   _dlxReportChars = {};
+  _dlxReportGameWins = {};
   _dlxReportCharList = [];
   dlxRenderReportGames();
   if (set.videogameId) {
@@ -2281,17 +2283,52 @@ function dlxSggOpenReport(setId) {
   modal.style.display = 'flex';
 }
 
-// (Re)génère la liste "Game N → personnages" sous le score. Régénérée à
-// chaque changement de score ; les persos déjà choisis sont conservés.
-function dlxRenderReportGames() {
-  const wrap = document.getElementById('dlxReportGames');
-  if (!wrap) return;
+// Lit le score saisi dans la modale → { sa, sb, total }
+function dlxReportReadScore() {
   const elA = document.getElementById('dlxReportP1Score');
   const elB = document.getElementById('dlxReportP2Score');
   const sa = Math.max(0, parseInt(elA && elA.value, 10) || 0);
   const sb = Math.max(0, parseInt(elB && elB.value, 10) || 0);
-  const total = sa + sb;
+  return { sa, sb, total: sa + sb };
+}
+
+// Le score a été modifié manuellement → on (ré)initialise les vainqueurs
+// de games selon un découpage par défaut (les sa premiers à P1, le reste
+// à P2), puis on régénère les lignes de games.
+function dlxReportScoreChanged() {
+  const { sa, sb } = dlxReportReadScore();
+  _dlxReportGameWins = {};
+  let g = 1;
+  for (let i = 0; i < sa; i++) _dlxReportGameWins[g++] = 1;
+  for (let i = 0; i < sb; i++) _dlxReportGameWins[g++] = 2;
+  dlxRenderReportGames();
+}
+
+// Clic sur le bouton vainqueur d'un game → bascule P1 ↔ P2, puis recalcule
+// le score total à partir des vainqueurs de tous les games.
+function dlxReportToggleGameWinner(g) {
+  _dlxReportGameWins[g] = (_dlxReportGameWins[g] === 1) ? 2 : 1;
+  let sa = 0, sb = 0;
+  Object.keys(_dlxReportGameWins).forEach(k => {
+    if (_dlxReportGameWins[k] === 1) sa++; else if (_dlxReportGameWins[k] === 2) sb++;
+  });
+  const elA = document.getElementById('dlxReportP1Score');
+  const elB = document.getElementById('dlxReportP2Score');
+  if (elA) elA.value = sa;
+  if (elB) elB.value = sb;
+  dlxRenderReportGames();
+}
+
+// (Re)génère la liste "Game N → vainqueur + personnages" sous le score.
+// Régénérée à chaque changement de score ; persos et vainqueurs conservés.
+function dlxRenderReportGames() {
+  const wrap = document.getElementById('dlxReportGames');
+  if (!wrap) return;
+  const { sa, total } = dlxReportReadScore();
   if (!total) { wrap.innerHTML = ''; return; }
+  const set = dlxSgg.sets.find(s => String(s.id) === String(_dlxReportSetId));
+  const p1Name = (set && set.p1) || 'Joueur 1';
+  const p2Name = (set && set.p2) || 'Joueur 2';
   const chars = _dlxReportCharList;
   const optsHtml = (selectedId) => {
     let h = '<option value="">— personnage —</option>';
@@ -2304,8 +2341,13 @@ function dlxRenderReportGames() {
   for (let g = 1; g <= total; g++) {
     const c1 = _dlxReportChars[g + '_1'] || '';
     const c2 = _dlxReportChars[g + '_2'] || '';
+    // vainqueur du game (défaut : découpage selon le score si non défini)
+    const winner = _dlxReportGameWins[g] || (g <= sa ? 1 : 2);
+    const winnerName = winner === 1 ? p1Name : p2Name;
     html += `<div class="dlx-report-game">
       <div class="dlx-report-game-title">Game ${g}</div>
+      <button type="button" class="dlx-report-game-win" onclick="dlxReportToggleGameWinner(${g})"
+        title="Cliquer pour changer le gagnant de ce game">🏆 ${dlxSggEsc(winnerName)}</button>
       <div class="dlx-report-game-chars">
         <select class="dlx-report-char" onchange="dlxReportSetChar(${g},1,this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(c1)}</select>
         <span class="dlx-report-game-vs">vs</span>
@@ -2345,7 +2387,7 @@ function dlxReportBump(which, delta) {
   const el = document.getElementById(which === 'p1' ? 'dlxReportP1Score' : 'dlxReportP2Score');
   if (!el) return;
   el.value = Math.max(0, (parseInt(el.value, 10) || 0) + delta);
-  dlxRenderReportGames(); // le nombre de games dépend du score
+  dlxReportScoreChanged(); // le nombre de games + les vainqueurs dépendent du score
 }
 
 const DLX_SGG_REPORT_MUTATION = `
@@ -2371,23 +2413,22 @@ async function dlxSggSubmitReport() {
   }
 
   const winnerId = sa > sb ? set.p1Id : set.p2Id;
-  // gameData : 1 entrée par game jouée (sa games gagnés par p1, sb par p2).
-  // L'ordre des games n'affecte pas le score total affiché par start.gg.
-  // On y joint les personnages choisis (selections) quand ils sont renseignés.
-  const mkGame = (g, gameWinnerId) => {
-    const entry = { gameNum: g, winnerId: gameWinnerId };
+  // gameData : 1 entrée par game. Le vainqueur de chaque game vient de
+  // _dlxReportGameWins (modifiable au clic) ; on y joint les personnages
+  // choisis (selections) quand ils sont renseignés.
+  const total = sa + sb;
+  const gameData = [];
+  for (let g = 1; g <= total; g++) {
+    const win = _dlxReportGameWins[g] || (g <= sa ? 1 : 2);
+    const entry = { gameNum: g, winnerId: win === 1 ? set.p1Id : set.p2Id };
     const sel = [];
     const c1 = _dlxReportChars[g + '_1'];
     const c2 = _dlxReportChars[g + '_2'];
     if (c1) sel.push({ entrantId: set.p1Id, characterId: c1 });
     if (c2) sel.push({ entrantId: set.p2Id, characterId: c2 });
     if (sel.length) entry.selections = sel;
-    return entry;
-  };
-  const gameData = [];
-  let gameNum = 1;
-  for (let i = 0; i < sa; i++) gameData.push(mkGame(gameNum++, set.p1Id));
-  for (let i = 0; i < sb; i++) gameData.push(mkGame(gameNum++, set.p2Id));
+    gameData.push(entry);
+  }
 
   const btn = document.getElementById('dlxReportSubmitBtn');
   if (btn) btn.disabled = true;

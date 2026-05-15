@@ -5426,6 +5426,22 @@ canvas { width: 100%; display: block; }
   white-space: nowrap;
   flex-shrink: 0;
 }
+.dlx-report-game-win {
+  flex-shrink: 0;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #e8c34a;
+  background: #fcefc8;
+  color: #8a6a08;
+  cursor: pointer;
+}
+.dlx-report-game-win:hover { background: #f7e3a3; }
 .dlx-report-game-chars {
   display: flex;
   align-items: center;

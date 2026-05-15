@@ -898,7 +898,7 @@
           <div class="dlx-report-pname" id="dlxReportP1Name">Joueur 1</div>
           <div class="dlx-report-score-ctrl">
             <button type="button" onclick="dlxReportBump('p1',-1)">−</button>
-            <input id="dlxReportP1Score" type="number" min="0" value="0" oninput="dlxRenderReportGames()">
+            <input id="dlxReportP1Score" type="number" min="0" value="0" oninput="dlxReportScoreChanged()">
             <button type="button" onclick="dlxReportBump('p1',1)">+</button>
           </div>
         </div>
@@ -907,7 +907,7 @@
           <div class="dlx-report-pname" id="dlxReportP2Name">Joueur 2</div>
           <div class="dlx-report-score-ctrl">
             <button type="button" onclick="dlxReportBump('p2',-1)">−</button>
-            <input id="dlxReportP2Score" type="number" min="0" value="0" oninput="dlxRenderReportGames()">
+            <input id="dlxReportP2Score" type="number" min="0" value="0" oninput="dlxReportScoreChanged()">
             <button type="button" onclick="dlxReportBump('p2',1)">+</button>
           </div>
         </div>
