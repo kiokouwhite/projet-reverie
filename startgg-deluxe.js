@@ -200,6 +200,7 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
+  dlxInstallBracketZoomWheel();
   dlxInstallWindows();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
@@ -212,12 +213,20 @@ function dlxInit() {
   dlxSetMode(savedMode);
   // Note : Plan et Bracket sont maintenant des fenêtres indépendantes,
   // chacune restaure son état (position/taille/minimisé) via dlxInstallWindow.
-  // Restaure le zoom mémorisé
+  // Restaure le zoom mémorisé (plan + bracket)
   try {
     const z = parseFloat(localStorage.getItem(DLX_ZOOM_LS_KEY));
     if (z && isFinite(z) && z > 0) dlxApplyZoom(z);
     else {
       const lbl = document.getElementById('dlxZoomLabel');
+      if (lbl) lbl.textContent = '100%';
+    }
+  } catch (e) {}
+  try {
+    const zb = parseFloat(localStorage.getItem(DLX_BRACKET_ZOOM_LS_KEY));
+    if (zb && isFinite(zb) && zb > 0) dlxBracketApplyZoom(zb);
+    else {
+      const lbl = document.getElementById('dlxBracketZoomLabel');
       if (lbl) lbl.textContent = '100%';
     }
   } catch (e) {}
@@ -644,6 +653,49 @@ function dlxInstallZoomWheel() {
     ev.preventDefault();
     const factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
     dlxApplyZoom(_dlxZoom * factor, ev.clientX, ev.clientY);
+  }, { passive: false });
+}
+
+// ── Zoom de la VUE BRACKET (parallèle au zoom du plan) ─────────────────
+const DLX_BRACKET_ZOOM_LS_KEY = 'top8_deluxe_bracket_zoom';
+let _dlxBracketZoom = 1;
+
+function dlxBracketApplyZoom(newZoom, anchorClientX, anchorClientY) {
+  const scroll = document.querySelector('.dlx-bracket-scroll');
+  const canvas = document.getElementById('dlxBracketCanvas');
+  if (!scroll || !canvas) return;
+  newZoom = Math.max(DLX_ZOOM_MIN, Math.min(DLX_ZOOM_MAX, newZoom));
+  const rect = scroll.getBoundingClientRect();
+  const ax = (anchorClientX == null) ? rect.left + scroll.clientWidth  / 2 : anchorClientX;
+  const ay = (anchorClientY == null) ? rect.top  + scroll.clientHeight / 2 : anchorClientY;
+  // Point dans le contenu scrollable, avant changement de zoom
+  const px = (ax - rect.left) + scroll.scrollLeft;
+  const py = (ay - rect.top)  + scroll.scrollTop;
+  const oldZoom = _dlxBracketZoom;
+  const cx = px / oldZoom;
+  const cy = py / oldZoom;
+  _dlxBracketZoom = newZoom;
+  canvas.style.zoom = String(newZoom);
+  try { localStorage.setItem(DLX_BRACKET_ZOOM_LS_KEY, String(newZoom)); } catch (e) {}
+  const lbl = document.getElementById('dlxBracketZoomLabel');
+  if (lbl) lbl.textContent = Math.round(newZoom * 100) + '%';
+  // Recale le scroll pour garder l'ancre stable
+  scroll.scrollLeft = cx * newZoom - (ax - rect.left);
+  scroll.scrollTop  = cy * newZoom - (ay - rect.top);
+}
+
+function dlxBracketZoomBy(factor) { dlxBracketApplyZoom(_dlxBracketZoom * factor); }
+function dlxBracketZoomReset()    { dlxBracketApplyZoom(1); }
+
+// Wheel sur le viewport bracket : zoom autour du curseur
+function dlxInstallBracketZoomWheel() {
+  const scroll = document.querySelector('.dlx-bracket-scroll');
+  if (!scroll || scroll._dlxBracketZoomBound) return;
+  scroll._dlxBracketZoomBound = true;
+  scroll.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
+    dlxBracketApplyZoom(_dlxBracketZoom * factor, ev.clientX, ev.clientY);
   }, { passive: false });
 }
 
