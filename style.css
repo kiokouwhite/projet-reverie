@@ -5178,6 +5178,57 @@ canvas { width: 100%; display: block; }
   pointer-events: none;
 }
 
+/* Zone POLYGONALE (forme libre) : le div est découpé en forme via
+   clip-path. Label centré, pas de bordure (le clip-path la rognerait). */
+.dlx-el-room-poly {
+  align-items: center;
+  justify-content: center;
+  border: none;
+  padding: 0;
+}
+.dlx-el-room-poly.selected {
+  /* l'outline rectangulaire serait rogné par le clip-path → on utilise
+     un drop-shadow qui épouse la forme du polygone */
+  outline: none;
+  filter: drop-shadow(0 0 0 #7c5cff) drop-shadow(0 0 3px #7c5cff);
+}
+/* Poignée de vertex d'une zone polygonale (overlay canvas, non rogné) */
+.dlx-room-vertex {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px; /* centre la poignée sur le point */
+  background: #fff;
+  border: 2px solid #7c5cff;
+  border-radius: 50%;
+  box-sizing: border-box;
+  cursor: grab;
+  z-index: 1001;
+}
+.dlx-room-vertex:hover  { background: #f0eaff; }
+.dlx-room-vertex:active { cursor: grabbing; }
+/* Bouton supprimer d'une zone polygonale (overlay canvas, non rogné) */
+.dlx-poly-remove {
+  position: absolute;
+  margin: -9px 0 0 -9px; /* centre sur le coin haut-droit du bbox */
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(200,59,120,0.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  z-index: 1000;
+}
+.dlx-poly-remove:hover { background: rgba(200,59,120,0.8); }
+
 /* Tables */
 .dlx-el-table {
   z-index: 4;

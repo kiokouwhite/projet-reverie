@@ -640,11 +640,34 @@ function dlxElementHTML(el) {
   // Rendu spécifique par type. Walls passent par dlxWallSvg (SVG overlay),
   // pas par ce switch.
   switch (el.type) {
-    case 'room':
+    case 'room': {
+      // Zone POLYGONALE : div au bbox, découpée en forme via clip-path.
+      // Les poignées de vertex + le bouton supprimer sont rendus en overlay
+      // canvas (NON enfants du div) pour ne pas être rognés par le clip-path.
+      if (Array.isArray(el.points) && el.points.length >= 3) {
+        const cp = el.points
+          .map(p => `${(p.x - el.x).toFixed(1)}px ${(p.y - el.y).toFixed(1)}px`)
+          .join(', ');
+        const body = `<div class="dlx-el dlx-el-room dlx-el-room-poly" data-id="${el.id}"
+          style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;clip-path:polygon(${cp});">
+          <div class="dlx-el-room-label">${safeLabel}</div></div>`;
+        let overlay = '';
+        if (isEdit) {
+          overlay += `<button class="dlx-poly-remove" onclick="dlxRemoveElement('${el.id}')"
+            style="left:${el.x + el.w}px;top:${el.y}px;" title="Supprimer">✕</button>`;
+        }
+        if (isEdit && isSelected && dlxSelectedIds.length === 1) {
+          overlay += el.points.map((p, i) =>
+            `<div class="dlx-room-vertex" data-wall="${el.id}" data-vertex="${i}"
+               style="left:${p.x}px;top:${p.y}px;"></div>`).join('');
+        }
+        return body + overlay;
+      }
       return `<div class="dlx-el dlx-el-room" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;${rotCss}">
         <div class="dlx-el-room-label">${safeLabel}</div>
         ${removeBtn}${resizeHandle}</div>`;
+    }
 
     case 'door':
       return `<div class="dlx-el dlx-el-door" data-id="${el.id}"
@@ -694,6 +717,44 @@ function dlxAttachDragHandlers() {
     el.addEventListener('mousedown', dlxOnWallLineMouseDown);
     el.addEventListener('contextmenu', dlxOnWallRightClick);
   });
+  // Zones : clic droit = ajoute un point (transforme la zone en polygone)
+  canvas.querySelectorAll('.dlx-el-room').forEach(el => {
+    el.addEventListener('contextmenu', dlxOnRoomRightClick);
+  });
+  // Vertices des zones polygonales (réutilise les handlers de vertex de mur)
+  canvas.querySelectorAll('.dlx-room-vertex').forEach(el => {
+    el.addEventListener('mousedown', dlxOnWallVertexMouseDown);
+    el.addEventListener('contextmenu', dlxOnWallVertexRightClick);
+  });
+}
+
+// Clic droit sur une zone : insère un point au curseur. Si la zone est
+// encore un simple rectangle, elle est d'abord convertie en polygone
+// (ses 4 coins) — ensuite c'est une forme libre éditable point par point.
+function dlxOnRoomRightClick(ev) {
+  if (dlxMode !== 'edit') return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const id = ev.currentTarget.dataset.id;
+  const r = dlxPlan.elements.find(x => x.id === id);
+  if (!r || r.type !== 'room') return;
+  dlxPushHistory();
+  const click = dlxScreenToCanvas(ev);
+  if (!Array.isArray(r.points) || r.points.length < 3) {
+    // Conversion rectangle → polygone (4 coins, sens horaire)
+    r.points = [
+      { x: r.x,        y: r.y        },
+      { x: r.x + r.w,  y: r.y        },
+      { x: r.x + r.w,  y: r.y + r.h  },
+      { x: r.x,        y: r.y + r.h  },
+    ];
+  }
+  const insertIdx = dlxFindBestInsertIndexClosed(r.points, click);
+  r.points.splice(insertIdx, 0, { x: click.x, y: click.y });
+  dlxSyncRoomBBox(r);
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(id);
 }
 
 // Convertit les coords screen (event.clientX/Y) en coords SVG/canvas
@@ -865,10 +926,12 @@ function dlxOnWallVertexRightClick(ev) {
   const vertexIdx = parseInt(ev.currentTarget.dataset.vertex, 10);
   const w = dlxPlan.elements.find(x => x.id === wallId);
   if (!w || !w.points) return;
-  // Un mur doit garder au moins 2 points (sinon ce n'est plus un segment)
-  if (w.points.length <= 2) return;
+  // Mur : minimum 2 points. Zone polygonale : minimum 3 points.
+  const minPts = (w.type === 'room') ? 3 : 2;
+  if (w.points.length <= minPts) return;
   dlxPushHistory();
   w.points.splice(vertexIdx, 1);
+  if (w.type === 'room') dlxSyncRoomBBox(w);
   dlxSavePlan();
   dlxRender();
   dlxSelect(wallId);
@@ -908,6 +971,31 @@ function dlxFindBestInsertIndex(points, click) {
   return bestIdx;
 }
 
+// Variante FERMÉE (polygone) : teste aussi le segment qui relie le dernier
+// point au premier. Retourne l'index de splice où insérer le nouveau vertex.
+function dlxFindBestInsertIndexClosed(points, click) {
+  let bestIdx = points.length;
+  let bestDist = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    const d = dlxDistanceToSegment(click, a, b);
+    if (d < bestDist) { bestDist = d; bestIdx = i + 1; }
+  }
+  return bestIdx;
+}
+
+// Recalcule la bounding-box (x/y/w/h) d'une zone polygonale depuis ses
+// points. La box sert au panneau de propriétés, au magnétisme et au push.
+function dlxSyncRoomBBox(r) {
+  if (!r || !Array.isArray(r.points) || !r.points.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  r.points.forEach(p => {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  });
+  r.x = minX; r.y = minY; r.w = maxX - minX; r.h = maxY - minY;
+}
+
 // Distance d'un point à un segment [a, b]
 function dlxDistanceToSegment(p, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -920,6 +1008,7 @@ function dlxDistanceToSegment(p, a, b) {
 }
 
 function dlxOnElMouseDown(ev) {
+  if (ev.button !== 0) return; // clic droit géré par contextmenu
   if (ev.target.classList.contains('dlx-el-remove')) return;
   if (ev.target.classList.contains('dlx-el-resize')) return;
   if (ev.target.classList.contains('dlx-el-handle')) return;
@@ -957,6 +1046,9 @@ function dlxOnElMouseDown(ev) {
     id, mode: 'move',
     startX: ev.clientX, startY: ev.clientY,
     origX: s.x, origY: s.y,
+    // Pour une zone polygonale : on mémorise les points d'origine pour les
+    // translater du même delta que la box pendant le déplacement.
+    origPoints: Array.isArray(s.points) ? s.points.map(p => ({ x: p.x, y: p.y })) : null,
   };
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
@@ -1042,6 +1134,7 @@ function dlxOnDragMove(ev) {
       if (!el) return;
       if (it.points) {
         el.points = it.points.map(p => ({ x: p.x + cdx, y: p.y + cdy }));
+        if (el.type === 'room') dlxSyncRoomBBox(el);
       } else {
         el.x = it.x + cdx;
         el.y = it.y + cdy;
@@ -1074,6 +1167,11 @@ function dlxOnDragMove(ev) {
     // Pas de clamp au cadre : le canvas s'agrandira pour suivre l'élément.
     s.x = Math.max(-DLX_COORD_LIMIT, Math.min(DLX_COORD_LIMIT, nx));
     s.y = Math.max(-DLX_COORD_LIMIT, Math.min(DLX_COORD_LIMIT, ny));
+    // Zone polygonale : translate aussi les points du même delta que la box.
+    if (_dlxDrag.origPoints && Array.isArray(s.points)) {
+      const ddx = s.x - _dlxDrag.origX, ddy = s.y - _dlxDrag.origY;
+      s.points = _dlxDrag.origPoints.map(p => ({ x: p.x + ddx, y: p.y + ddy }));
+    }
   } else if (_dlxDrag.mode === 'resize') {
     // Resize multi-directionnel selon _dlxDrag.dir (n/s/e/w/ne/nw/se/sw)
     const dir = _dlxDrag.dir || 'se';
@@ -1127,6 +1225,8 @@ function dlxOnDragMove(ev) {
         }
         s.points[idx].x = clampCoord(nx);
         s.points[idx].y = clampCoord(ny);
+        // Zone polygonale : la box (x/y/w/h) suit les points.
+        if (s.type === 'room') dlxSyncRoomBBox(s);
       }
     } else {
       // wall-translate : applique le delta UNIQUEMENT aux vertices du
@@ -1243,9 +1343,11 @@ const DLX_MIN_ROOM_H = 30;
 function dlxPushRoomsBelow(resizedRoom) {
   if (!resizedRoom || resizedRoom.type !== 'room') return [];
   const modified = [];
-  // Toutes les rooms triées par Y croissant
+  // Rooms RECTANGULAIRES triées par Y croissant. Les zones polygonales
+  // (formes libres) ne sont pas auto-poussées : l'utilisateur les place
+  // précisément à la main.
   const rooms = dlxPlan.elements
-    .filter(e => e.type === 'room')
+    .filter(e => e.type === 'room' && !Array.isArray(e.points))
     .sort((a, b) => a.y - b.y);
   // Frontier = la coord Y minimale que la prochaine room peut avoir.
   // Initialisée au bas de la room redimensionnée.
@@ -1280,10 +1382,10 @@ function dlxPushRoomsBelow(resizedRoom) {
 function dlxPushRoomsAbove(resizedRoom) {
   if (!resizedRoom || resizedRoom.type !== 'room') return [];
   const modified = [];
-  // Rooms triées par Y DÉCROISSANT : on remonte depuis la room
-  // redimensionnée vers le haut.
+  // Rooms RECTANGULAIRES triées par Y DÉCROISSANT : on remonte depuis la
+  // room redimensionnée vers le haut. Les zones polygonales sont exclues.
   const rooms = dlxPlan.elements
-    .filter(e => e.type === 'room')
+    .filter(e => e.type === 'room' && !Array.isArray(e.points))
     .sort((a, b) => b.y - a.y);
   // Frontier = coord Y MAX que le BAS de la prochaine room (au-dessus) peut
   // atteindre. Initialisée au haut de la room redimensionnée.
@@ -1638,6 +1740,31 @@ function dlxUpdateProp(prop, value) {
       const reset = () => { _dlxPropEditingKey = null; };
       document.addEventListener('blur', reset, { once: true, capture: true });
     }, 0);
+  }
+  // Zones POLYGONALES : le DOM partiel ne gère ni le clip-path ni les
+  // poignées de vertex → on traite à part et on fait un full re-render.
+  if (s.type === 'room' && Array.isArray(s.points)) {
+    if (prop === 'label' || prop === 'color') {
+      s[prop] = value;
+    } else {
+      const n = parseInt(value, 10);
+      if (Number.isNaN(n)) return;
+      if (prop === 'x' || prop === 'y') {
+        const d = n - s[prop];
+        s.points.forEach(p => { p[prop] += d; });
+      } else if (prop === 'w' && s.w > 0) {
+        const sc = Math.max(1, n) / s.w;
+        s.points.forEach(p => { p.x = s.x + (p.x - s.x) * sc; });
+      } else if (prop === 'h' && s.h > 0) {
+        const sc = Math.max(1, n) / s.h;
+        s.points.forEach(p => { p.y = s.y + (p.y - s.y) * sc; });
+      }
+      dlxSyncRoomBBox(s);
+    }
+    dlxSavePlan();
+    dlxRender();
+    dlxSelect(s.id);
+    return;
   }
   if (prop === 'label' || prop === 'color') {
     s[prop] = value;
