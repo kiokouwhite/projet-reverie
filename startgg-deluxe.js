@@ -92,7 +92,10 @@ function dlxDoorSvg(w, h, doorType, color, flip, flipV) {
     ? `<g transform="translate(${tx},${ty}) scale(${sx},${sy})">${inner}</g>`
     : inner;
   if (doorType === 'double') {
-    const r = Math.min(w / 2, cy); // chaque battant = moitié de la largeur
+    // Chaque battant fait EXACTEMENT la moitié de la largeur → les deux
+    // arcs se rejoignent toujours au centre, quelle que soit la taille
+    // (plus de "trou" au milieu quand la porte est large).
+    const r = w / 2;
     // Battant gauche : charnière en (0, cy), ouvre vers le haut
     const leftLeaf = `<line x1="0" y1="${cy}" x2="0" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
     const leftArc  = `<path d="M 0 ${cy - r} A ${r} ${r} 0 0 1 ${r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
@@ -103,8 +106,9 @@ function dlxDoorSvg(w, h, doorType, color, flip, flipV) {
       ${open(`${leftLeaf}${leftArc}${rightLeaf}${rightArc}`)}</svg>`;
   }
   // Porte simple : charnière en (0, cy), battant vertical vers le haut,
-  // arc jusqu'au bord droit du débattement.
-  const r = Math.min(w, cy);
+  // arc jusqu'au bord droit du débattement. Rayon = largeur d'ouverture
+  // (= largeur de la box) → le battant couvre toujours toute l'ouverture.
+  const r = w;
   const leaf = `<line x1="0" y1="${cy}" x2="0" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
   const arc  = `<path d="M 0 ${cy - r} A ${r} ${r} 0 0 1 ${r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
   return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
