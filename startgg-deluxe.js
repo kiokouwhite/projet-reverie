@@ -514,12 +514,19 @@ function dlxInstallWindow(windowId) {
     win.classList.add('dragging');
     // Met cette fenêtre au-dessus pendant le drag
     win.style.zIndex = '100';
+    const SNAP = 14; // magnétisme aux bords du viewport
     const onMove = (e) => {
       let nx = startLeft + (e.clientX - startX);
       let ny = startTop  + (e.clientY - startY);
-      // Laisse toujours au moins 60 px visibles
-      nx = Math.max(60 - r.width, Math.min(window.innerWidth - 60, nx));
-      ny = Math.max(0, Math.min(window.innerHeight - 40, ny));
+      const vw = window.innerWidth, vh = window.innerHeight;
+      // Magnétisme : snap aux bords si on s'en approche
+      if (Math.abs(nx) < SNAP)                       nx = 0;
+      else if (Math.abs(nx + r.width - vw) < SNAP)   nx = vw - r.width;
+      if (Math.abs(ny) < SNAP)                       ny = 0;
+      else if (Math.abs(ny + r.height - vh) < SNAP)  ny = vh - r.height;
+      // Garde au moins 60 px visibles dans tous les cas
+      nx = Math.max(60 - r.width, Math.min(vw - 60, nx));
+      ny = Math.max(0, Math.min(vh - 40, ny));
       win.style.left = nx + 'px';
       win.style.top  = ny + 'px';
     };
@@ -553,7 +560,8 @@ function dlxInstallWindow(windowId) {
       const startLeft = r.left, startW = r.width, startH = r.height;
       win.style.right = 'auto';
       win.classList.add('dragging');
-      const minW = 220, minH = 120;
+      const minW = 220, minH = 120, SNAP = 14;
+      const startTop = r.top;
       const onMove = (e) => {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -562,6 +570,12 @@ function dlxInstallWindow(windowId) {
         let newH = startH + dy;
         if (newW < minW) { newL -= (minW - newW); newW = minW; }
         if (newH < minH) newH = minH;
+        // Magnétisme + clamp : bord gauche colle à 0 / bord bas colle au viewport
+        const vh = window.innerHeight;
+        const right = startLeft + startW; // bord droit fixe pendant ce drag
+        if (newL < SNAP) { newW = right; newL = 0; }
+        const maxH = vh - startTop;
+        if (newH > maxH - SNAP) newH = maxH;
         win.style.width  = newW + 'px';
         win.style.height = newH + 'px';
         win.style.left   = newL + 'px';
@@ -576,10 +590,26 @@ function dlxInstallWindow(windowId) {
     });
   }
 
-  // Sauvegarde aussi sur redimensionnement (CSS resize)
+  // Sauvegarde + clamp/snap aux bords du viewport sur redimensionnement
+  // (CSS resize natif). Si la fenêtre dépasse ou s'approche du bord droit
+  // ou bas de l'écran, on la fait coller à ce bord.
   if (typeof ResizeObserver === 'function') {
     let t = null;
+    const SNAP = 14;
     const obs = new ResizeObserver(() => {
+      const r = win.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      let needAdjust = false;
+      let newW = r.width, newH = r.height;
+      // Bord droit hors viewport → on coince à la limite
+      if (r.right > vw)              { newW = Math.max(220, vw - r.left); needAdjust = true; }
+      else if (vw - r.right < SNAP)  { newW = vw - r.left;                needAdjust = true; }
+      if (r.bottom > vh)             { newH = Math.max(120, vh - r.top);  needAdjust = true; }
+      else if (vh - r.bottom < SNAP) { newH = vh - r.top;                 needAdjust = true; }
+      if (needAdjust) {
+        win.style.width  = newW + 'px';
+        win.style.height = newH + 'px';
+      }
       clearTimeout(t);
       t = setTimeout(saveState, 250);
     });
