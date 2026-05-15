@@ -827,12 +827,6 @@
       <div class="dlx-toolbar">
         <h2 class="dlx-title">🎯 start.gg Deluxe</h2>
       </div>
-      <div class="dlx-editor-actions" id="dlxEditorActions">
-        <select id="dlxAddTypeSelect" class="dc-text-input" style="width:auto;min-width:180px;"></select>
-        <button type="button" class="btn" onclick="dlxAddElement()">+ Ajouter</button>
-        <button type="button" class="btn btn-secondary" onclick="dlxResetDefaultPlan()" title="Restaure le plan par défaut (perd tes modifs)">↺ Plan par défaut</button>
-        <small style="margin-left:auto;color:var(--text-soft);">Glisse pour déplacer · Double-clic pour renommer · ✕ pour supprimer</small>
-      </div>
       <!-- Panneau de propriétés du sélectionné — apparait quand on clique
            sur un élément en mode édition. Permet l'édition fine de x/y/w/h
            via des champs numériques (utile pour les murs ou pour aligner
@@ -878,6 +872,14 @@
           </div>
         </div>
         <div class="dlx-win-body">
+          <!-- Barre d'actions d'édition : intégrée dans la fenêtre Plan,
+               visible seulement en mode Édition (gérée par dlxSetMode). -->
+          <div class="dlx-editor-actions" id="dlxEditorActions">
+            <select id="dlxAddTypeSelect" class="dc-text-input" style="width:auto;min-width:180px;"></select>
+            <button type="button" class="btn" onclick="dlxAddElement()">+ Ajouter</button>
+            <button type="button" class="btn btn-secondary" onclick="dlxResetDefaultPlan()" title="Restaure le plan par défaut (perd tes modifs)">↺ Plan par défaut</button>
+            <small style="margin-left:auto;color:var(--text-soft);">Glisse · Double-clic = renommer · ✕ = supprimer</small>
+          </div>
           <div class="dlx-canvas-wrap">
             <div id="dlxCanvas" class="dlx-canvas"></div>
           </div>
