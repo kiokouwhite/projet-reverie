@@ -5563,6 +5563,182 @@ canvas { width: 100%; display: block; }
   border-bottom: 1px solid var(--border);
 }
 
+/* Bascule Plan / Bracket — segmented control en haut-gauche du plan */
+.dlx-view-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 51;
+  display: inline-flex;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+.dlx-view-toggle button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dlx-view-toggle button.active {
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+}
+
+/* ── Vue Bracket ──────────────────────────────────────────────────────── */
+.dlx-bracket-view {
+  background: rgba(255,255,255,0.6);
+  border: 2px dashed rgba(155,127,184,0.4);
+  border-radius: 16px;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dlx-bracket-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 50px 16px 10px 16px; /* top padding pour ne pas chevaucher la toggle */
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.5);
+}
+.dlx-bracket-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.dlx-bracket-chip:hover { background: #f4f0fa; }
+.dlx-bracket-chip.active {
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  border-color: transparent;
+}
+.dlx-bracket-chip img {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.dlx-bracket-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  padding: 16px;
+}
+.dlx-bracket-canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+.dlx-bracket-empty {
+  padding: 32px 12px;
+  text-align: center;
+  color: var(--text-soft);
+  font-style: italic;
+  font-size: 13px;
+}
+.dlx-bracket-lines {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+}
+.dlx-bracket-lines path {
+  fill: none;
+  stroke: rgba(124,92,255,0.5);
+  stroke-width: 1.5;
+}
+.dlx-br-card {
+  position: absolute;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.12s, transform 0.1s;
+}
+.dlx-br-card:hover {
+  box-shadow: 0 4px 14px rgba(124,92,255,0.25);
+  transform: translateY(-1px);
+}
+.dlx-br-card.completed { opacity: 0.78; }
+.dlx-br-id {
+  position: absolute;
+  top: 0; left: 0;
+  padding: 1px 6px;
+  background: #2a2230;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  border-bottom-right-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+.dlx-br-state { font-size: 9px; }
+.dlx-br-state.live   { color: #ff8da3; }
+.dlx-br-state.called { color: #f6c66b; }
+.dlx-br-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 4px 22px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.dlx-br-slot:last-child { border-bottom: none; }
+.dlx-br-slot.winner {
+  background: #fcefc8;
+  color: #5a4a08;
+}
+.dlx-br-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 6px;
+}
+.dlx-br-score {
+  flex-shrink: 0;
+  min-width: 18px;
+  text-align: right;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(124,92,255,0.08);
+  color: var(--text-soft);
+  font-weight: 800;
+}
+.dlx-br-slot.winner .dlx-br-score {
+  background: #e8c34a;
+  color: #fff;
+}
+
 /* Élément de base — toutes les variantes en héritent */
 .dlx-el {
   position: absolute;

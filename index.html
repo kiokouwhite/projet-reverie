@@ -869,8 +869,22 @@
       </div>
       <div class="dlx-main-row">
         <div class="dlx-canvas-area">
+          <!-- Bascule Plan / Bracket (haut-gauche du plan) -->
+          <div class="dlx-view-toggle">
+            <button type="button" id="dlxViewMapBtn"     class="active" onclick="dlxSetView('map')">🗺️ Plan</button>
+            <button type="button" id="dlxViewBracketBtn"            onclick="dlxSetView('bracket')">🏆 Bracket</button>
+          </div>
           <div class="dlx-canvas-wrap">
             <div id="dlxCanvas" class="dlx-canvas"></div>
+          </div>
+          <!-- Vue Bracket : remplace le plan quand active -->
+          <div id="dlxBracketView" class="dlx-bracket-view" style="display:none;">
+            <div class="dlx-bracket-chips" id="dlxBracketChips"></div>
+            <div class="dlx-bracket-scroll">
+              <div id="dlxBracketCanvas" class="dlx-bracket-canvas">
+                <div class="dlx-bracket-empty">Charge un tournoi start.gg pour voir le bracket.</div>
+              </div>
+            </div>
           </div>
           <!-- Zoom (bas-gauche) + bascule mode édition (bas-droite) flottants -->
           <div class="dlx-zoom-fab">

@@ -200,6 +200,11 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
+  // Restaure la vue (plan / bracket) mémorisée
+  try {
+    const v = localStorage.getItem(DLX_VIEW_LS_KEY);
+    if (v === 'bracket') dlxSetView('bracket');
+  } catch (e) {}
   // Restaure le zoom mémorisé
   try {
     const z = parseFloat(localStorage.getItem(DLX_ZOOM_LS_KEY));
@@ -625,6 +630,33 @@ function dlxSetMode(mode) {
 // Bascule le mode via le bouton flottant
 function dlxToggleMode() {
   dlxSetMode(dlxMode === 'edit' ? 'run' : 'edit');
+}
+
+// ── VUE : PLAN ↔ BRACKET ────────────────────────────────────────────────
+let dlxView = 'map'; // 'map' | 'bracket'
+const DLX_VIEW_LS_KEY = 'top8_deluxe_view';
+
+function dlxSetView(view) {
+  if (view !== 'map' && view !== 'bracket') return;
+  dlxView = view;
+  try { localStorage.setItem(DLX_VIEW_LS_KEY, view); } catch (e) {}
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  const brView = document.getElementById('dlxBracketView');
+  const mapBtn = document.getElementById('dlxViewMapBtn');
+  const brBtn  = document.getElementById('dlxViewBracketBtn');
+  if (mapBtn) mapBtn.classList.toggle('active', view === 'map');
+  if (brBtn)  brBtn.classList.toggle('active', view === 'bracket');
+  if (wrap)   wrap.style.display = (view === 'map') ? '' : 'none';
+  if (brView) brView.style.display = (view === 'bracket') ? '' : 'none';
+  // FABs (zoom, mode édition) sont map-specific → on les masque dans le bracket
+  document.querySelectorAll('.dlx-zoom-fab, .dlx-mode-fab').forEach(el => {
+    el.style.display = (view === 'map') ? '' : 'none';
+  });
+  if (view === 'bracket') {
+    // Charge le bracket à la 1re ouverture si pas déjà chargé
+    if (dlxSgg.slug && !dlxBracket.loaded) dlxBracketFetch();
+    else dlxBracketRender();
+  }
 }
 
 // ── RENDU DU PLAN ───────────────────────────────────────────────────────────
@@ -2120,7 +2152,12 @@ function dlxSggLoad() {
     : raw.replace(/^.*tournament\//, '').replace(/[\/?#].*$/, '').trim();
   dlxSgg.slug = slug;
   localStorage.setItem(DLX_SGG_LS_KEY, slug);
+  // Nouveau tournoi → invalide le bracket pour qu'il se recharge
+  dlxBracket.events = [];
+  dlxBracket.currentEventId = null;
+  dlxBracket.loaded = false;
   dlxSggFetch();
+  if (dlxView === 'bracket') dlxBracketFetch();
 }
 
 // Recharge les matchs du tournoi déjà chargé
@@ -2621,4 +2658,270 @@ async function dlxSggSubmitReport() {
     dlxReportStatus('error', 'Erreur : ' + e.message);
     if (btn) btn.disabled = false;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// VUE BRACKET — affichage style start.gg de tous les matchs (terminés ou
+// non), avec lignes de connexion. Switch d'event en un clic via les chips
+// en haut. Réutilise dlxSgg.slug.
+// ════════════════════════════════════════════════════════════════════════
+const dlxBracket = {
+  events: [],        // [{ id, name, videogameImg, sets: [...] }]
+  currentEventId: null,
+  loaded: false,
+};
+
+const DLX_BRACKET_QUERY = `
+  query DlxBracket($slug: String!) {
+    tournament(slug: $slug) {
+      id name
+      events {
+        id name
+        videogame { id name images { url type } }
+        sets(page: 1, perPage: 250, sortType: STANDARD) {
+          nodes {
+            id identifier fullRoundText round state winnerId displayScore
+            slots {
+              entrant { id name }
+              seed { seedNum }
+              prereqType prereqId
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+async function dlxBracketFetch() {
+  if (!dlxSgg.slug) return;
+  if (!dlxSggGetToken()) {
+    const c = document.getElementById('dlxBracketCanvas');
+    if (c) c.innerHTML = '<div class="dlx-bracket-empty">⚠️ Clé API start.gg manquante.</div>';
+    return;
+  }
+  const canvasEl = document.getElementById('dlxBracketCanvas');
+  if (canvasEl) canvasEl.innerHTML = '<div class="dlx-bracket-empty">Chargement du bracket…</div>';
+  try {
+    const data = (typeof sggQuery === 'function')
+      ? await sggQuery(DLX_BRACKET_QUERY, { slug: dlxSgg.slug })
+      : await dlxSggRawQuery(DLX_BRACKET_QUERY, { slug: dlxSgg.slug });
+    const t = data && data.tournament;
+    if (!t) { canvasEl.innerHTML = '<div class="dlx-bracket-empty">Tournoi introuvable.</div>'; return; }
+    dlxBracket.events = (t.events || []).map(ev => {
+      const imgs = (ev.videogame && ev.videogame.images) || [];
+      const img = (imgs.find(i => i.type === 'profile') || imgs[0] || {}).url || '';
+      return {
+        id: ev.id,
+        name: ev.name || '',
+        videogameImg: img,
+        sets: (ev.sets && ev.sets.nodes) || [],
+      };
+    });
+    dlxBracket.loaded = true;
+    if (!dlxBracket.currentEventId && dlxBracket.events.length) {
+      dlxBracket.currentEventId = dlxBracket.events[0].id;
+    }
+    dlxBracketRender();
+  } catch (e) {
+    if (canvasEl) canvasEl.innerHTML = '<div class="dlx-bracket-empty">Erreur : ' + dlxSggEsc(e.message) + '</div>';
+  }
+}
+
+function dlxBracketSwitchEvent(id) {
+  dlxBracket.currentEventId = id;
+  dlxBracketRender();
+}
+
+// Clic sur une carte → ouvre le report si le match est encore "live"
+function dlxBracketCardClick(setId) {
+  const liveSet = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (liveSet) dlxSggOpenReport(setId);
+}
+
+// Génère le placeholder d'un slot encore vide ("winner of A", "Seed 4", …)
+function dlxBracketPlaceholder(slot, setById) {
+  if (!slot) return 'TBD';
+  if (slot.prereqType === 'set' && slot.prereqId) {
+    const pre = setById[slot.prereqId];
+    if (pre && pre.identifier) return 'winner of ' + pre.identifier;
+    return 'winner of ?';
+  }
+  if (slot.prereqType === 'seed' && slot.seed && slot.seed.seedNum != null) {
+    return 'Seed ' + slot.seed.seedNum;
+  }
+  return 'TBD';
+}
+
+// Construit une carte JS pour un set start.gg
+function dlxBracketMakeCard(s, setById) {
+  const e1 = (s.slots && s.slots[0]) || null;
+  const e2 = (s.slots && s.slots[1]) || null;
+  const p1Id = e1 && e1.entrant && e1.entrant.id;
+  const p2Id = e2 && e2.entrant && e2.entrant.id;
+  let s1 = null, s2 = null;
+  if (s.displayScore && typeof s.displayScore === 'string') {
+    const nums = s.displayScore.match(/-?\d+/g);
+    if (nums && nums.length >= 2) {
+      s1 = nums[0]; s2 = nums[1];
+    }
+  }
+  const p1Name = (e1 && e1.entrant && e1.entrant.name) || dlxBracketPlaceholder(e1, setById);
+  const p2Name = (e2 && e2.entrant && e2.entrant.name) || dlxBracketPlaceholder(e2, setById);
+  let winnerSlot = -1;
+  if (s.winnerId != null) {
+    if (String(s.winnerId) === String(p1Id)) winnerSlot = 0;
+    else if (String(s.winnerId) === String(p2Id)) winnerSlot = 1;
+  }
+  return {
+    id: s.id,
+    x: 0, y: 0,
+    p1: p1Name, p2: p2Name,
+    s1, s2,
+    winnerSlot,
+    round: s.round,
+    identifier: s.identifier || '',
+    fullRoundText: s.fullRoundText || '',
+    state: s.state,
+    prereqs: [
+      (e1 && e1.prereqType === 'set') ? e1.prereqId : null,
+      (e2 && e2.prereqType === 'set') ? e2.prereqId : null,
+    ],
+  };
+}
+
+// Calcule positions des cartes + tracés des lignes pour un set d'un event
+function dlxBracketLayout(sets) {
+  const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
+  const setById = {};
+  sets.forEach(s => { setById[s.id] = s; });
+
+  function buildSide(sideSets) {
+    if (!sideSets.length) return { cards: [], width: 0, height: 0 };
+    const byRound = {};
+    sideSets.forEach(s => {
+      const r = Math.abs(s.round);
+      (byRound[r] = byRound[r] || []).push(s);
+    });
+    const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
+    const cards = [];
+    const cardById = {};
+    let xOffset = 0;
+    rounds.forEach(r => {
+      const setsInR = byRound[r];
+      setsInR.sort((a, b) => {
+        const sa = (a.slots && a.slots[0] && a.slots[0].seed && a.slots[0].seed.seedNum) || 999;
+        const sb = (b.slots && b.slots[0] && b.slots[0].seed && b.slots[0].seed.seedNum) || 999;
+        return sa - sb;
+      });
+      setsInR.forEach(s => {
+        const c = dlxBracketMakeCard(s, setById);
+        c.x = xOffset;
+        cards.push(c);
+        cardById[s.id] = c;
+      });
+      xOffset += CARD_W + COL_GAP;
+    });
+    // Y positions : round 1 = stack ; rounds suivants = moyenne des prereqs
+    rounds.forEach((r, idx) => {
+      const cardsInR = byRound[r].map(s => cardById[s.id]);
+      if (idx === 0) {
+        cardsInR.forEach((c, i) => { c.y = i * (CARD_H + ROW_GAP); });
+      } else {
+        cardsInR.forEach(c => {
+          const preYs = c.prereqs
+            .map(pid => (pid && cardById[pid]) ? cardById[pid].y : null)
+            .filter(y => y != null);
+          c.y = preYs.length ? preYs.reduce((a, b) => a + b, 0) / preYs.length : 0;
+        });
+      }
+    });
+    const height = cards.length ? Math.max(...cards.map(c => c.y + CARD_H)) : 0;
+    return { cards, width: xOffset, height };
+  }
+
+  const winners = sets.filter(s => s.round > 0);
+  const losers  = sets.filter(s => s.round < 0);
+  const W = buildSide(winners);
+  const L = buildSide(losers);
+  // Empile la partie losers en-dessous de la partie winners
+  const losersOffsetY = W.height ? W.height + 70 : 0;
+  L.cards.forEach(c => { c.y += losersOffsetY; });
+
+  const allCards = [...W.cards, ...L.cards];
+  const cardByIdAll = {};
+  allCards.forEach(c => { cardByIdAll[c.id] = c; });
+  const lines = [];
+  allCards.forEach(card => {
+    card.prereqs.forEach((preId, slotIdx) => {
+      if (!preId) return;
+      const pre = cardByIdAll[preId];
+      if (!pre) return;
+      const x1 = pre.x + CARD_W;
+      const y1 = pre.y + CARD_H / 2;
+      const x2 = card.x;
+      const y2 = card.y + (slotIdx === 0 ? CARD_H * 0.25 : CARD_H * 0.75);
+      const xm = x1 + (x2 - x1) / 2;
+      lines.push(`M ${x1} ${y1} L ${xm} ${y1} L ${xm} ${y2} L ${x2} ${y2}`);
+    });
+  });
+  const width = allCards.length ? Math.max(...allCards.map(c => c.x + CARD_W)) + 20 : 0;
+  const height = allCards.length ? Math.max(...allCards.map(c => c.y + CARD_H)) + 20 : 0;
+  return { cards: allCards, lines, width, height, CARD_W, CARD_H };
+}
+
+function dlxBracketRender() {
+  const chipsEl = document.getElementById('dlxBracketChips');
+  const canvasEl = document.getElementById('dlxBracketCanvas');
+  if (!chipsEl || !canvasEl) return;
+  if (!dlxBracket.events.length) {
+    chipsEl.innerHTML = '';
+    canvasEl.innerHTML = '<div class="dlx-bracket-empty">Aucun event chargé.</div>';
+    return;
+  }
+  // Chips de switch d'event (le "+ value" du Bracket Deluxe)
+  chipsEl.innerHTML = dlxBracket.events.map(ev =>
+    `<button class="dlx-bracket-chip${String(ev.id) === String(dlxBracket.currentEventId) ? ' active' : ''}"
+       onclick="dlxBracketSwitchEvent('${dlxSggEsc(ev.id)}')">
+       ${ev.videogameImg ? `<img src="${dlxSggEsc(ev.videogameImg)}" alt="">` : ''}
+       <span>${dlxSggEsc(ev.name)}</span>
+     </button>`).join('');
+
+  const event = dlxBracket.events.find(e => String(e.id) === String(dlxBracket.currentEventId))
+              || dlxBracket.events[0];
+  if (!event.sets.length) {
+    canvasEl.innerHTML = '<div class="dlx-bracket-empty">Aucun match dans cet event.</div>';
+    return;
+  }
+  const layout = dlxBracketLayout(event.sets);
+  const linesSvg = `<svg class="dlx-bracket-lines" width="${layout.width}" height="${layout.height}">
+    ${layout.lines.map(d => `<path d="${d}" />`).join('')}
+  </svg>`;
+  const cardsHtml = layout.cards.map(c => {
+    const stateBadge = c.state === 2 ? '<span class="dlx-br-state live">⏵</span>'
+                     : c.state === 6 ? '<span class="dlx-br-state called">📣</span>' : '';
+    return `<div class="dlx-br-card${c.state === 3 ? ' completed' : ''}"
+       style="left:${c.x}px;top:${c.y}px;width:${layout.CARD_W}px;height:${layout.CARD_H}px;"
+       onclick="dlxBracketCardClick('${dlxSggEsc(c.id)}')"
+       title="${dlxSggEsc(c.fullRoundText || '')}">
+      <div class="dlx-br-id">${dlxSggEsc(c.identifier || '')}${stateBadge}</div>
+      <div class="dlx-br-slot${c.winnerSlot === 0 ? ' winner' : ''}">
+        <span class="dlx-br-name">${dlxSggEsc(c.p1)}</span>
+        <span class="dlx-br-score">${c.s1 == null ? '' : dlxSggEsc(c.s1)}</span>
+      </div>
+      <div class="dlx-br-slot${c.winnerSlot === 1 ? ' winner' : ''}">
+        <span class="dlx-br-name">${dlxSggEsc(c.p2)}</span>
+        <span class="dlx-br-score">${c.s2 == null ? '' : dlxSggEsc(c.s2)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  canvasEl.style.width  = layout.width  + 'px';
+  canvasEl.style.height = layout.height + 'px';
+  canvasEl.innerHTML = linesSvg + cardsHtml;
+}
+
+// Rebascule sur le bracket à chaque fetch start.gg (pour recharger en cas
+// de changement de tournoi)
+function dlxBracketInvalidate() {
+  dlxBracket.loaded = false;
+  if (dlxView === 'bracket' && dlxSgg.slug) dlxBracketFetch();
 }
