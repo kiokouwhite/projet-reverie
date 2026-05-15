@@ -5077,11 +5077,13 @@ canvas { width: 100%; display: block; }
   border-radius: 12px;
 }
 .dlx-editor-actions small { font-size: 11px; font-style: italic; }
-/* Ligne principale : plan (canvas) à gauche, panneau matchs start.gg à droite */
+/* Ligne principale : plan (canvas) à gauche, splitter, panneau matchs.
+   Pas de gap : le splitter sert lui-même de séparateur visuel et est plus
+   facile à attraper quand il abute directement les deux panneaux. */
 .dlx-main-row {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  gap: 0;
+  align-items: stretch;
 }
 /* Conteneur du plan : .dlx-canvas-wrap (scrollable) + FABs en overlay */
 .dlx-canvas-area {
@@ -5123,14 +5125,18 @@ canvas { width: 100%; display: block; }
 .dlx-sgg-status-loading { color: var(--text-soft); }
 .dlx-sgg-status-ok      { color: #2e9e5b; }
 .dlx-sgg-status-error   { color: #d23b78; }
-/* Poignée de redimensionnement entre la zone du plan et le panneau matchs */
+/* Poignée de redimensionnement entre la zone du plan et le panneau matchs.
+   Plus large (16 px) qu'avant pour être facile à attraper, séparée des
+   panneaux par un petit margin négatif sur les côtés. */
 .dlx-resizer {
-  flex: 0 0 8px;
+  flex: 0 0 16px;
   align-self: stretch;
   cursor: ew-resize;
   position: relative;
-  background: transparent;
+  background: rgba(124,92,255,0.06);
+  border-radius: 4px;
   transition: background 0.15s;
+  z-index: 2;
 }
 .dlx-resizer::before {
   content: '';
@@ -5138,16 +5144,21 @@ canvas { width: 100%; display: block; }
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2px;
-  height: 36px;
-  border-radius: 2px;
-  background: rgba(155,127,184,0.5);
+  width: 4px;
+  height: 48px;
+  border-radius: 3px;
+  background: rgba(124,92,255,0.45);
 }
-.dlx-resizer:hover    { background: rgba(124,92,255,0.10); }
-.dlx-resizer.resizing { background: rgba(124,92,255,0.18); }
-.dlx-resizer.resizing::before { background: #7c5cff; }
+.dlx-resizer:hover {
+  background: rgba(124,92,255,0.18);
+}
+.dlx-resizer:hover::before { background: #7c5cff; }
+.dlx-resizer.resizing {
+  background: rgba(124,92,255,0.28);
+}
+.dlx-resizer.resizing::before { background: #7c5cff; height: 70px; }
 body.dlx-resizing,
-body.dlx-resizing * { cursor: ew-resize !important; user-select: none; }
+body.dlx-resizing * { cursor: ew-resize !important; user-select: none !important; }
 
 .dlx-sgg-panel {
   width: 320px;
