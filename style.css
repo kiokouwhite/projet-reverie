@@ -5410,46 +5410,44 @@ canvas { width: 100%; display: block; }
   text-align: center;
   margin: 0;
 }
+/* Une ligne = un game : [n°]  [case P1]  [case P2] alignées sous les joueurs */
 .dlx-report-game {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: #f7f4fc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 9px;
+  gap: 8px;
 }
-.dlx-report-game-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--text-soft);
-  white-space: nowrap;
+.dlx-report-game-num {
   flex-shrink: 0;
-}
-.dlx-report-game-win {
-  flex-shrink: 0;
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid #e8c34a;
-  background: #fcefc8;
-  color: #8a6a08;
-  cursor: pointer;
-}
-.dlx-report-game-win:hover { background: #f7e3a3; }
-.dlx-report-game-chars {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ece6f5;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 800;
+}
+/* Case personnage d'un joueur pour un game — cliquable = ce joueur gagne */
+.dlx-report-cell {
   flex: 1;
+  min-width: 0;
+  padding: 5px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: #faf8fd;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.dlx-report-cell:hover { border-color: #b9a6dd; }
+.dlx-report-cell.winner {
+  background: #fcefc8;
+  border-color: #e8c34a;
+  box-shadow: inset 0 0 0 1px #e8c34a;
 }
 .dlx-report-char {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   font-size: 12px;
   padding: 4px 6px;
@@ -5457,14 +5455,10 @@ canvas { width: 100%; display: block; }
   border-radius: 6px;
   background: #fff;
   color: var(--text);
+  cursor: pointer;
+  box-sizing: border-box;
 }
 .dlx-report-char:disabled { opacity: 0.5; }
-.dlx-report-game-vs {
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--text-soft);
-  flex-shrink: 0;
-}
 .dlx-report-status {
   text-align: center;
   font-size: 12px;

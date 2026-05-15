@@ -2304,10 +2304,10 @@ function dlxReportScoreChanged() {
   dlxRenderReportGames();
 }
 
-// Clic sur le bouton vainqueur d'un game → bascule P1 ↔ P2, puis recalcule
-// le score total à partir des vainqueurs de tous les games.
-function dlxReportToggleGameWinner(g) {
-  _dlxReportGameWins[g] = (_dlxReportGameWins[g] === 1) ? 2 : 1;
+// Clic sur la case d'un joueur pour un game → ce joueur gagne ce game,
+// puis on recalcule le score total à partir des vainqueurs de tous les games.
+function dlxReportSetGameWinner(g, player) {
+  _dlxReportGameWins[g] = player;
   let sa = 0, sb = 0;
   Object.keys(_dlxReportGameWins).forEach(k => {
     if (_dlxReportGameWins[k] === 1) sa++; else if (_dlxReportGameWins[k] === 2) sb++;
@@ -2319,8 +2319,10 @@ function dlxReportToggleGameWinner(g) {
   dlxRenderReportGames();
 }
 
-// (Re)génère la liste "Game N → vainqueur + personnages" sous le score.
-// Régénérée à chaque changement de score ; persos et vainqueurs conservés.
+// (Re)génère la grille des games sous le score : une ligne par game
+// (numérotée), deux cases (P1 / P2) alignées sous les joueurs. Cliquer une
+// case = ce joueur gagne ce game (la case se surligne). Le <select> dans
+// la case sert à choisir le personnage (ne déclenche pas le vainqueur).
 function dlxRenderReportGames() {
   const wrap = document.getElementById('dlxReportGames');
   if (!wrap) return;
@@ -2337,22 +2339,21 @@ function dlxRenderReportGames() {
     });
     return h;
   };
+  const cellHtml = (g, player, cVal, pName) => {
+    const isWin = (_dlxReportGameWins[g] || (g <= sa ? 1 : 2)) === player;
+    return `<div class="dlx-report-cell${isWin ? ' winner' : ''}"
+      onclick="dlxReportSetGameWinner(${g},${player})"
+      title="Cliquer : ${dlxSggEsc(pName)} gagne le game ${g}">
+      <select class="dlx-report-char" onclick="event.stopPropagation()"
+        onchange="dlxReportSetChar(${g},${player},this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(cVal)}</select>
+    </div>`;
+  };
   let html = chars.length ? '' : '<p class="dlx-report-games-hint">Chargement des personnages…</p>';
   for (let g = 1; g <= total; g++) {
-    const c1 = _dlxReportChars[g + '_1'] || '';
-    const c2 = _dlxReportChars[g + '_2'] || '';
-    // vainqueur du game (défaut : découpage selon le score si non défini)
-    const winner = _dlxReportGameWins[g] || (g <= sa ? 1 : 2);
-    const winnerName = winner === 1 ? p1Name : p2Name;
     html += `<div class="dlx-report-game">
-      <div class="dlx-report-game-title">Game ${g}</div>
-      <button type="button" class="dlx-report-game-win" onclick="dlxReportToggleGameWinner(${g})"
-        title="Cliquer pour changer le gagnant de ce game">🏆 ${dlxSggEsc(winnerName)}</button>
-      <div class="dlx-report-game-chars">
-        <select class="dlx-report-char" onchange="dlxReportSetChar(${g},1,this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(c1)}</select>
-        <span class="dlx-report-game-vs">vs</span>
-        <select class="dlx-report-char" onchange="dlxReportSetChar(${g},2,this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(c2)}</select>
-      </div>
+      <div class="dlx-report-game-num">${g}</div>
+      ${cellHtml(g, 1, _dlxReportChars[g + '_1'] || '', p1Name)}
+      ${cellHtml(g, 2, _dlxReportChars[g + '_2'] || '', p2Name)}
     </div>`;
   }
   wrap.innerHTML = html;
