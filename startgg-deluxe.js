@@ -1259,7 +1259,7 @@ function dlxElementHTML(el) {
       } else {
         inner = `<div class="dlx-el-station-label">${safeLabel}</div>`;
       }
-      return `<div class="dlx-el dlx-el-station${el.match ? ' dlx-el-has-match' : ''}" data-id="${el.id}"
+      return `<div class="dlx-el dlx-el-station${el.match ? ' dlx-el-has-match' : ''}${el.broken ? ' dlx-el-broken' : ''}" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};${rotCss}"
         ondragover="dlxMatchDragOver(event)" ondragleave="dlxMatchDragLeave(event)" ondrop="dlxMatchDrop(event,'${el.id}')">
         ${inner}
@@ -1596,12 +1596,14 @@ function dlxOnElMouseDown(ev) {
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
 
-  // Mode Tournoi (lecture seule) : un clic sur un setup portant un match
-  // ouvre directement la modale de report de score.
+  // Mode Tournoi (lecture seule) :
+  //  - setup avec un match → ouvre la modale de report
+  //  - setup sans match    → toggle "pas de setup" (grise / dégrise)
   if (dlxMode !== 'edit') {
-    if (s.type === 'station' && s.match) {
+    if (s.type === 'station') {
       ev.preventDefault();
-      dlxSggOpenReportForElement(id);
+      if (s.match) dlxSggOpenReportForElement(id);
+      else         dlxToggleBroken(id);
     }
     return;
   }
@@ -2863,6 +2865,16 @@ function dlxAssignMatch(elId, set) {
   dlxSavePlan();
   dlxRender();
   dlxSggRenderPanel();
+}
+
+// Bascule l'état "pas de setup" / "out of service" d'une station — utilisé
+// en mode Tournoi pour griser un setup défectueux le temps d'un event.
+function dlxToggleBroken(elId) {
+  const el = dlxPlan.elements.find(x => x.id === elId);
+  if (!el) return;
+  el.broken = !el.broken;
+  dlxSavePlan();
+  dlxRender();
 }
 
 // Retire le match assigné à un élément
