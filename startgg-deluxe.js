@@ -1224,10 +1224,18 @@ function dlxOnDragMove(ev) {
       if (s.points && s.points[idx]) {
         let nx = _dlxDrag.origX + cdx;
         let ny = _dlxDrag.origY + cdy;
-        // Magnétisme : le vertex snappe aux bords des autres éléments,
-        // aux vertices des autres murs et aux bords du canvas (Shift désactive).
-        if (!ev.shiftKey) {
-          const cand = dlxCollectSnapCandidates(s.id);
+        // Magnétisme : le vertex snappe aux bords des autres éléments, aux
+        // vertices des autres murs et aux bords du canvas.
+        // Avec Shift (verrouillage d'axe), le verrouillage est PRIORITAIRE :
+        // le snap ne s'applique que sur l'axe LIBRE, l'axe verrouillé reste
+        // figé (le point reste donc parfaitement horizontal / vertical).
+        const cand = dlxCollectSnapCandidates(s.id);
+        if (ev.shiftKey) {
+          // cdx/cdy ont déjà été contraints à un seul axe plus haut :
+          // l'axe non nul est l'axe libre, le seul où le snap est permis.
+          if (cdx !== 0) nx += dlxBestSnap([nx], cand.xs);
+          if (cdy !== 0) ny += dlxBestSnap([ny], cand.ys);
+        } else {
           nx += dlxBestSnap([nx], cand.xs);
           ny += dlxBestSnap([ny], cand.ys);
         }
