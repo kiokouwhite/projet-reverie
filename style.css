@@ -5306,6 +5306,153 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   width: 320px;
   height: 78vh;
 }
+#dlxAideWindow {
+  top: 460px;
+  left: 24px;
+  width: 340px;
+  height: 360px;
+}
+
+/* ── Aide FG-Smash : sections, lignes joueurs, appels ──────────────── */
+.dlx-aide-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dlx-aide-section:last-child { border-bottom: none; }
+.dlx-aide-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+.dlx-aide-empty {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-style: italic;
+  text-align: center;
+  padding: 10px 6px;
+  margin: 0;
+}
+.dlx-aide-multi-row, .dlx-aide-call-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  background: rgba(255,255,255,0.55);
+}
+.dlx-aide-multi-player { flex: 1; min-width: 0; }
+.dlx-aide-multi-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-aide-multi-events {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+}
+.dlx-aide-event-chip {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eee;
+  font-size: 10px;
+}
+.dlx-aide-event-chip img { width: 100%; height: 100%; object-fit: cover; }
+.dlx-aide-call-btn {
+  border: none;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dlx-aide-call-btn:hover { filter: brightness(1.08); }
+.dlx-aide-call-info { flex: 1; min-width: 0; }
+.dlx-aide-call-player {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+}
+.dlx-aide-call-game {
+  font-size: 11px;
+  color: #c0223f;
+  font-weight: 700;
+}
+.dlx-aide-call-cancel {
+  width: 30px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: #4caf50;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dlx-aide-call-cancel:hover { background: #3d9140; }
+
+/* ── Bandeau d'appel global ─────────────────────────────────────────── */
+.dlx-call-banner {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #e85a8a, #ff9b3d);
+  color: #fff;
+  padding: 14px 22px;
+  border-radius: 14px;
+  box-shadow: 0 14px 38px rgba(232,90,138,0.5);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 9999;
+  font-weight: 700;
+  font-size: 15px;
+  max-width: 92vw;
+  animation: dlx-call-pulse 1.1s ease-in-out infinite;
+}
+@keyframes dlx-call-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); box-shadow: 0 14px 38px rgba(232,90,138,0.45); }
+  50%      { transform: translateX(-50%) scale(1.035); box-shadow: 0 18px 50px rgba(232,90,138,0.65); }
+}
+.dlx-call-banner-icon { font-size: 26px; flex-shrink: 0; }
+.dlx-call-banner-text { line-height: 1.35; }
+.dlx-call-more {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-left: 8px;
+  font-weight: 600;
+}
+.dlx-call-banner-btn {
+  background: #fff;
+  color: #c0223f;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dlx-call-banner-btn:hover { background: #fce4e9; }
 
 /* Body du panneau Matchs : padding + scroll vertical */
 .dlx-sgg-panel .dlx-win-body { padding: 12px; overflow-y: auto; }

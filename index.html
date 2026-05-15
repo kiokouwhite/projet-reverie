@@ -920,6 +920,34 @@
         <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
       </div>
 
+      <!-- Fenêtre Aide FG-Smash -->
+      <div class="dlx-win" id="dlxAideWindow">
+        <div class="dlx-win-titlebar" id="dlxAideTitlebar">
+          <span class="dlx-win-title">🤝 Aide FG-Smash</span>
+          <div class="dlx-win-buttons">
+            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxAideWindow')" title="Réduire / restaurer">−</button>
+          </div>
+        </div>
+        <div class="dlx-win-body">
+          <div class="dlx-aide-section">
+            <div class="dlx-aide-section-title">👥 Joueurs multi-bracket</div>
+            <div id="dlxAideMultiList" class="dlx-aide-multi-list">
+              <p class="dlx-aide-empty">Charge un tournoi start.gg pour voir les joueurs présents dans plusieurs brackets.</p>
+            </div>
+          </div>
+          <div class="dlx-aide-section">
+            <div class="dlx-aide-section-title">📢 Appels en cours</div>
+            <div id="dlxAideCallsList" class="dlx-aide-calls-list">
+              <p class="dlx-aide-empty">Aucun appel en cours.</p>
+            </div>
+          </div>
+        </div>
+        <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
+      </div>
+
+      <!-- Bandeau d'appel global (visible quand un appel est actif) -->
+      <div id="dlxCallBanner" class="dlx-call-banner" style="display:none;"></div>
+
       <!-- Fenêtre Matchs -->
       <div class="dlx-win dlx-sgg-panel" id="dlxSggPanel">
         <div class="dlx-win-titlebar" id="dlxSggTitlebar">

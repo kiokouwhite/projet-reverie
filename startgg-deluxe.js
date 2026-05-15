@@ -679,6 +679,7 @@ function dlxInstallWindows() {
   dlxInstallWindow('dlxPlanWindow');
   dlxInstallWindow('dlxBracketWindow');
   dlxInstallWindow('dlxSggPanel');
+  dlxInstallWindow('dlxAideWindow');
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────
@@ -2871,6 +2872,17 @@ function dlxMatchDrop(ev, elId) {
 function dlxAssignMatch(elId, set) {
   const el = dlxPlan.elements.find(x => x.id === elId);
   if (!el) return;
+  // Alerte si un des joueurs est appelé sur un autre jeu
+  if (typeof dlxFindCallConflict === 'function') {
+    const conflict = dlxFindCallConflict(set);
+    if (conflict) {
+      const ok = confirm(
+        '⚠️ ' + conflict.playerName + ' est appelé pour « ' + conflict.targetGame + ' », ' +
+        'pas « ' + (set.eventName || 'cet event') + ' ».\n\nAssigner ce match quand même ?'
+      );
+      if (!ok) return;
+    }
+  }
   dlxPushHistory();
   // Retire ce set de tout autre élément qui l'aurait déjà
   dlxPlan.elements.forEach(e => {
@@ -3133,6 +3145,17 @@ function dlxReportStatus(type, msg) {
 function dlxSggOpenReport(setId) {
   const set = dlxSgg.sets.find(s => String(s.id) === String(setId));
   if (!set) return;
+  // Pré-alerte si un joueur est appelé sur un autre jeu
+  if (typeof dlxFindCallConflict === 'function') {
+    const conflict = dlxFindCallConflict(set);
+    if (conflict) {
+      const ok = confirm(
+        '⚠️ ' + conflict.playerName + ' est appelé pour « ' + conflict.targetGame + ' ».\n\n' +
+        'Vraiment lancer un match sur « ' + (set.eventName || 'cet event') + ' » ?'
+      );
+      if (!ok) return;
+    }
+  }
   _dlxReportSetId = set.id;
   const modal = document.getElementById('dlxReportModal');
   if (!modal) return;
@@ -3584,6 +3607,8 @@ async function dlxBracketFetch() {
     }));
     dlxBracket.loaded = true;
     dlxBracketRender();
+    // Rafraîchit aussi la fenêtre "Aide FG-Smash" (joueurs multi-bracket)
+    if (typeof dlxRenderAideWindow === 'function') dlxRenderAideWindow();
   } catch (e) {
     if (canvasEl) canvasEl.innerHTML = '<div class="dlx-bracket-empty">Erreur : ' + dlxSggEsc(e.message) + '</div>';
   }
@@ -4074,4 +4099,225 @@ function dlxBracketRender() {
 function dlxBracketInvalidate() {
   dlxBracket.loaded = false;
   if (dlxView === 'bracket' && dlxSgg.slug) dlxBracketFetch();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// AIDE FG-SMASH : joueurs multi-bracket + appels avec son + alerte conflit
+// ════════════════════════════════════════════════════════════════════════
+const DLX_CALLS_LS_KEY = 'top8_deluxe_calls';
+let _dlxCalls = [];
+try {
+  const raw = localStorage.getItem(DLX_CALLS_LS_KEY);
+  if (raw) _dlxCalls = JSON.parse(raw) || [];
+} catch (e) {}
+
+function dlxSaveCalls() {
+  try { localStorage.setItem(DLX_CALLS_LS_KEY, JSON.stringify(_dlxCalls)); } catch (e) {}
+}
+
+// Calcule les joueurs présents dans 2+ events du tournoi chargé
+function dlxComputeMultiBracketPlayers() {
+  const map = {};
+  (dlxBracket.events || []).forEach(ev => {
+    (ev.sets || []).forEach(s => {
+      (s.slots || []).forEach(slot => {
+        if (slot && slot.entrant && slot.entrant.id != null && slot.entrant.name) {
+          const pid = String(slot.entrant.id);
+          if (!map[pid]) {
+            map[pid] = { id: pid, name: slot.entrant.name, events: [] };
+          }
+          if (!map[pid].events.find(e => String(e.id) === String(ev.id))) {
+            map[pid].events.push({ id: ev.id, name: ev.name, img: ev.videogameImg });
+          }
+        }
+      });
+    });
+  });
+  return Object.values(map)
+    .filter(p => p.events.length >= 2)
+    .sort((a, b) => b.events.length - a.events.length || a.name.localeCompare(b.name));
+}
+
+function dlxRenderAideWindow() {
+  const multiEl = document.getElementById('dlxAideMultiList');
+  if (multiEl) {
+    const players = dlxComputeMultiBracketPlayers();
+    if (!players.length) {
+      multiEl.innerHTML = '<p class="dlx-aide-empty">Aucun joueur dans plusieurs brackets pour ce tournoi.</p>';
+    } else {
+      multiEl.innerHTML = players.map(p => {
+        const chips = p.events.map(e =>
+          `<span class="dlx-aide-event-chip" title="${dlxSggEsc(e.name)}">
+            ${e.img ? `<img src="${dlxSggEsc(e.img)}" alt="">` : '🎮'}
+          </span>`).join('');
+        const safePid = dlxSggEsc(p.id);
+        return `<div class="dlx-aide-multi-row">
+          <div class="dlx-aide-multi-player">
+            <div class="dlx-aide-multi-name" title="${dlxSggEsc(p.name)}">${dlxSggEsc(p.name)}</div>
+            <div class="dlx-aide-multi-events">${chips}</div>
+          </div>
+          <button class="dlx-aide-call-btn" onclick="dlxOpenCallPicker('${safePid}', event)">📢 Appeler</button>
+        </div>`;
+      }).join('');
+    }
+  }
+  const callsEl = document.getElementById('dlxAideCallsList');
+  if (callsEl) {
+    if (!_dlxCalls.length) {
+      callsEl.innerHTML = '<p class="dlx-aide-empty">Aucun appel en cours.</p>';
+    } else {
+      callsEl.innerHTML = _dlxCalls.map(c =>
+        `<div class="dlx-aide-call-row">
+          <div class="dlx-aide-call-info">
+            <div class="dlx-aide-call-player">${dlxSggEsc(c.playerName)}</div>
+            <div class="dlx-aide-call-game">→ ${dlxSggEsc(c.targetGame)}</div>
+          </div>
+          <button class="dlx-aide-call-cancel" onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')" title="Acquitter">✓</button>
+        </div>`).join('');
+    }
+  }
+  dlxUpdateCallBanner();
+}
+
+// Popup de choix du jeu cible pour appeler un joueur multi-bracket
+function dlxOpenCallPicker(playerId, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const player = dlxComputeMultiBracketPlayers().find(p => String(p.id) === String(playerId));
+  if (!player) return;
+  // Ferme un éventuel picker existant
+  const old = document.getElementById('dlxCallPicker');
+  if (old) old.remove();
+  const btn = ev && ev.currentTarget;
+  const rect = btn ? btn.getBoundingClientRect() : { left: 100, top: 100, bottom: 130 };
+  const picker = document.createElement('div');
+  picker.id = 'dlxCallPicker';
+  picker.className = 'dlx-game-picker';
+  picker.innerHTML = `
+    <div class="dlx-game-picker-section">Appeler ${dlxSggEsc(player.name)} sur :</div>
+    ${player.events.map(e => {
+      const nameJs = String(e.name || '').replace(/'/g, "\\'");
+      const imgJs  = String(e.img  || '').replace(/'/g, "\\'");
+      return `<button type="button" class="dlx-game-row"
+        onmousedown="event.preventDefault()"
+        onclick="dlxCreateCall('${dlxSggEsc(playerId)}', '${dlxSggEsc(player.name).replace(/'/g,"\\'")}', '${nameJs}', '${imgJs}')">
+        ${e.img ? `<img src="${dlxSggEsc(e.img)}" alt="">` : '<span class="dlx-game-picker-noimg">🎮</span>'}
+        <span class="dlx-game-row-name">${dlxSggEsc(e.name)}</span>
+      </button>`;
+    }).join('')}
+  `;
+  picker.style.position = 'fixed';
+  picker.style.left = Math.max(8, rect.left) + 'px';
+  picker.style.top  = (rect.bottom + 4) + 'px';
+  document.body.appendChild(picker);
+  setTimeout(() => {
+    document.addEventListener('mousedown', dlxCallPickerOutsideHandler, true);
+  }, 0);
+}
+function dlxCallPickerOutsideHandler(ev) {
+  const p = document.getElementById('dlxCallPicker');
+  if (!p) return;
+  if (p.contains(ev.target)) return;
+  p.remove();
+  document.removeEventListener('mousedown', dlxCallPickerOutsideHandler, true);
+}
+
+function dlxCreateCall(playerId, playerName, targetGame, targetGameImg) {
+  // Évite les doublons : si déjà un appel actif pour ce joueur, on remplace
+  _dlxCalls = _dlxCalls.filter(c => String(c.playerId) !== String(playerId));
+  const call = {
+    id: 'call-' + Date.now() + '-' + playerId,
+    playerId, playerName, targetGame,
+    targetGameImg: targetGameImg || '',
+    createdAt: Date.now(),
+  };
+  _dlxCalls.push(call);
+  dlxSaveCalls();
+  const picker = document.getElementById('dlxCallPicker');
+  if (picker) picker.remove();
+  document.removeEventListener('mousedown', dlxCallPickerOutsideHandler, true);
+  dlxRenderAideWindow();
+  dlxStartBeep();
+}
+
+function dlxAcknowledgeCall(callId) {
+  _dlxCalls = _dlxCalls.filter(c => c.id !== callId);
+  dlxSaveCalls();
+  dlxRenderAideWindow();
+  if (!_dlxCalls.length) dlxStopBeep();
+}
+
+function dlxUpdateCallBanner() {
+  const banner = document.getElementById('dlxCallBanner');
+  if (!banner) return;
+  if (!_dlxCalls.length) {
+    banner.style.display = 'none';
+    return;
+  }
+  const c = _dlxCalls[_dlxCalls.length - 1]; // le plus récent
+  const more = _dlxCalls.length - 1;
+  banner.style.display = 'flex';
+  banner.innerHTML = `
+    <div class="dlx-call-banner-icon">📢</div>
+    <div class="dlx-call-banner-text">
+      <strong>${dlxSggEsc(c.playerName)}</strong> est attendu sur
+      <strong>${dlxSggEsc(c.targetGame)}</strong> à la fin de son match
+      ${more > 0 ? `<span class="dlx-call-more">(+${more} autre${more > 1 ? 's' : ''})</span>` : ''}
+    </div>
+    <button class="dlx-call-banner-btn" onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')">✓ D'accord</button>`;
+}
+
+// Son d'alerte : 2 bips alternés répétés toutes les 1.5s, jusqu'à acquittement
+let _dlxAudioCtx = null;
+let _dlxBeepInterval = null;
+function dlxStartBeep() {
+  if (_dlxBeepInterval) return;
+  try {
+    if (!_dlxAudioCtx) _dlxAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _dlxAudioCtx;
+    const playTone = (freq, when, dur) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      // enveloppe douce pour éviter les pops
+      gain.gain.setValueAtTime(0, ctx.currentTime + when);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + when + 0.02);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + when + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + dur + 0.05);
+    };
+    const chirp = () => {
+      try { playTone(660, 0, 0.18); playTone(880, 0.22, 0.18); } catch (e) {}
+    };
+    chirp();
+    _dlxBeepInterval = setInterval(chirp, 1500);
+  } catch (e) {}
+}
+function dlxStopBeep() {
+  if (_dlxBeepInterval) { clearInterval(_dlxBeepInterval); _dlxBeepInterval = null; }
+}
+
+// Conflit : retourne l'appel actif d'un des joueurs si la cible ≠ l'event
+// du set proposé. Sinon null.
+function dlxFindCallConflict(set) {
+  if (!set || !_dlxCalls.length) return null;
+  const names = [set.p1, set.p2].filter(Boolean);
+  for (const c of _dlxCalls) {
+    if (names.includes(c.playerName) && c.targetGame !== set.eventName) {
+      return c;
+    }
+  }
+  return null;
+}
+
+// Si des appels persistaient au boot, on les recharge et on redémarre le bip
+if (_dlxCalls.length) {
+  // bip différé pour éviter d'être bloqué par les politiques autoplay du
+  // navigateur — un premier user gesture suffira ensuite.
+  document.addEventListener('click', function bootBeep() {
+    if (_dlxCalls.length) dlxStartBeep();
+    document.removeEventListener('click', bootBeep);
+  }, { once: true });
+  setTimeout(dlxUpdateCallBanner, 50);
 }
