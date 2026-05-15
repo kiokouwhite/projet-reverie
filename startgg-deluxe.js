@@ -1990,7 +1990,9 @@ async function dlxSggFetch() {
       });
     });
     dlxSgg.sets = sets;
-    // Rafraîchit le snapshot des matchs déjà placés sur des setups
+    // Rafraîchit les matchs déjà placés sur des setups :
+    //  - s'ils sont toujours dans la liste → on met à jour le snapshot
+    //  - s'ils n'y sont plus → match TERMINÉ → on le retire du setup
     let assignedChanged = false;
     dlxPlan.elements.forEach(el => {
       if (!el.match) return;
@@ -1999,6 +2001,10 @@ async function dlxSggFetch() {
         el.match.p1 = fresh.p1; el.match.p2 = fresh.p2;
         el.match.round = fresh.round; el.match.state = fresh.state;
         el.match.eventName = fresh.eventName;
+        assignedChanged = true;
+      } else {
+        // Plus dans la liste des matchs non terminés → match joué → on libère le setup
+        delete el.match;
         assignedChanged = true;
       }
     });
