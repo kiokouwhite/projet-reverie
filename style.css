@@ -5331,6 +5331,24 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   text-align: center;
   padding: 16px 8px;
 }
+/* Filtre du panneau Matchs : checkbox "uniquement les matchs prêts" */
+.dlx-sgg-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+  background: rgba(124,92,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.dlx-sgg-filter input { cursor: pointer; accent-color: #7c5cff; }
+.dlx-sgg-filter:hover { background: rgba(124,92,255,0.12); }
 .dlx-sgg-event-group { margin-bottom: 14px; }
 .dlx-sgg-event-name {
   display: flex;

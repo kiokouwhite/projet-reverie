@@ -2313,7 +2313,17 @@ const dlxOnStationMouseDown_or_El = dlxOnElMouseDown;
 // préparer le terrain pour assigner ensuite les matchs aux setups.
 // ════════════════════════════════════════════════════════════════════════
 const DLX_SGG_LS_KEY = 'top8_deluxe_sgg_slug';
+const DLX_SGG_READY_LS_KEY = 'top8_deluxe_sgg_ready_only';
 let dlxSgg = { slug: '', tournamentName: '', sets: [] };
+let _dlxSggReadyOnly = false;
+try { _dlxSggReadyOnly = localStorage.getItem(DLX_SGG_READY_LS_KEY) === '1'; } catch (e) {}
+
+// Toggle "n'afficher que les matchs prêts à lancer" (les 2 joueurs connus)
+function dlxSggToggleReadyOnly(checked) {
+  _dlxSggReadyOnly = !!checked;
+  try { localStorage.setItem(DLX_SGG_READY_LS_KEY, _dlxSggReadyOnly ? '1' : '0'); } catch (e) {}
+  dlxSggRenderPanel();
+}
 
 function dlxSggInit() {
   const saved = localStorage.getItem(DLX_SGG_LS_KEY) || '';
@@ -2473,13 +2483,27 @@ function dlxSggStateInfo(state) {
 function dlxSggRenderPanel() {
   const wrap = document.getElementById('dlxSggMatches');
   if (!wrap) return;
+  // Barre de filtre toujours visible en tête du panneau
+  const filterHtml = `<label class="dlx-sgg-filter">
+    <input type="checkbox" ${_dlxSggReadyOnly ? 'checked' : ''}
+      onchange="dlxSggToggleReadyOnly(this.checked)">
+    <span>N'afficher que les matchs prêts à lancer</span>
+  </label>`;
   if (!dlxSgg.sets.length) {
-    wrap.innerHTML = '<p class="dlx-sgg-empty">Aucun match en cours ou à venir.</p>';
+    wrap.innerHTML = filterHtml + '<p class="dlx-sgg-empty">Aucun match en cours ou à venir.</p>';
     return;
   }
   // Tri : en cours (2) puis appelés (6) puis à venir (1)
   const rank = s => (s.state === 2 ? 0 : s.state === 6 ? 1 : 2);
-  const ordered = dlxSgg.sets.slice().sort((a, b) => rank(a) - rank(b));
+  // Filtre : seulement les matchs avec les 2 joueurs déterminés si l'option l'exige
+  const base = _dlxSggReadyOnly
+    ? dlxSgg.sets.filter(s => !!s.p1Id && !!s.p2Id)
+    : dlxSgg.sets;
+  if (!base.length) {
+    wrap.innerHTML = filterHtml + '<p class="dlx-sgg-empty">Aucun match prêt à lancer pour le moment.</p>';
+    return;
+  }
+  const ordered = base.slice().sort((a, b) => rank(a) - rank(b));
   // Groupe par event (dans l'ordre d'apparition)
   const groups = [];
   const byName = {};
@@ -2490,7 +2514,7 @@ function dlxSggRenderPanel() {
     }
     byName[s.eventName].sets.push(s);
   });
-  wrap.innerHTML = groups.map(g => `
+  wrap.innerHTML = filterHtml + groups.map(g => `
     <div class="dlx-sgg-event-group">
       <div class="dlx-sgg-event-name">
         ${g.gameImg ? `<img src="${dlxSggEsc(g.gameImg)}" alt="" class="dlx-sgg-event-img">` : ''}
