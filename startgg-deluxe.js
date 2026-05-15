@@ -529,6 +529,43 @@ function dlxInstallWindow(windowId) {
     win.style.zIndex = '85';
   }, true);
 
+  // Poignée de redimensionnement bas-GAUCHE : symétrique du resize CSS
+  // natif (bas-droite). En tirant vers la gauche, la fenêtre s'élargit
+  // (left diminue, width augmente).
+  const gripBL = win.querySelector('.dlx-win-grip-bl');
+  if (gripBL) {
+    gripBL.addEventListener('mousedown', (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const startX = ev.clientX, startY = ev.clientY;
+      const r = win.getBoundingClientRect();
+      const startLeft = r.left, startW = r.width, startH = r.height;
+      win.style.right = 'auto';
+      win.classList.add('dragging');
+      const minW = 220, minH = 120;
+      const onMove = (e) => {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        let newW = startW - dx;
+        let newL = startLeft + dx;
+        let newH = startH + dy;
+        if (newW < minW) { newL -= (minW - newW); newW = minW; }
+        if (newH < minH) newH = minH;
+        win.style.width  = newW + 'px';
+        win.style.height = newH + 'px';
+        win.style.left   = newL + 'px';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        win.classList.remove('dragging');
+        saveState();
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp, { once: true });
+    });
+  }
+
   // Sauvegarde aussi sur redimensionnement (CSS resize)
   if (typeof ResizeObserver === 'function') {
     let t = null;

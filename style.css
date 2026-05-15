@@ -5262,6 +5262,23 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   position: relative; /* repère pour les FABs absolus du Plan */
 }
 
+/* Poignée de redimensionnement bas-gauche (symétrique au resize natif
+   bas-droite de CSS resize: both). Permet d'élargir la fenêtre vers la
+   gauche : la position left bouge et la largeur augmente. */
+.dlx-win-grip-bl {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  cursor: sw-resize;
+  background: linear-gradient(45deg, transparent 50%, rgba(124,92,255,0.55) 50%);
+  border-bottom-left-radius: 11px;
+  z-index: 10;
+}
+.dlx-win-grip-bl:hover { background: linear-gradient(45deg, transparent 50%, #7c5cff 50%); }
+.dlx-win.minimized .dlx-win-grip-bl { display: none; }
+
 /* Positions / tailles par défaut spécifiques à chaque fenêtre */
 #dlxPlanWindow {
   top: 96px;
