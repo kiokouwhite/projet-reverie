@@ -5077,7 +5077,15 @@ canvas { width: 100%; display: block; }
   border-radius: 12px;
 }
 .dlx-editor-actions small { font-size: 11px; font-style: italic; }
+/* Ligne principale : plan (canvas) à gauche, panneau matchs start.gg à droite */
+.dlx-main-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
 .dlx-canvas-wrap {
+  flex: 1;
+  min-width: 0;
   background: rgba(255,255,255,0.6);
   border: 2px dashed rgba(155,127,184,0.4);
   border-radius: 16px;
@@ -5088,6 +5096,128 @@ canvas { width: 100%; display: block; }
   /* le canvas grandit avec le contenu → viewport scrollable dans les 2 axes */
   overflow: auto;
   max-height: 78vh;
+}
+
+/* ── Connexion start.gg : barre de chargement + panneau matchs ─────────── */
+.dlx-sgg-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.5);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.dlx-sgg-status {
+  font-size: 12px;
+  font-weight: 600;
+}
+.dlx-sgg-status-loading { color: var(--text-soft); }
+.dlx-sgg-status-ok      { color: #2e9e5b; }
+.dlx-sgg-status-error   { color: #d23b78; }
+.dlx-sgg-panel {
+  width: 320px;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.6);
+  border: 2px dashed rgba(155,127,184,0.4);
+  border-radius: 16px;
+  padding: 12px;
+  max-height: 78vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.dlx-sgg-panel-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.dlx-sgg-empty {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-style: italic;
+  text-align: center;
+  padding: 16px 8px;
+}
+.dlx-sgg-event-group { margin-bottom: 14px; }
+.dlx-sgg-event-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-soft);
+  margin-bottom: 6px;
+}
+.dlx-sgg-event-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.dlx-sgg-set {
+  background: white;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+.dlx-sgg-set-live     { border-left-color: #e0455f; }
+.dlx-sgg-set-called   { border-left-color: #e8951f; }
+.dlx-sgg-set-upcoming { border-left-color: #9b7fb8; }
+.dlx-sgg-set-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.dlx-sgg-set-round {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.dlx-sgg-set-state {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.dlx-sgg-set-state-live     { background: #fce4e9; color: #c0223f; }
+.dlx-sgg-set-state-called   { background: #fcefda; color: #b66c0c; }
+.dlx-sgg-set-state-upcoming { background: #efeaf4; color: #6b5683; }
+.dlx-sgg-set-players {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.dlx-sgg-player {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-sgg-player:last-child { text-align: right; }
+.dlx-sgg-vs {
+  font-size: 9px;
+  color: var(--text-soft);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.dlx-sgg-set-station {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2e9e5b;
 }
 .dlx-canvas {
   position: relative;

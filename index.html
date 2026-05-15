@@ -861,8 +861,26 @@
           <label>Couleur</label><input id="dlxPropsColor" type="color" oninput="dlxUpdateProp('color', this.value)">
         </div>
       </div>
-      <div class="dlx-canvas-wrap">
-        <div id="dlxCanvas" class="dlx-canvas"></div>
+      <!-- Connexion start.gg : charge un tournoi pour voir ses matchs -->
+      <div class="dlx-sgg-bar">
+        <input id="dlxSggUrl" type="text" class="dc-text-input"
+          placeholder="URL ou slug du tournoi start.gg…"
+          style="flex:1;min-width:200px;"
+          onkeydown="if(event.key==='Enter')dlxSggLoad()">
+        <button type="button" class="btn" onclick="dlxSggLoad()">🔗 Charger</button>
+        <button type="button" class="btn btn-secondary" onclick="dlxSggRefresh()" title="Recharger les matchs">↻ Rafraîchir</button>
+        <span id="dlxSggStatus" class="dlx-sgg-status"></span>
+      </div>
+      <div class="dlx-main-row">
+        <div class="dlx-canvas-wrap">
+          <div id="dlxCanvas" class="dlx-canvas"></div>
+        </div>
+        <div class="dlx-sgg-panel" id="dlxSggPanel">
+          <div class="dlx-sgg-panel-title">🎮 Matchs</div>
+          <div id="dlxSggMatches" class="dlx-sgg-matches">
+            <p class="dlx-sgg-empty">Charge un tournoi start.gg pour voir les matchs en cours et à venir.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>

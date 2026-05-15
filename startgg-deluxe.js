@@ -189,6 +189,7 @@ function dlxInit() {
   dlxBuildAddTypeSelector();
   dlxRender();
   dlxInstallKeyboardShortcuts();
+  dlxSggInit();
   // Click sur le fond du canvas (pas sur un élément) = désélection.
   // ev.target === canvas signifie qu'on a cliqué sur le fond beige et pas
   // sur un élément enfant (les clics sur éléments ont leur target = l'élément).
@@ -1862,3 +1863,187 @@ function dlxUpdateProp(prop, value) {
 // Alias pour compatibilité (dlxOnElMouseDown est le vrai nom dans le code,
 // l'alias est juste pour la ré-attachement après replaceWith ci-dessus).
 const dlxOnStationMouseDown_or_El = dlxOnElMouseDown;
+
+// ════════════════════════════════════════════════════════════════════════
+// CONNEXION START.GG — charge un tournoi et affiche ses matchs (en cours,
+// appelés, à venir) dans le panneau latéral du plan. Phase 2 du Deluxe :
+// préparer le terrain pour assigner ensuite les matchs aux setups.
+// ════════════════════════════════════════════════════════════════════════
+const DLX_SGG_LS_KEY = 'top8_deluxe_sgg_slug';
+let dlxSgg = { slug: '', tournamentName: '', sets: [] };
+
+function dlxSggInit() {
+  const saved = localStorage.getItem(DLX_SGG_LS_KEY) || '';
+  const input = document.getElementById('dlxSggUrl');
+  if (input && saved && !input.value) input.value = saved;
+  // Auto-charge le dernier tournoi si on a un slug ET un token
+  if (saved && dlxSggGetToken()) {
+    dlxSgg.slug = saved;
+    dlxSggFetch();
+  }
+}
+
+// Récupère la clé API start.gg (réutilise celle de l'onglet Top 8 / Config)
+function dlxSggGetToken() {
+  if (typeof sggGetToken === 'function') {
+    try { const t = sggGetToken(); if (t) return t; } catch (e) {}
+  }
+  const apiKey = document.getElementById('apiKey');
+  return (apiKey && apiKey.value.trim()) || localStorage.getItem('top8_startgg_key') || '';
+}
+
+function dlxSggStatus(type, msg) {
+  const el = document.getElementById('dlxSggStatus');
+  if (!el) return;
+  el.className = 'dlx-sgg-status dlx-sgg-status-' + type;
+  el.textContent = msg || '';
+}
+
+// Charge le tournoi saisi dans le champ URL
+function dlxSggLoad() {
+  const input = document.getElementById('dlxSggUrl');
+  const raw = (input && input.value || '').trim();
+  if (!raw) return dlxSggStatus('error', 'Entre une URL ou un slug start.gg.');
+  if (!dlxSggGetToken()) {
+    return dlxSggStatus('error', '⚠️ Clé API start.gg manquante (onglet Configuration).');
+  }
+  const slug = (typeof sggExtractSlug === 'function')
+    ? sggExtractSlug(raw)
+    : raw.replace(/^.*tournament\//, '').replace(/[\/?#].*$/, '').trim();
+  dlxSgg.slug = slug;
+  localStorage.setItem(DLX_SGG_LS_KEY, slug);
+  dlxSggFetch();
+}
+
+// Recharge les matchs du tournoi déjà chargé
+function dlxSggRefresh() {
+  if (!dlxSgg.slug) return dlxSggStatus('error', 'Aucun tournoi chargé.');
+  dlxSggFetch();
+}
+
+const DLX_SGG_QUERY = `
+  query DlxTournamentSets($slug: String!) {
+    tournament(slug: $slug) {
+      id name
+      events {
+        id name
+        videogame { id name images { url type } }
+        sets(page: 1, perPage: 60, sortType: CALL_ORDER, filters: { state: [1, 2, 6] }) {
+          nodes {
+            id identifier fullRoundText state
+            station { id number }
+            slots { entrant { id name } }
+          }
+        }
+      }
+    }
+  }`;
+
+async function dlxSggFetch() {
+  dlxSggStatus('loading', 'Chargement des matchs…');
+  try {
+    const data = (typeof sggQuery === 'function')
+      ? await sggQuery(DLX_SGG_QUERY, { slug: dlxSgg.slug })
+      : await dlxSggRawQuery(DLX_SGG_QUERY, { slug: dlxSgg.slug });
+    const t = data && data.tournament;
+    if (!t) { dlxSggStatus('error', 'Tournoi introuvable.'); return; }
+    dlxSgg.tournamentName = t.name;
+    // Aplatit les sets de tous les events en une seule liste
+    const sets = [];
+    (t.events || []).forEach(ev => {
+      const imgs = (ev.videogame && ev.videogame.images) || [];
+      const gameImg = (imgs.find(i => i.type === 'profile') || imgs[0] || {}).url || '';
+      ((ev.sets && ev.sets.nodes) || []).forEach(s => {
+        sets.push({
+          id: s.id,
+          eventName: ev.name || '',
+          gameName: (ev.videogame && ev.videogame.name) || '',
+          gameImg,
+          round: s.fullRoundText || s.identifier || '',
+          state: s.state,
+          stationNumber: s.station && s.station.number != null ? s.station.number : null,
+          p1: (s.slots && s.slots[0] && s.slots[0].entrant && s.slots[0].entrant.name) || null,
+          p2: (s.slots && s.slots[1] && s.slots[1].entrant && s.slots[1].entrant.name) || null,
+        });
+      });
+    });
+    dlxSgg.sets = sets;
+    dlxSggStatus('ok', `${t.name} — ${sets.length} match(s)`);
+    dlxSggRenderPanel();
+  } catch (e) {
+    dlxSggStatus('error', 'Erreur : ' + e.message);
+  }
+}
+
+// Fallback GraphQL si sggQuery (startgg.js) n'est pas chargé
+async function dlxSggRawQuery(query, variables) {
+  const token = dlxSggGetToken();
+  if (!token) throw new Error('Token API start.gg manquant');
+  const res = await fetch('https://api.start.gg/gql/alpha', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ query, variables }),
+  });
+  const data = await res.json();
+  if (data.errors) throw new Error(data.errors[0].message);
+  return data.data;
+}
+
+// État d'un set start.gg : 1 = à venir, 2 = en cours, 6 = appelé
+function dlxSggStateInfo(state) {
+  if (state === 2) return { label: 'En cours', cls: 'live' };
+  if (state === 6) return { label: 'Appelé',   cls: 'called' };
+  return { label: 'À venir', cls: 'upcoming' };
+}
+
+function dlxSggRenderPanel() {
+  const wrap = document.getElementById('dlxSggMatches');
+  if (!wrap) return;
+  if (!dlxSgg.sets.length) {
+    wrap.innerHTML = '<p class="dlx-sgg-empty">Aucun match en cours ou à venir.</p>';
+    return;
+  }
+  // Tri : en cours (2) puis appelés (6) puis à venir (1)
+  const rank = s => (s.state === 2 ? 0 : s.state === 6 ? 1 : 2);
+  const ordered = dlxSgg.sets.slice().sort((a, b) => rank(a) - rank(b));
+  // Groupe par event (dans l'ordre d'apparition)
+  const groups = [];
+  const byName = {};
+  ordered.forEach(s => {
+    if (!byName[s.eventName]) {
+      byName[s.eventName] = { name: s.eventName, gameImg: s.gameImg, sets: [] };
+      groups.push(byName[s.eventName]);
+    }
+    byName[s.eventName].sets.push(s);
+  });
+  wrap.innerHTML = groups.map(g => `
+    <div class="dlx-sgg-event-group">
+      <div class="dlx-sgg-event-name">
+        ${g.gameImg ? `<img src="${dlxSggEsc(g.gameImg)}" alt="" class="dlx-sgg-event-img">` : ''}
+        <span>${dlxSggEsc(g.name)}</span>
+      </div>
+      ${g.sets.map(s => {
+        const st = dlxSggStateInfo(s.state);
+        return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}">
+          <div class="dlx-sgg-set-head">
+            <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
+            <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
+          </div>
+          <div class="dlx-sgg-set-players">
+            <span class="dlx-sgg-player">${dlxSggEsc(s.p1 || 'TBD')}</span>
+            <span class="dlx-sgg-vs">vs</span>
+            <span class="dlx-sgg-player">${dlxSggEsc(s.p2 || 'TBD')}</span>
+          </div>
+          ${s.stationNumber != null
+            ? `<div class="dlx-sgg-set-station">🎮 Setup ${dlxSggEsc(s.stationNumber)}</div>`
+            : ''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function dlxSggEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
