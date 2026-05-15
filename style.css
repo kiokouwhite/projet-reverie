@@ -5192,6 +5192,19 @@ canvas { width: 100%; display: block; }
   outline: none;
   filter: drop-shadow(0 0 0 #7c5cff) drop-shadow(0 0 3px #7c5cff);
 }
+/* Contour pointillé d'une zone polygonale (SVG overlay, non rogné) */
+.dlx-poly-outline {
+  position: absolute;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+.dlx-poly-outline polygon {
+  fill: none;
+  stroke: rgba(100,60,30,0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
 /* Poignée de vertex d'une zone polygonale (overlay canvas, non rogné) */
 .dlx-room-vertex {
   position: absolute;

@@ -651,7 +651,14 @@ function dlxElementHTML(el) {
         const body = `<div class="dlx-el dlx-el-room dlx-el-room-poly" data-id="${el.id}"
           style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}88;clip-path:polygon(${cp});">
           <div class="dlx-el-room-label">${safeLabel}</div></div>`;
-        let overlay = '';
+        // Contour pointillé : un border CSS serait rogné par le clip-path,
+        // donc on dessine un <polygon> SVG qui épouse la forme.
+        const localPts = el.points
+          .map(p => `${(p.x - el.x).toFixed(1)},${(p.y - el.y).toFixed(1)}`)
+          .join(' ');
+        let overlay = `<svg class="dlx-poly-outline" width="${el.w}" height="${el.h}"
+          viewBox="0 0 ${el.w} ${el.h}" style="left:${el.x}px;top:${el.y}px;">
+          <polygon points="${localPts}" /></svg>`;
         if (isEdit) {
           overlay += `<button class="dlx-poly-remove" onclick="dlxRemoveElement('${el.id}')"
             style="left:${el.x + el.w}px;top:${el.y}px;" title="Supprimer">✕</button>`;
