@@ -2994,22 +2994,38 @@ function dlxBracketMakeCard(s, setById) {
   };
 }
 
-// Calcule positions des cartes + tracés des lignes pour un set d'un event
+// Calcule positions des cartes + tracés des lignes pour les sets d'un event.
+//
+// Algorithme :
+//  1) place les cartes en colonnes (x) selon leur round, séparément winners
+//     et losers (les losers commencent eux-mêmes à x=0)
+//  2) calcule les Y des winners (round 1 stacké, rounds suivants = moyenne
+//     des prereqs)
+//  3) calcule les Y des losers en utilisant aussi les prereqs venant de la
+//     partie winners (déjà positionnés) → règle le bug "tout stacké en bas"
+//  4) anti-chevauchement colonne par colonne : si deux cartes dans la même
+//     colonne se recouvrent, on pousse la suivante vers le bas
 function dlxBracketLayout(sets) {
   const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
+  const MIN_VGAP = 8; // marge minimale verticale entre deux cartes d'une même colonne
   const setById = {};
   sets.forEach(s => { setById[s.id] = s; });
 
-  function buildSide(sideSets) {
-    if (!sideSets.length) return { cards: [], width: 0, height: 0 };
+  const winners = sets.filter(s => s.round > 0);
+  const losers  = sets.filter(s => s.round < 0);
+
+  const allCards = [];
+  const cardById = {};
+
+  // Phase 1 : pose les cartes en colonnes (x) côté par côté
+  function placeColumns(sideSets) {
+    if (!sideSets.length) return 0;
     const byRound = {};
     sideSets.forEach(s => {
       const r = Math.abs(s.round);
       (byRound[r] = byRound[r] || []).push(s);
     });
     const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
-    const cards = [];
-    const cardById = {};
     let xOffset = 0;
     rounds.forEach(r => {
       const setsInR = byRound[r];
@@ -3021,45 +3037,72 @@ function dlxBracketLayout(sets) {
       setsInR.forEach(s => {
         const c = dlxBracketMakeCard(s, setById);
         c.x = xOffset;
-        cards.push(c);
+        c.roundAbs = r;
+        allCards.push(c);
         cardById[s.id] = c;
       });
       xOffset += CARD_W + COL_GAP;
     });
-    // Y positions : round 1 = stack ; rounds suivants = moyenne des prereqs
+    return xOffset;
+  }
+  placeColumns(winners);
+  placeColumns(losers);
+
+  // Phase 2 : Y des winners
+  function layoutY(sideSets, ySideOffset) {
+    const byRound = {};
+    sideSets.forEach(s => {
+      const r = Math.abs(s.round);
+      (byRound[r] = byRound[r] || []).push(s);
+    });
+    const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
     rounds.forEach((r, idx) => {
       const cardsInR = byRound[r].map(s => cardById[s.id]);
       if (idx === 0) {
-        cardsInR.forEach((c, i) => { c.y = i * (CARD_H + ROW_GAP); });
+        cardsInR.forEach((c, i) => { c.y = ySideOffset + i * (CARD_H + ROW_GAP); });
       } else {
-        cardsInR.forEach(c => {
+        cardsInR.forEach((c, i) => {
+          // Prend en compte tous les prereqs résolus (winners ET losers déjà
+          // positionnés) → un losers R-N qui reçoit un dropper du winners
+          // R-M se positionne entre son voisin losers et le winners.
           const preYs = c.prereqs
-            .map(pid => (pid && cardById[pid]) ? cardById[pid].y : null)
+            .map(pid => (pid && cardById[pid] && cardById[pid].y != null) ? cardById[pid].y : null)
             .filter(y => y != null);
-          c.y = preYs.length ? preYs.reduce((a, b) => a + b, 0) / preYs.length : 0;
+          if (preYs.length) {
+            c.y = preYs.reduce((a, b) => a + b, 0) / preYs.length;
+          } else {
+            c.y = ySideOffset + i * (CARD_H + ROW_GAP); // fallback : stack
+          }
         });
       }
     });
-    const height = cards.length ? Math.max(...cards.map(c => c.y + CARD_H)) : 0;
-    return { cards, width: xOffset, height };
   }
+  layoutY(winners, 0);
+  const winnersHeight = allCards
+    .filter(c => c.round > 0)
+    .reduce((m, c) => Math.max(m, (c.y || 0) + CARD_H), 0);
+  const losersOffsetY = winnersHeight ? winnersHeight + 70 : 0;
+  layoutY(losers, losersOffsetY);
 
-  const winners = sets.filter(s => s.round > 0);
-  const losers  = sets.filter(s => s.round < 0);
-  const W = buildSide(winners);
-  const L = buildSide(losers);
-  // Empile la partie losers en-dessous de la partie winners
-  const losersOffsetY = W.height ? W.height + 70 : 0;
-  L.cards.forEach(c => { c.y += losersOffsetY; });
+  // Phase 3 : anti-chevauchement par colonne (x) — pousse les cartes qui se
+  // recouvrent verticalement vers le bas. Préserve les cartes du même round
+  // (même x) à leur position relative tout en garantissant un écart minimal.
+  const byX = {};
+  allCards.forEach(c => { (byX[c.x] = byX[c.x] || []).push(c); });
+  Object.values(byX).forEach(col => {
+    col.sort((a, b) => (a.y || 0) - (b.y || 0));
+    for (let i = 1; i < col.length; i++) {
+      const minY = col[i - 1].y + CARD_H + MIN_VGAP;
+      if (col[i].y < minY) col[i].y = minY;
+    }
+  });
 
-  const allCards = [...W.cards, ...L.cards];
-  const cardByIdAll = {};
-  allCards.forEach(c => { cardByIdAll[c.id] = c; });
+  // Lignes de connexion (prereqs → carte)
   const lines = [];
   allCards.forEach(card => {
     card.prereqs.forEach((preId, slotIdx) => {
       if (!preId) return;
-      const pre = cardByIdAll[preId];
+      const pre = cardById[preId];
       if (!pre) return;
       const x1 = pre.x + CARD_W;
       const y1 = pre.y + CARD_H / 2;
@@ -3069,7 +3112,7 @@ function dlxBracketLayout(sets) {
       lines.push(`M ${x1} ${y1} L ${xm} ${y1} L ${xm} ${y2} L ${x2} ${y2}`);
     });
   });
-  const width = allCards.length ? Math.max(...allCards.map(c => c.x + CARD_W)) + 20 : 0;
+  const width  = allCards.length ? Math.max(...allCards.map(c => c.x + CARD_W)) + 20 : 0;
   const height = allCards.length ? Math.max(...allCards.map(c => c.y + CARD_H)) + 20 : 0;
   return { cards: allCards, lines, width, height, CARD_W, CARD_H };
 }
