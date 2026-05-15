@@ -200,6 +200,7 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
+  dlxInstallResizer();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
   // les visuels (FAB, barre d'actions, classes du canvas) avec l'état JS.
@@ -407,6 +408,44 @@ function dlxLoadPlan() {
 
 function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
+}
+
+// ── REDIMENSIONNEMENT DU PANNEAU MATCHS (splitter) ──────────────────────
+// Une poignée verticale entre la zone du plan et le panneau "Matchs" permet
+// au TO d'ajuster la largeur des deux pour maximiser son espace de travail.
+// La largeur est persistée.
+const DLX_PANEL_W_LS_KEY = 'top8_deluxe_panel_w';
+function dlxInstallResizer() {
+  const resizer = document.getElementById('dlxResizer');
+  const panel   = document.getElementById('dlxSggPanel');
+  if (!resizer || !panel || resizer._dlxBound) return;
+  resizer._dlxBound = true;
+  // Restaure la largeur mémorisée
+  try {
+    const w = parseInt(localStorage.getItem(DLX_PANEL_W_LS_KEY), 10);
+    if (w >= 200 && w <= 900) panel.style.width = w + 'px';
+  } catch (e) {}
+  resizer.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const startX = ev.clientX;
+    const startW = panel.offsetWidth;
+    resizer.classList.add('resizing');
+    document.body.classList.add('dlx-resizing');
+    const onMove = (e) => {
+      let newW = startW - (e.clientX - startX);
+      newW = Math.max(200, Math.min(900, newW));
+      panel.style.width = newW + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      resizer.classList.remove('resizing');
+      document.body.classList.remove('dlx-resizing');
+      try { localStorage.setItem(DLX_PANEL_W_LS_KEY, String(panel.offsetWidth)); } catch (e) {}
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, { once: true });
+  });
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────

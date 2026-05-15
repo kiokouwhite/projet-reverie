@@ -5099,7 +5099,10 @@ canvas { width: 100%; display: block; }
   position: relative;
   /* le canvas grandit avec le contenu → viewport scrollable dans les 2 axes */
   overflow: auto;
-  max-height: 78vh;
+  /* hauteur ajustable par l'utilisateur (poignée en bas à droite) */
+  height: 78vh;
+  min-height: 280px;
+  resize: vertical;
 }
 
 /* ── Connexion start.gg : barre de chargement + panneau matchs ─────────── */
@@ -5120,9 +5123,36 @@ canvas { width: 100%; display: block; }
 .dlx-sgg-status-loading { color: var(--text-soft); }
 .dlx-sgg-status-ok      { color: #2e9e5b; }
 .dlx-sgg-status-error   { color: #d23b78; }
+/* Poignée de redimensionnement entre la zone du plan et le panneau matchs */
+.dlx-resizer {
+  flex: 0 0 8px;
+  align-self: stretch;
+  cursor: ew-resize;
+  position: relative;
+  background: transparent;
+  transition: background 0.15s;
+}
+.dlx-resizer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 36px;
+  border-radius: 2px;
+  background: rgba(155,127,184,0.5);
+}
+.dlx-resizer:hover    { background: rgba(124,92,255,0.10); }
+.dlx-resizer.resizing { background: rgba(124,92,255,0.18); }
+.dlx-resizer.resizing::before { background: #7c5cff; }
+body.dlx-resizing,
+body.dlx-resizing * { cursor: ew-resize !important; user-select: none; }
+
 .dlx-sgg-panel {
   width: 320px;
   flex-shrink: 0;
+  flex-grow: 0;
   background: rgba(255,255,255,0.6);
   border: 2px dashed rgba(155,127,184,0.4);
   border-radius: 16px;
