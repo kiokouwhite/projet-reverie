@@ -5305,9 +5305,9 @@ canvas { width: 100%; display: block; }
 }
 .dlx-report-box {
   background: #fff;
-  border-radius: 16px;
-  width: 420px;
-  max-width: 92vw;
+  border-radius: 18px;
+  width: 840px;
+  max-width: 95vw;
   box-shadow: 0 18px 50px rgba(0,0,0,0.35);
   overflow: hidden;
 }
@@ -5396,11 +5396,11 @@ canvas { width: 100%; display: block; }
 }
 /* Personnages joués game par game */
 .dlx-report-games {
-  padding: 0 18px;
+  padding: 0 24px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 38vh;
+  gap: 8px;
+  max-height: 55vh;
   overflow-y: auto;
 }
 .dlx-report-games-hint {
