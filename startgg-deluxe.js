@@ -80,14 +80,16 @@ const DLX_TYPES = {
 // de la box, le symbole, le mur et le trou sont ainsi parfaitement alignés
 // — quelle que soit la rotation. Le débattement est dessiné dans la moitié
 // haute (= la pièce dans laquelle la porte s'ouvre).
-function dlxDoorSvg(w, h, doorType, color, flip) {
+function dlxDoorSvg(w, h, doorType, color, flip, flipV) {
   const c = color || '#2a2a2a';
   const sw = 2.5;
   const cy = h / 2; // ligne d'ouverture = centre vertical
-  // flip = miroir horizontal → inverse le sens d'ouverture (charnière qui
-  // passe de gauche à droite). Combiné à la rotation, donne les 8 sens.
-  const open = (inner) => flip
-    ? `<g transform="translate(${w},0) scale(-1,1)">${inner}</g>`
+  // flip  = miroir horizontal → charnière gauche ↔ droite
+  // flipV = miroir vertical   → débattement haut ↔ bas (côté du mur)
+  const sx = flip  ? -1 : 1, tx = flip  ? w : 0;
+  const sy = flipV ? -1 : 1, ty = flipV ? h : 0;
+  const open = (inner) => (flip || flipV)
+    ? `<g transform="translate(${tx},${ty}) scale(${sx},${sy})">${inner}</g>`
     : inner;
   if (doorType === 'double') {
     const r = Math.min(w / 2, cy); // chaque battant = moitié de la largeur
@@ -643,7 +645,7 @@ function dlxElementHTML(el) {
     case 'door':
       return `<div class="dlx-el dlx-el-door" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;${rotCss}">
-        ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color, !!el.flip)}
+        ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color, !!el.flip, !!el.flipV)}
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'table':
@@ -1532,11 +1534,11 @@ function dlxSelect(id, additive) {
       doorBtn.textContent = dt === 'simple' ? '🚪 → Double' : '🚪 → Simple';
     }
   }
-  // Bouton "sens d'ouverture" (miroir) — uniquement pour les portes
+  // Boutons "sens d'ouverture" (miroir horizontal / vertical) — portes only
   const flipBtn = document.getElementById('dlxPropsDoorFlip');
-  if (flipBtn) {
-    flipBtn.style.display = s.type === 'door' ? '' : 'none';
-  }
+  if (flipBtn) flipBtn.style.display = s.type === 'door' ? '' : 'none';
+  const flipVBtn = document.getElementById('dlxPropsDoorFlipV');
+  if (flipVBtn) flipVBtn.style.display = s.type === 'door' ? '' : 'none';
   dlxSyncPropsInputs(s);
 }
 
@@ -1559,6 +1561,18 @@ function dlxFlipDoor() {
   if (!s || s.type !== 'door') return;
   dlxPushHistory();
   s.flip = !s.flip;
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(s.id);
+}
+
+// Inverse le débattement d'une porte de haut en bas (miroir vertical).
+function dlxFlipDoorV() {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s || s.type !== 'door') return;
+  dlxPushHistory();
+  s.flipV = !s.flipV;
   dlxSavePlan();
   dlxRender();
   dlxSelect(s.id);
