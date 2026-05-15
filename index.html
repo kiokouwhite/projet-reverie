@@ -867,18 +867,39 @@
         <button type="button" class="btn btn-secondary" onclick="dlxSggRefresh()" title="Recharger les matchs">↻ Rafraîchir</button>
         <span id="dlxSggStatus" class="dlx-sgg-status"></span>
       </div>
-      <div class="dlx-main-row">
-        <div class="dlx-canvas-area">
-          <!-- Bascule Plan / Bracket (haut-gauche du plan) -->
-          <div class="dlx-view-toggle">
-            <button type="button" id="dlxViewMapBtn"     class="active" onclick="dlxSetView('map')">🗺️ Plan</button>
-            <button type="button" id="dlxViewBracketBtn"            onclick="dlxSetView('bracket')">🏆 Bracket</button>
+      <!-- ═══ Fenêtres flottantes (style Windows) ═══════════════════════ -->
+
+      <!-- Fenêtre Plan -->
+      <div class="dlx-win" id="dlxPlanWindow">
+        <div class="dlx-win-titlebar" id="dlxPlanTitlebar">
+          <span class="dlx-win-title">🗺️ Plan</span>
+          <div class="dlx-win-buttons">
+            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxPlanWindow')" title="Réduire / restaurer">−</button>
           </div>
+        </div>
+        <div class="dlx-win-body">
           <div class="dlx-canvas-wrap">
             <div id="dlxCanvas" class="dlx-canvas"></div>
           </div>
-          <!-- Vue Bracket : remplace le plan quand active -->
-          <div id="dlxBracketView" class="dlx-bracket-view" style="display:none;">
+          <div class="dlx-zoom-fab">
+            <button type="button" onclick="dlxZoomBy(1.2)" title="Zoom +">+</button>
+            <button type="button" onclick="dlxZoomReset()" title="Zoom 100%" class="dlx-zoom-reset" id="dlxZoomLabel">100%</button>
+            <button type="button" onclick="dlxZoomBy(1/1.2)" title="Zoom −">−</button>
+          </div>
+          <button type="button" id="dlxModeFab" class="dlx-mode-fab" onclick="dlxToggleMode()" title="Mode tournoi (clic : passer en Édition)">✏️</button>
+        </div>
+      </div>
+
+      <!-- Fenêtre Bracket -->
+      <div class="dlx-win" id="dlxBracketWindow">
+        <div class="dlx-win-titlebar" id="dlxBracketTitlebar">
+          <span class="dlx-win-title">🏆 Bracket</span>
+          <div class="dlx-win-buttons">
+            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxBracketWindow')" title="Réduire / restaurer">−</button>
+          </div>
+        </div>
+        <div class="dlx-win-body">
+          <div id="dlxBracketView" class="dlx-bracket-view">
             <div class="dlx-bracket-chips" id="dlxBracketChips"></div>
             <div class="dlx-bracket-scroll">
               <div id="dlxBracketCanvas" class="dlx-bracket-canvas">
@@ -886,26 +907,20 @@
               </div>
             </div>
           </div>
-          <!-- Zoom (bas-gauche) + bascule mode édition (bas-droite) flottants -->
-          <div class="dlx-zoom-fab">
-            <button type="button" onclick="dlxZoomBy(1.2)" title="Zoom +">+</button>
-            <button type="button" onclick="dlxZoomReset()" title="Zoom 100%" class="dlx-zoom-reset" id="dlxZoomLabel">100%</button>
-            <button type="button" onclick="dlxZoomBy(1/1.2)" title="Zoom −">−</button>
-          </div>
-          <button type="button" id="dlxModeFab" class="dlx-mode-fab" onclick="dlxToggleMode()" title="Mode tournoi (clic : passer en Édition)">✏️</button>
-          <!-- Poignée de redimensionnement vertical (bas) du plan -->
-          <div class="dlx-resizer-bottom" id="dlxResizerBottom" title="Glisse pour ajuster la hauteur"></div>
         </div>
-        <div class="dlx-sgg-panel" id="dlxSggPanel">
-          <!-- Barre de titre : drag-to-move (style fenêtre Windows) -->
-          <div class="dlx-sgg-titlebar" id="dlxSggTitlebar">
-            <span class="dlx-sgg-title">🎮 Matchs</span>
-            <span class="dlx-sgg-grip" title="Glisser pour déplacer la fenêtre">⋮⋮</span>
+      </div>
+
+      <!-- Fenêtre Matchs -->
+      <div class="dlx-win dlx-sgg-panel" id="dlxSggPanel">
+        <div class="dlx-win-titlebar" id="dlxSggTitlebar">
+          <span class="dlx-win-title">🎮 Matchs</span>
+          <div class="dlx-win-buttons">
+            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxSggPanel')" title="Réduire / restaurer">−</button>
           </div>
-          <div class="dlx-sgg-panel-body">
-            <div id="dlxSggMatches" class="dlx-sgg-matches">
-              <p class="dlx-sgg-empty">Charge un tournoi start.gg pour voir les matchs en cours et à venir.</p>
-            </div>
+        </div>
+        <div class="dlx-win-body">
+          <div id="dlxSggMatches" class="dlx-sgg-matches">
+            <p class="dlx-sgg-empty">Charge un tournoi start.gg pour voir les matchs en cours et à venir.</p>
           </div>
         </div>
       </div>

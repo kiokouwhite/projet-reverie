@@ -200,8 +200,7 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
-  dlxInstallPanelDrag();
-  dlxInstallResizerBottom();
+  dlxInstallWindows();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
   // les visuels (FAB, barre d'actions, classes du canvas) avec l'état JS.
@@ -211,11 +210,8 @@ function dlxInit() {
     if (m === 'run' || m === 'edit') savedMode = m;
   } catch (e) {}
   dlxSetMode(savedMode);
-  // Restaure la vue (plan / bracket) mémorisée
-  try {
-    const v = localStorage.getItem(DLX_VIEW_LS_KEY);
-    if (v === 'bracket') dlxSetView('bracket');
-  } catch (e) {}
+  // Note : Plan et Bracket sont maintenant des fenêtres indépendantes,
+  // chacune restaure son état (position/taille/minimisé) via dlxInstallWindow.
   // Restaure le zoom mémorisé
   try {
     const z = parseFloat(localStorage.getItem(DLX_ZOOM_LS_KEY));
@@ -456,76 +452,109 @@ function dlxInstallResizerBottom() {
   });
 }
 
-// ── PANNEAU MATCHS FLOTTANT (drag depuis la barre de titre) ─────────────
-// Le panneau est position:fixed → on peut le poser où on veut sur l'écran.
-// Position et taille persistées dans localStorage.
-const DLX_PANEL_POS_LS_KEY = 'top8_deluxe_panel_pos';
-function dlxInstallPanelDrag() {
-  const panel  = document.getElementById('dlxSggPanel');
-  const handle = document.getElementById('dlxSggTitlebar');
-  if (!panel || !handle || handle._dlxBound) return;
-  handle._dlxBound = true;
-  // Restaure position/taille
+// ── FENÊTRES FLOTTANTES (Plan / Bracket / Matchs) ──────────────────────
+// Une fonction générique gère le drag depuis la barre de titre, le minimize
+// et la persistance de position/taille/état pour chaque fenêtre.
+
+function dlxWinKey(id) { return 'top8_deluxe_win_' + id; }
+
+// Installe le drag + restore l'état pour une fenêtre donnée
+function dlxInstallWindow(windowId) {
+  const win = document.getElementById(windowId);
+  if (!win || win._dlxBound) return;
+  const handle = win.querySelector('.dlx-win-titlebar');
+  if (!handle) return;
+  win._dlxBound = true;
+
+  // Restaure l'état mémorisé (position, taille, minimisé)
   try {
-    const saved = JSON.parse(localStorage.getItem(DLX_PANEL_POS_LS_KEY) || '{}');
+    const saved = JSON.parse(localStorage.getItem(dlxWinKey(windowId)) || '{}');
     if (typeof saved.x === 'number') {
-      panel.style.left = saved.x + 'px';
-      panel.style.right = 'auto';
+      win.style.left = saved.x + 'px';
+      win.style.right = 'auto';
     }
-    if (typeof saved.y === 'number') panel.style.top = saved.y + 'px';
-    if (typeof saved.w === 'number' && saved.w >= 220) panel.style.width  = saved.w + 'px';
-    if (typeof saved.h === 'number' && saved.h >= 180) panel.style.height = saved.h + 'px';
+    if (typeof saved.y === 'number') win.style.top = saved.y + 'px';
+    if (typeof saved.w === 'number' && saved.w >= 220) win.style.width  = saved.w + 'px';
+    if (typeof saved.h === 'number' && saved.h >= 60)  win.style.height = saved.h + 'px';
+    if (saved.minimized) win.classList.add('minimized');
   } catch (e) {}
 
-  // Sauvegarde combinée (position + taille)
   const saveState = () => {
     try {
-      const r = panel.getBoundingClientRect();
-      localStorage.setItem(DLX_PANEL_POS_LS_KEY, JSON.stringify({
+      const r = win.getBoundingClientRect();
+      localStorage.setItem(dlxWinKey(windowId), JSON.stringify({
         x: Math.round(r.left),
         y: Math.round(r.top),
         w: Math.round(r.width),
         h: Math.round(r.height),
+        minimized: win.classList.contains('minimized'),
       }));
     } catch (e) {}
   };
 
-  // Drag depuis la barre de titre
+  // Drag depuis la barre de titre (mais pas sur les boutons)
   handle.addEventListener('mousedown', (ev) => {
     if (ev.button !== 0) return;
+    if (ev.target.closest('.dlx-win-buttons')) return; // les boutons ne draggent pas
     ev.preventDefault();
     const startX = ev.clientX, startY = ev.clientY;
-    const r = panel.getBoundingClientRect();
+    const r = win.getBoundingClientRect();
     const startLeft = r.left, startTop = r.top;
-    panel.style.right = 'auto'; // bascule en mode "left:" pour pouvoir déplacer
-    panel.classList.add('dragging');
+    win.style.right = 'auto'; // bascule en mode "left:"
+    win.classList.add('dragging');
+    // Met cette fenêtre au-dessus pendant le drag
+    win.style.zIndex = '100';
     const onMove = (e) => {
       let nx = startLeft + (e.clientX - startX);
       let ny = startTop  + (e.clientY - startY);
-      // Laisse toujours au moins 60 px visibles dans la fenêtre
+      // Laisse toujours au moins 60 px visibles
       nx = Math.max(60 - r.width, Math.min(window.innerWidth - 60, nx));
       ny = Math.max(0, Math.min(window.innerHeight - 40, ny));
-      panel.style.left = nx + 'px';
-      panel.style.top  = ny + 'px';
+      win.style.left = nx + 'px';
+      win.style.top  = ny + 'px';
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
-      panel.classList.remove('dragging');
+      win.classList.remove('dragging');
+      win.style.zIndex = '';
       saveState();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp, { once: true });
   });
 
-  // Sauvegarde aussi quand l'utilisateur redimensionne la fenêtre (CSS resize)
+  // Clic sur la fenêtre = la passer au-dessus des autres
+  win.addEventListener('mousedown', () => {
+    document.querySelectorAll('.dlx-win').forEach(w => { w.style.zIndex = '80'; });
+    win.style.zIndex = '85';
+  }, true);
+
+  // Sauvegarde aussi sur redimensionnement (CSS resize)
   if (typeof ResizeObserver === 'function') {
     let t = null;
     const obs = new ResizeObserver(() => {
       clearTimeout(t);
       t = setTimeout(saveState, 250);
     });
-    obs.observe(panel);
+    obs.observe(win);
   }
+  // expose pour le toggle
+  win._dlxSaveState = saveState;
+}
+
+// Bascule minimisé / restauré d'une fenêtre
+function dlxToggleMinimize(windowId) {
+  const win = document.getElementById(windowId);
+  if (!win) return;
+  win.classList.toggle('minimized');
+  if (win._dlxSaveState) win._dlxSaveState();
+}
+
+// Installe toutes les fenêtres au boot
+function dlxInstallWindows() {
+  dlxInstallWindow('dlxPlanWindow');
+  dlxInstallWindow('dlxBracketWindow');
+  dlxInstallWindow('dlxSggPanel');
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────
@@ -2257,6 +2286,7 @@ function dlxSggInit() {
   if (saved && dlxSggGetToken()) {
     dlxSgg.slug = saved;
     dlxSggFetch();
+    dlxBracketFetch();
   }
 }
 
@@ -2294,13 +2324,14 @@ function dlxSggLoad() {
   dlxBracket.currentEventId = null;
   dlxBracket.loaded = false;
   dlxSggFetch();
-  if (dlxView === 'bracket') dlxBracketFetch();
+  dlxBracketFetch();
 }
 
 // Recharge les matchs du tournoi déjà chargé
 function dlxSggRefresh() {
   if (!dlxSgg.slug) return dlxSggStatus('error', 'Aucun tournoi chargé.');
   dlxSggFetch();
+  dlxBracketFetch();
 }
 
 const DLX_SGG_QUERY = `
