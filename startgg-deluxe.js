@@ -2901,7 +2901,7 @@ const DLX_BRACKET_EVENT_SETS_QUERY = `
           slots {
             entrant { id name }
             seed { seedNum }
-            prereqType prereqId
+            prereqType prereqId prereqPlacement
           }
         }
       }
@@ -2990,13 +2990,16 @@ function dlxBracketCardClick(setId) {
   if (liveSet) dlxSggOpenReport(setId);
 }
 
-// Génère le placeholder d'un slot encore vide ("winner of A", "Seed 4", …)
+// Génère le placeholder d'un slot encore vide. prereqPlacement = 2 signifie
+// que le slot attend le PERDANT du set précédent (dropper losers bracket),
+// sinon c'est le gagnant.
 function dlxBracketPlaceholder(slot, setById) {
   if (!slot) return 'TBD';
   if (slot.prereqType === 'set' && slot.prereqId) {
     const pre = setById[slot.prereqId];
-    if (pre && pre.identifier) return 'winner of ' + pre.identifier;
-    return 'winner of ?';
+    const verb = slot.prereqPlacement === 2 ? 'loser of' : 'winner of';
+    if (pre && pre.identifier) return verb + ' ' + pre.identifier;
+    return verb + ' ?';
   }
   if (slot.prereqType === 'seed' && slot.seed && slot.seed.seedNum != null) {
     return 'Seed ' + slot.seed.seedNum;
@@ -3217,20 +3220,23 @@ function dlxBracketLayout(sets) {
   };
   const headers = [];
   const seenW = {}, seenL = {};
+  // Préférence : on utilise le label EXACT de start.gg (fullRoundText) qui
+  // gère correctement les rounds losers à numérotation non séquentielle,
+  // sinon on retombe sur notre heuristique.
   allCards.forEach(c => {
     if (c.round > 0) {
       if (seenW[c.x]) return;
       seenW[c.x] = true;
       headers.push({
         x: c.x, y: SECTION_TITLE_H, side: 'W',
-        label: labelFor('W', c.roundAbs, maxWRound),
+        label: c.fullRoundText || labelFor('W', c.roundAbs, maxWRound),
       });
     } else if (c.round < 0) {
       if (seenL[c.x]) return;
       seenL[c.x] = true;
       headers.push({
         x: c.x, y: losersOffsetY + SECTION_TITLE_H, side: 'L',
-        label: labelFor('L', c.roundAbs, maxLRound),
+        label: c.fullRoundText || labelFor('L', c.roundAbs, maxLRound),
       });
     }
   });
