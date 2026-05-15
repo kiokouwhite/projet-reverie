@@ -3124,13 +3124,19 @@ function dlxBracketLayout(sets) {
   // Phase 3b : anti-chevauchement Losers
   fixOverlaps(allCards.filter(c => c.round < 0));
 
-  // Lignes de connexion (prereqs → carte)
+  // Lignes de connexion (prereqs → carte). On SKIP les liaisons cross-side
+  // (winners → losers, "droppers") : elles encombrent visuellement plus
+  // qu'elles n'aident à comprendre la structure du bracket.
   const lines = [];
   allCards.forEach(card => {
     card.prereqs.forEach((preId, slotIdx) => {
       if (!preId) return;
       const pre = cardById[preId];
       if (!pre) return;
+      // Skip cross-side : on ne dessine la ligne que si prereq et carte
+      // sont du même côté (winners↔winners ou losers↔losers).
+      const sameSide = (card.round > 0 ? pre.round > 0 : pre.round < 0);
+      if (!sameSide) return;
       const x1 = pre.x + CARD_W;
       const y1 = pre.y + CARD_H / 2;
       const x2 = card.x;
