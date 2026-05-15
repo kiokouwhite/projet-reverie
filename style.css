@@ -5854,6 +5854,44 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   stroke: rgba(124,92,255,0.5);
   stroke-width: 1.5;
 }
+/* En-tête de colonne ("Winners Round 1", "Losers Round 2"…) */
+.dlx-br-col-header {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  padding: 0 4px;
+}
+.dlx-br-col-header-W { color: #4a3a8a; }
+.dlx-br-col-header-L { color: #8a3a3a; }
+
+/* Bandeau de séparation entre Winners et Losers brackets */
+.dlx-br-section-divider {
+  position: absolute;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(to right, rgba(124,92,255,0.15), rgba(232,90,138,0.55), rgba(124,92,255,0.15));
+  z-index: 1;
+}
+.dlx-br-section-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #8a3a3a;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  white-space: nowrap;
+}
+
 .dlx-br-card {
   position: absolute;
   background: #fff;

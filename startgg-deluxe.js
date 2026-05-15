@@ -3007,7 +3007,9 @@ function dlxBracketMakeCard(s, setById) {
 //     colonne se recouvrent, on pousse la suivante vers le bas
 function dlxBracketLayout(sets) {
   const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
-  const MIN_VGAP = 8; // marge minimale verticale entre deux cartes d'une même colonne
+  const MIN_VGAP = 8;       // marge minimale verticale entre cartes d'une même colonne
+  const HEADER_H = 36;      // hauteur réservée pour les en-têtes de colonne ("Winners Round 1"…)
+  const SECTION_GAP = 90;   // espace entre la section Winners et la section Losers
   const setById = {};
   sets.forEach(s => { setById[s.id] = s; });
 
@@ -3077,12 +3079,16 @@ function dlxBracketLayout(sets) {
       }
     });
   }
-  layoutY(winners, 0);
+  // Décale les winners de HEADER_H pour laisser la place à l'en-tête de colonne
+  layoutY(winners, HEADER_H);
   const winnersHeight = allCards
     .filter(c => c.round > 0)
-    .reduce((m, c) => Math.max(m, (c.y || 0) + CARD_H), 0);
-  const losersOffsetY = winnersHeight ? winnersHeight + 70 : 0;
-  layoutY(losers, losersOffsetY);
+    .reduce((m, c) => Math.max(m, (c.y || 0) + CARD_H), HEADER_H);
+  // Y de DÉBUT de la section losers (ligne de démarcation), losers cards
+  // commencent à losersOffsetY + HEADER_H pour laisser place à leur en-tête.
+  const losersOffsetY = winnersHeight + SECTION_GAP;
+  const hasLosers = losers.length > 0;
+  layoutY(losers, hasLosers ? losersOffsetY + HEADER_H : 0);
 
   // Phase 3 : anti-chevauchement par colonne (x) — pousse les cartes qui se
   // recouvrent verticalement vers le bas. Préserve les cartes du même round
@@ -3112,9 +3118,30 @@ function dlxBracketLayout(sets) {
       lines.push(`M ${x1} ${y1} L ${xm} ${y1} L ${xm} ${y2} L ${x2} ${y2}`);
     });
   });
+
+  // En-têtes de colonne (un par round visible, par côté)
+  const headers = [];
+  const seenW = {}, seenL = {};
+  allCards.forEach(c => {
+    if (c.round > 0) {
+      if (seenW[c.x]) return;
+      seenW[c.x] = true;
+      headers.push({ x: c.x, y: 0, side: 'W', label: 'Winners Round ' + c.roundAbs });
+    } else if (c.round < 0) {
+      if (seenL[c.x]) return;
+      seenL[c.x] = true;
+      headers.push({ x: c.x, y: losersOffsetY, side: 'L', label: 'Losers Round ' + c.roundAbs });
+    }
+  });
+
   const width  = allCards.length ? Math.max(...allCards.map(c => c.x + CARD_W)) + 20 : 0;
   const height = allCards.length ? Math.max(...allCards.map(c => c.y + CARD_H)) + 20 : 0;
-  return { cards: allCards, lines, width, height, CARD_W, CARD_H };
+  return {
+    cards: allCards, lines, headers,
+    width, height,
+    CARD_W, CARD_H, HEADER_H,
+    hasLosers, losersOffsetY, winnersHeight,
+  };
 }
 
 function dlxBracketRender() {
@@ -3144,6 +3171,20 @@ function dlxBracketRender() {
   const linesSvg = `<svg class="dlx-bracket-lines" width="${layout.width}" height="${layout.height}">
     ${layout.lines.map(d => `<path d="${d}" />`).join('')}
   </svg>`;
+  // En-têtes de colonne (Winners Round N / Losers Round N)
+  const headersHtml = layout.headers.map(h => `
+    <div class="dlx-br-col-header dlx-br-col-header-${h.side}"
+      style="left:${h.x}px;top:${h.y}px;width:${layout.CARD_W}px;height:${layout.HEADER_H}px;">
+      ${dlxSggEsc(h.label)}
+    </div>`).join('');
+  // Ligne / bandeau de séparation entre Winners et Losers
+  let dividerHtml = '';
+  if (layout.hasLosers) {
+    const dividerY = layout.winnersHeight + 20;
+    dividerHtml = `<div class="dlx-br-section-divider" style="top:${dividerY}px;width:${layout.width}px;">
+      <span class="dlx-br-section-label">🟢 Losers Bracket</span>
+    </div>`;
+  }
   const cardsHtml = layout.cards.map(c => {
     const stateBadge = c.state === 2 ? '<span class="dlx-br-state live">⏵</span>'
                      : c.state === 6 ? '<span class="dlx-br-state called">📣</span>' : '';
@@ -3164,7 +3205,7 @@ function dlxBracketRender() {
   }).join('');
   canvasEl.style.width  = layout.width  + 'px';
   canvasEl.style.height = layout.height + 'px';
-  canvasEl.innerHTML = linesSvg + cardsHtml;
+  canvasEl.innerHTML = linesSvg + dividerHtml + headersHtml + cardsHtml;
 }
 
 // Rebascule sur le bracket à chaque fetch start.gg (pour recharger en cas
