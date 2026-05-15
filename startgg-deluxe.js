@@ -691,11 +691,28 @@ function dlxElementHTML(el) {
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'station':
-    default:
-      return `<div class="dlx-el dlx-el-station" data-id="${el.id}"
-        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};${rotCss}">
-        <div class="dlx-el-station-label">${safeLabel}</div>
+    default: {
+      // Un setup peut recevoir un match start.gg par glisser-déposer.
+      // S'il en a un (el.match), on affiche les joueurs + un ✕ pour le retirer.
+      let inner;
+      if (el.match) {
+        const esc = dlxSggEsc;
+        inner = `<div class="dlx-el-station-num">${safeLabel}</div>
+          <div class="dlx-el-match">
+            <div class="dlx-el-match-p">${esc(el.match.p1 || 'TBD')}</div>
+            <div class="dlx-el-match-vs">vs</div>
+            <div class="dlx-el-match-p">${esc(el.match.p2 || 'TBD')}</div>
+          </div>
+          <button class="dlx-el-match-x" onclick="dlxUnassignMatch('${el.id}')" title="Retirer le match">✕</button>`;
+      } else {
+        inner = `<div class="dlx-el-station-label">${safeLabel}</div>`;
+      }
+      return `<div class="dlx-el dlx-el-station${el.match ? ' dlx-el-has-match' : ''}" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};${rotCss}"
+        ondragover="dlxMatchDragOver(event)" ondragleave="dlxMatchDragLeave(event)" ondrop="dlxMatchDrop(event,'${el.id}')">
+        ${inner}
         ${removeBtn}${resizeHandle}</div>`;
+    }
   }
 }
 
@@ -1021,6 +1038,7 @@ function dlxOnElMouseDown(ev) {
   if (ev.target.classList.contains('dlx-el-remove')) return;
   if (ev.target.classList.contains('dlx-el-resize')) return;
   if (ev.target.classList.contains('dlx-el-handle')) return;
+  if (ev.target.classList.contains('dlx-el-match-x')) return;
   if (dlxMode !== 'edit') return;
   const el = ev.currentTarget;
   const id = el.dataset.id;
@@ -1968,6 +1986,19 @@ async function dlxSggFetch() {
       });
     });
     dlxSgg.sets = sets;
+    // Rafraîchit le snapshot des matchs déjà placés sur des setups
+    let assignedChanged = false;
+    dlxPlan.elements.forEach(el => {
+      if (!el.match) return;
+      const fresh = sets.find(s => String(s.id) === String(el.match.setId));
+      if (fresh) {
+        el.match.p1 = fresh.p1; el.match.p2 = fresh.p2;
+        el.match.round = fresh.round; el.match.state = fresh.state;
+        el.match.eventName = fresh.eventName;
+        assignedChanged = true;
+      }
+    });
+    if (assignedChanged) { dlxSavePlan(); dlxRender(); }
     dlxSggStatus('ok', `${t.name} — ${sets.length} match(s)`);
     dlxSggRenderPanel();
   } catch (e) {
@@ -2024,7 +2055,14 @@ function dlxSggRenderPanel() {
       </div>
       ${g.sets.map(s => {
         const st = dlxSggStateInfo(s.state);
-        return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}">
+        // Setup du plan auquel ce match est déjà assigné (glisser-déposer)
+        const assignedEl = dlxFindElementByMatchSetId(s.id);
+        const assignedCls = assignedEl ? ' dlx-sgg-set-assigned' : '';
+        return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}${assignedCls}"
+          draggable="true" data-set-id="${dlxSggEsc(s.id)}"
+          ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
+          ondragend="dlxSggSetDragEnd(event)"
+          title="Glisse ce match sur un setup du plan">
           <div class="dlx-sgg-set-head">
             <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
             <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
@@ -2034,9 +2072,11 @@ function dlxSggRenderPanel() {
             <span class="dlx-sgg-vs">vs</span>
             <span class="dlx-sgg-player">${dlxSggEsc(s.p2 || 'TBD')}</span>
           </div>
-          ${s.stationNumber != null
-            ? `<div class="dlx-sgg-set-station">🎮 Setup ${dlxSggEsc(s.stationNumber)}</div>`
-            : ''}
+          ${assignedEl
+            ? `<div class="dlx-sgg-set-station dlx-sgg-set-assigned-tag">📍 Placé sur « ${dlxSggEsc(assignedEl.label || assignedEl.id)} »</div>`
+            : (s.stationNumber != null
+                ? `<div class="dlx-sgg-set-station">🎮 Setup ${dlxSggEsc(s.stationNumber)}</div>`
+                : '')}
         </div>`;
       }).join('')}
     </div>`).join('');
@@ -2046,4 +2086,83 @@ function dlxSggEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+// ── GLISSER-DÉPOSER : assigner un match start.gg à un setup du plan ──────
+let _dlxSggDragSet = null; // set start.gg en cours de drag depuis le panneau
+
+// Retourne l'élément du plan auquel un set est assigné (ou null)
+function dlxFindElementByMatchSetId(setId) {
+  return dlxPlan.elements.find(e => e.match && String(e.match.setId) === String(setId)) || null;
+}
+
+function dlxSggSetDragStart(ev, setId) {
+  _dlxSggDragSet = dlxSgg.sets.find(s => String(s.id) === String(setId)) || null;
+  if (ev.dataTransfer) {
+    ev.dataTransfer.effectAllowed = 'copy';
+    try { ev.dataTransfer.setData('text/plain', 'dlxset:' + setId); } catch (e) {}
+  }
+  ev.currentTarget.classList.add('dlx-sgg-set-dragging');
+}
+
+function dlxSggSetDragEnd(ev) {
+  ev.currentTarget.classList.remove('dlx-sgg-set-dragging');
+  document.querySelectorAll('.dlx-el-station.dlx-drop-hover')
+    .forEach(el => el.classList.remove('dlx-drop-hover'));
+  _dlxSggDragSet = null;
+}
+
+function dlxMatchDragOver(ev) {
+  if (!_dlxSggDragSet) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+  ev.currentTarget.classList.add('dlx-drop-hover');
+}
+
+function dlxMatchDragLeave(ev) {
+  if (ev.currentTarget.contains(ev.relatedTarget)) return;
+  ev.currentTarget.classList.remove('dlx-drop-hover');
+}
+
+function dlxMatchDrop(ev, elId) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('dlx-drop-hover');
+  const set = _dlxSggDragSet;
+  _dlxSggDragSet = null;
+  if (!set) return;
+  dlxAssignMatch(elId, set);
+}
+
+// Assigne un match (set start.gg) à un élément du plan. Un même match ne
+// peut être que sur UN seul setup : on le retire d'abord de tout autre.
+function dlxAssignMatch(elId, set) {
+  const el = dlxPlan.elements.find(x => x.id === elId);
+  if (!el) return;
+  dlxPushHistory();
+  // Retire ce set de tout autre élément qui l'aurait déjà
+  dlxPlan.elements.forEach(e => {
+    if (e !== el && e.match && String(e.match.setId) === String(set.id)) {
+      delete e.match;
+    }
+  });
+  el.match = {
+    setId: set.id,
+    p1: set.p1, p2: set.p2,
+    round: set.round, eventName: set.eventName,
+    state: set.state,
+  };
+  dlxSavePlan();
+  dlxRender();
+  dlxSggRenderPanel();
+}
+
+// Retire le match assigné à un élément
+function dlxUnassignMatch(elId) {
+  const el = dlxPlan.elements.find(x => x.id === elId);
+  if (!el || !el.match) return;
+  dlxPushHistory();
+  delete el.match;
+  dlxSavePlan();
+  dlxRender();
+  dlxSggRenderPanel();
 }

@@ -5219,6 +5219,79 @@ canvas { width: 100%; display: block; }
   font-weight: 700;
   color: #2e9e5b;
 }
+/* Carte match : glissable vers un setup du plan */
+.dlx-sgg-set { cursor: grab; }
+.dlx-sgg-set:active { cursor: grabbing; }
+.dlx-sgg-set-dragging { opacity: 0.5; }
+.dlx-sgg-set-assigned { box-shadow: inset 0 0 0 1px #2e9e5b; }
+.dlx-sgg-set-assigned-tag { color: #7c5cff; }
+
+/* Setup ayant reçu un match (glisser-déposer depuis le panneau) */
+.dlx-el-has-match {
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.dlx-el-station-num {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-soft);
+  pointer-events: none;
+}
+.dlx-el-match {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.dlx-el-match-p {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-el-match-vs {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+.dlx-el-match-x {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(200,59,120,0.3);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  z-index: 1000;
+}
+.dlx-el-match-x:hover { background: rgba(200,59,120,0.75); }
+/* Cible de drop survolée par un match */
+.dlx-el-station.dlx-drop-hover {
+  outline: 3px dashed #7c5cff;
+  outline-offset: 2px;
+  background: rgba(124,92,255,0.12) !important;
+}
 .dlx-canvas {
   position: relative;
   width: 600px;
