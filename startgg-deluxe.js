@@ -2406,6 +2406,18 @@ function dlxSggToggleReadyOnly(checked) {
   dlxSggRenderPanel();
 }
 
+// Event sélectionné dans le panneau Matchs : tous les matchs de cet event
+// sont affichés (et SEULS ceux-là). Switch par clic sur un chip en haut.
+const DLX_SGG_EVENT_LS_KEY = 'top8_deluxe_sgg_event';
+let _dlxSggCurrentEventName = null;
+try { _dlxSggCurrentEventName = localStorage.getItem(DLX_SGG_EVENT_LS_KEY) || null; } catch (e) {}
+
+function dlxSggSwitchEvent(name) {
+  _dlxSggCurrentEventName = name;
+  try { localStorage.setItem(DLX_SGG_EVENT_LS_KEY, name || ''); } catch (e) {}
+  dlxSggRenderPanel();
+}
+
 function dlxSggInit() {
   const saved = localStorage.getItem(DLX_SGG_LS_KEY) || '';
   const input = document.getElementById('dlxSggUrl');
@@ -2564,71 +2576,85 @@ function dlxSggStateInfo(state) {
 function dlxSggRenderPanel() {
   const wrap = document.getElementById('dlxSggMatches');
   if (!wrap) return;
-  // Barre de filtre toujours visible en tête du panneau
+  // Barre de filtre "ready only" toujours visible en tête
   const filterHtml = `<label class="dlx-sgg-filter">
     <input type="checkbox" ${_dlxSggReadyOnly ? 'checked' : ''}
       onchange="dlxSggToggleReadyOnly(this.checked)">
     <span>N'afficher que les matchs prêts à lancer</span>
   </label>`;
+
+  // Liste unique des events (préserve l'ordre d'apparition)
+  const eventsMap = {};
+  const eventsList = [];
+  dlxSgg.sets.forEach(s => {
+    if (!eventsMap[s.eventName]) {
+      eventsMap[s.eventName] = { name: s.eventName, gameImg: s.gameImg };
+      eventsList.push(eventsMap[s.eventName]);
+    }
+  });
+  // Default à l'event courant s'il existe, sinon le premier
+  if (!_dlxSggCurrentEventName || !eventsMap[_dlxSggCurrentEventName]) {
+    _dlxSggCurrentEventName = eventsList[0] ? eventsList[0].name : null;
+  }
+  // Chips de switch d'event (style identique au bracket)
+  const chipsHtml = `<div class="dlx-sgg-event-chips">
+    ${eventsList.map(ev =>
+      `<button class="dlx-sgg-event-chip${ev.name === _dlxSggCurrentEventName ? ' active' : ''}"
+         onclick="dlxSggSwitchEvent('${dlxSggEsc(ev.name).replace(/'/g, "\\'")}')"
+         title="${dlxSggEsc(ev.name)}">
+         ${ev.gameImg ? `<img src="${dlxSggEsc(ev.gameImg)}" alt="">` : ''}
+         <span>${dlxSggEsc(ev.name)}</span>
+       </button>`).join('')}
+  </div>`;
+
   if (!dlxSgg.sets.length) {
-    wrap.innerHTML = filterHtml + '<p class="dlx-sgg-empty">Aucun match en cours ou à venir.</p>';
+    wrap.innerHTML = filterHtml + chipsHtml + '<p class="dlx-sgg-empty">Aucun match en cours ou à venir.</p>';
     return;
   }
   // Tri : en cours (2) puis appelés (6) puis à venir (1)
   const rank = s => (s.state === 2 ? 0 : s.state === 6 ? 1 : 2);
-  // Filtre : seulement les matchs avec les 2 joueurs déterminés si l'option l'exige
-  const base = _dlxSggReadyOnly
+  // Filtres : ready-only + event courant
+  let base = _dlxSggReadyOnly
     ? dlxSgg.sets.filter(s => !!s.p1Id && !!s.p2Id)
     : dlxSgg.sets;
+  if (_dlxSggCurrentEventName) {
+    base = base.filter(s => s.eventName === _dlxSggCurrentEventName);
+  }
   if (!base.length) {
-    wrap.innerHTML = filterHtml + '<p class="dlx-sgg-empty">Aucun match prêt à lancer pour le moment.</p>';
+    wrap.innerHTML = filterHtml + chipsHtml +
+      '<p class="dlx-sgg-empty">Aucun match prêt à lancer dans cet event.</p>';
     return;
   }
   const ordered = base.slice().sort((a, b) => rank(a) - rank(b));
-  // Groupe par event (dans l'ordre d'apparition)
-  const groups = [];
-  const byName = {};
-  ordered.forEach(s => {
-    if (!byName[s.eventName]) {
-      byName[s.eventName] = { name: s.eventName, gameImg: s.gameImg, sets: [] };
-      groups.push(byName[s.eventName]);
-    }
-    byName[s.eventName].sets.push(s);
-  });
-  wrap.innerHTML = filterHtml + groups.map(g => `
-    <div class="dlx-sgg-event-group">
-      <div class="dlx-sgg-event-name">
-        ${g.gameImg ? `<img src="${dlxSggEsc(g.gameImg)}" alt="" class="dlx-sgg-event-img">` : ''}
-        <span>${dlxSggEsc(g.name)}</span>
+  // Plus de groupement par event : l'event courant est sélectionné via les
+  // chips → on liste les matchs directement.
+  const setsHtml = ordered.map(s => {
+    const st = dlxSggStateInfo(s.state);
+    const assignedEl = dlxFindElementByMatchSetId(s.id);
+    const assignedCls = assignedEl ? ' dlx-sgg-set-assigned' : '';
+    return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}${assignedCls}"
+      draggable="true" data-set-id="${dlxSggEsc(s.id)}"
+      ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
+      ondragend="dlxSggSetDragEnd(event)"
+      onclick="dlxSggOpenReport('${dlxSggEsc(s.id)}')"
+      title="Clic : reporter le score · Glisser : placer sur un setup">
+      <div class="dlx-sgg-set-head">
+        <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
+        <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
       </div>
-      ${g.sets.map(s => {
-        const st = dlxSggStateInfo(s.state);
-        // Setup du plan auquel ce match est déjà assigné (glisser-déposer)
-        const assignedEl = dlxFindElementByMatchSetId(s.id);
-        const assignedCls = assignedEl ? ' dlx-sgg-set-assigned' : '';
-        return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}${assignedCls}"
-          draggable="true" data-set-id="${dlxSggEsc(s.id)}"
-          ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
-          ondragend="dlxSggSetDragEnd(event)"
-          onclick="dlxSggOpenReport('${dlxSggEsc(s.id)}')"
-          title="Clic : reporter le score · Glisser : placer sur un setup">
-          <div class="dlx-sgg-set-head">
-            <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
-            <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
-          </div>
-          <div class="dlx-sgg-set-players">
-            <span class="dlx-sgg-player">${dlxSggEsc(s.p1 || 'TBD')}</span>
-            <span class="dlx-sgg-vs">vs</span>
-            <span class="dlx-sgg-player">${dlxSggEsc(s.p2 || 'TBD')}</span>
-          </div>
-          ${assignedEl
-            ? `<div class="dlx-sgg-set-station dlx-sgg-set-assigned-tag">📍 Placé sur « ${dlxSggEsc(assignedEl.label || assignedEl.id)} »</div>`
-            : (s.stationNumber != null
-                ? `<div class="dlx-sgg-set-station">🎮 Setup ${dlxSggEsc(s.stationNumber)}</div>`
-                : '')}
-        </div>`;
-      }).join('')}
-    </div>`).join('');
+      <div class="dlx-sgg-set-players">
+        <span class="dlx-sgg-player">${dlxSggEsc(s.p1 || 'TBD')}</span>
+        <span class="dlx-sgg-vs">vs</span>
+        <span class="dlx-sgg-player">${dlxSggEsc(s.p2 || 'TBD')}</span>
+      </div>
+      ${assignedEl
+        ? `<div class="dlx-sgg-set-station dlx-sgg-set-assigned-tag">📍 Placé sur « ${dlxSggEsc(assignedEl.label || assignedEl.id)} »</div>`
+        : (s.stationNumber != null
+            ? `<div class="dlx-sgg-set-station">🎮 Setup ${dlxSggEsc(s.stationNumber)}</div>`
+            : '')}
+    </div>`;
+  }).join('');
+  wrap.innerHTML = filterHtml + chipsHtml + setsHtml;
 }
 
 function dlxSggEsc(s) {

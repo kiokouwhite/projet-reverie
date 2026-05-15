@@ -5349,6 +5349,48 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 }
 .dlx-sgg-filter input { cursor: pointer; accent-color: #7c5cff; }
 .dlx-sgg-filter:hover { background: rgba(124,92,255,0.12); }
+
+/* Chips de switch d'event en haut du panneau Matchs */
+.dlx-sgg-event-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.dlx-sgg-event-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.dlx-sgg-event-chip:hover { background: #f4f0fa; }
+.dlx-sgg-event-chip.active {
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  border-color: transparent;
+}
+.dlx-sgg-event-chip img {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.dlx-sgg-event-chip span {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .dlx-sgg-event-group { margin-bottom: 14px; }
 .dlx-sgg-event-name {
   display: flex;
