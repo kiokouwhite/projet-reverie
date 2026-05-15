@@ -1039,11 +1039,20 @@ function dlxOnElMouseDown(ev) {
   if (ev.target.classList.contains('dlx-el-resize')) return;
   if (ev.target.classList.contains('dlx-el-handle')) return;
   if (ev.target.classList.contains('dlx-el-match-x')) return;
-  if (dlxMode !== 'edit') return;
   const el = ev.currentTarget;
   const id = el.dataset.id;
   const s = dlxPlan.elements.find(x => x.id === id);
   if (!s) return;
+
+  // Mode Tournoi (lecture seule) : un clic sur un setup portant un match
+  // ouvre directement la modale de report de score.
+  if (dlxMode !== 'edit') {
+    if (s.type === 'station' && s.match) {
+      ev.preventDefault();
+      dlxSggOpenReportForElement(id);
+    }
+    return;
+  }
   ev.preventDefault();
 
   // Shift+clic = ajoute/retire l'élément de la multi-sélection (pas de drag)
@@ -1077,10 +1086,17 @@ function dlxOnElMouseDown(ev) {
     // translater du même delta que la box pendant le déplacement.
     origPoints: Array.isArray(s.points) ? s.points.map(p => ({ x: p.x, y: p.y })) : null,
   };
+  // Setup portant un match : si le mousedown se termine sans déplacement
+  // (= un simple clic), on ouvrira la modale de report (cf. dlxOnDragEnd).
+  _dlxClickCandidateId = (s.type === 'station' && s.match) ? id : null;
   document.addEventListener('mousemove', dlxOnDragMove);
   document.addEventListener('mouseup',   dlxOnDragEnd, { once: true });
   el.classList.add('dragging');
 }
+
+// Setup-avec-match cliqué : id retenu tant que le mousedown n'a pas bougé.
+// Si le drag dépasse un petit seuil, on l'annule (c'était un déplacement).
+let _dlxClickCandidateId = null;
 
 // Construit l'état de départ d'un drag de groupe : positions d'origine de
 // chaque élément sélectionné + bornes de décalage (dx/dy) pour que tout le
@@ -1176,6 +1192,10 @@ function dlxOnDragMove(ev) {
   if (!s) return;
   let dx = ev.clientX - _dlxDrag.startX;
   let dy = ev.clientY - _dlxDrag.startY;
+  // Le mouvement dépasse le seuil → ce n'était pas un simple clic
+  if (_dlxClickCandidateId && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+    _dlxClickCandidateId = null;
+  }
   // Shift maintenu = snap au mouvement axial (horizontal OU vertical seulement,
   // selon la direction dominante du drag). Utile pour étirer un mur sans
   // créer d'angle non voulu, ou aligner une station horizontalement.
@@ -1391,6 +1411,12 @@ function dlxOnDragEnd() {
   // (portes, découpe des murs) et ré-applique le highlight de sélection.
   dlxRender();
   dlxApplySelectionClasses();
+  // Clic simple (sans déplacement) sur un setup portant un match → report
+  if (_dlxClickCandidateId) {
+    const cid = _dlxClickCandidateId;
+    _dlxClickCandidateId = null;
+    dlxSggOpenReportForElement(cid);
+  }
 }
 
 // ── PUSH DES ZONES (rooms) ─────────────────────────────────────────────────
@@ -2216,6 +2242,19 @@ function dlxSggCloseReport() {
   _dlxReportSetId = null;
   const modal = document.getElementById('dlxReportModal');
   if (modal) modal.style.display = 'none';
+}
+
+// Ouvre la modale de report pour le match assigné à un élément du plan.
+// Le set complet (avec les IDs des joueurs) est cherché dans dlxSgg.sets.
+function dlxSggOpenReportForElement(elId) {
+  const el = dlxPlan.elements.find(x => x.id === elId);
+  if (!el || !el.match) return;
+  const set = dlxSgg.sets.find(s => String(s.id) === String(el.match.setId));
+  if (!set) {
+    alert('Recharge le tournoi start.gg (↻ Rafraîchir) pour pouvoir reporter ce match.');
+    return;
+  }
+  dlxSggOpenReport(set.id);
 }
 
 // Boutons +/- d'incrément de score
