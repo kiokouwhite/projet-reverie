@@ -39,7 +39,7 @@ const DLX_ZOOM_MIN = 0.25;
 const DLX_ZOOM_MAX = 3;
 let _dlxZoom = 1;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
-let dlxMode = 'edit'; // 'edit' | 'run'
+let dlxMode = 'run'; // 'edit' | 'run' — par défaut on est en mode lecture (Tournoi)
 let dlxInitDone = false;
 let dlxAddType = 'station'; // type sélectionné pour le bouton "+ Ajouter"
 let dlxSelectedId = null;   // élément "primaire" sélectionné (pilote le panneau de props)
@@ -200,12 +200,15 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
-  // Restaure le mode (édition / tournoi) mémorisé — important pour que la
-  // barre d'actions d'édition reste cachée si on était en Tournoi avant.
+  // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
+  // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
+  // les visuels (FAB, barre d'actions, classes du canvas) avec l'état JS.
+  let savedMode = 'run';
   try {
     const m = localStorage.getItem(DLX_MODE_LS_KEY);
-    if (m === 'run' || m === 'edit') dlxSetMode(m);
+    if (m === 'run' || m === 'edit') savedMode = m;
   } catch (e) {}
+  dlxSetMode(savedMode);
   // Restaure la vue (plan / bracket) mémorisée
   try {
     const v = localStorage.getItem(DLX_VIEW_LS_KEY);
