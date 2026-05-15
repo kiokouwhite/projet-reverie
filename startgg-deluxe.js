@@ -80,10 +80,15 @@ const DLX_TYPES = {
 // de la box, le symbole, le mur et le trou sont ainsi parfaitement alignés
 // — quelle que soit la rotation. Le débattement est dessiné dans la moitié
 // haute (= la pièce dans laquelle la porte s'ouvre).
-function dlxDoorSvg(w, h, doorType, color) {
+function dlxDoorSvg(w, h, doorType, color, flip) {
   const c = color || '#2a2a2a';
   const sw = 2.5;
   const cy = h / 2; // ligne d'ouverture = centre vertical
+  // flip = miroir horizontal → inverse le sens d'ouverture (charnière qui
+  // passe de gauche à droite). Combiné à la rotation, donne les 8 sens.
+  const open = (inner) => flip
+    ? `<g transform="translate(${w},0) scale(-1,1)">${inner}</g>`
+    : inner;
   if (doorType === 'double') {
     const r = Math.min(w / 2, cy); // chaque battant = moitié de la largeur
     // Battant gauche : charnière en (0, cy), ouvre vers le haut
@@ -93,7 +98,7 @@ function dlxDoorSvg(w, h, doorType, color) {
     const rightLeaf = `<line x1="${w}" y1="${cy}" x2="${w}" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
     const rightArc  = `<path d="M ${w} ${cy - r} A ${r} ${r} 0 0 0 ${w - r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
     return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
-      ${leftLeaf}${leftArc}${rightLeaf}${rightArc}</svg>`;
+      ${open(`${leftLeaf}${leftArc}${rightLeaf}${rightArc}`)}</svg>`;
   }
   // Porte simple : charnière en (0, cy), battant vertical vers le haut,
   // arc jusqu'au bord droit du débattement.
@@ -101,7 +106,7 @@ function dlxDoorSvg(w, h, doorType, color) {
   const leaf = `<line x1="0" y1="${cy}" x2="0" y2="${cy - r}" stroke="${c}" stroke-width="${sw}" />`;
   const arc  = `<path d="M 0 ${cy - r} A ${r} ${r} 0 0 1 ${r} ${cy}" stroke="${c}" stroke-width="${sw}" fill="none" />`;
   return `<svg class="dlx-door-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible;">
-    ${leaf}${arc}</svg>`;
+    ${open(`${leaf}${arc}`)}</svg>`;
 }
 
 // Plan par défaut basé sur le venue de l'asso (Projet Reverie).
@@ -638,7 +643,7 @@ function dlxElementHTML(el) {
     case 'door':
       return `<div class="dlx-el dlx-el-door" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;${rotCss}">
-        ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color)}
+        ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color, !!el.flip)}
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'table':
@@ -1527,6 +1532,11 @@ function dlxSelect(id, additive) {
       doorBtn.textContent = dt === 'simple' ? '🚪 → Double' : '🚪 → Simple';
     }
   }
+  // Bouton "sens d'ouverture" (miroir) — uniquement pour les portes
+  const flipBtn = document.getElementById('dlxPropsDoorFlip');
+  if (flipBtn) {
+    flipBtn.style.display = s.type === 'door' ? '' : 'none';
+  }
   dlxSyncPropsInputs(s);
 }
 
@@ -1537,6 +1547,18 @@ function dlxToggleDoorType() {
   if (!s || s.type !== 'door') return;
   dlxPushHistory();
   s.doorType = (s.doorType === 'double') ? 'simple' : 'double';
+  dlxSavePlan();
+  dlxRender();
+  dlxSelect(s.id);
+}
+
+// Inverse le sens d'ouverture d'une porte (miroir horizontal du battant).
+function dlxFlipDoor() {
+  if (!dlxSelectedId) return;
+  const s = dlxPlan.elements.find(x => x.id === dlxSelectedId);
+  if (!s || s.type !== 'door') return;
+  dlxPushHistory();
+  s.flip = !s.flip;
   dlxSavePlan();
   dlxRender();
   dlxSelect(s.id);
