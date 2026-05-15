@@ -27,9 +27,11 @@ const DLX_PLAN_VERSION = 7;
 // en-dessous). DLX_COORD_LIMIT = garde-fou anti-emballement.
 // Taille plancher du canvas : volontairement très grande pour donner
 // l'impression d'un fond beige "infini" et permettre de pan le plan
-// librement à l'intérieur de n'importe quelle fenêtre.
-const DLX_CANVAS_W_MIN = 5000;
-const DLX_CANVAS_H_MIN = 5000;
+// librement à l'intérieur de n'importe quelle fenêtre. CSS zoom rétrécit
+// la taille de layout → on prend large pour qu'il reste largement plus
+// gros que le viewport même à 25% de zoom (15000 × 0.25 = 3750 px).
+const DLX_CANVAS_W_MIN = 15000;
+const DLX_CANVAS_H_MIN = 15000;
 const DLX_COORD_LIMIT  = 50000;
 const DLX_FIT_MARGIN   = 150; // marge laissée autour du contenu
 let DLX_CANVAS_W = DLX_CANVAS_W_MIN;
