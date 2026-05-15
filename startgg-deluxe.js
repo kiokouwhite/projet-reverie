@@ -2876,26 +2876,58 @@ const dlxBracket = {
   loaded: false,
 };
 
-const DLX_BRACKET_QUERY = `
-  query DlxBracket($slug: String!) {
+// Étape 1 : récupère la liste des events (sans les sets, pour économiser le quota)
+const DLX_BRACKET_EVENTS_QUERY = `
+  query DlxBracketEvents($slug: String!) {
     tournament(slug: $slug) {
       id name
       events {
         id name
         videogame { id name images { url type } }
-        sets(page: 1, perPage: 250, sortType: STANDARD) {
-          nodes {
-            id identifier fullRoundText round state winnerId displayScore
-            slots {
-              entrant { id name }
-              seed { seedNum }
-              prereqType prereqId
-            }
+      }
+    }
+  }`;
+
+// Étape 2 : pour chaque event, on pagine ses sets — pour ne pas tronquer
+// les gros brackets (loser bracket d'un 64-128 joueurs).
+const DLX_BRACKET_EVENT_SETS_QUERY = `
+  query DlxBracketEventSets($id: ID!, $page: Int!, $perPage: Int!) {
+    event(id: $id) {
+      id
+      sets(page: $page, perPage: $perPage, sortType: STANDARD) {
+        pageInfo { totalPages }
+        nodes {
+          id identifier fullRoundText round state winnerId displayScore
+          slots {
+            entrant { id name }
+            seed { seedNum }
+            prereqType prereqId
           }
         }
       }
     }
   }`;
+
+async function dlxBracketFetchEventSets(eventId) {
+  const PER_PAGE = 75; // limite raisonnable pour la complexité GraphQL
+  const allNodes = [];
+  let page = 1;
+  let totalPages = 1;
+  // Sécurité : 20 pages × 75 = 1500 sets max, largement assez pour un asso event
+  while (page <= 20) {
+    const vars = { id: eventId, page, perPage: PER_PAGE };
+    const data = (typeof sggQuery === 'function')
+      ? await sggQuery(DLX_BRACKET_EVENT_SETS_QUERY, vars)
+      : await dlxSggRawQuery(DLX_BRACKET_EVENT_SETS_QUERY, vars);
+    const setsObj = data && data.event && data.event.sets;
+    const nodes = (setsObj && setsObj.nodes) || [];
+    allNodes.push(...nodes);
+    totalPages = (setsObj && setsObj.pageInfo && setsObj.pageInfo.totalPages) || 1;
+    if (page >= totalPages) break;
+    page++;
+  }
+  return allNodes;
+}
 
 async function dlxBracketFetch() {
   if (!dlxSgg.slug) return;
@@ -2907,25 +2939,40 @@ async function dlxBracketFetch() {
   const canvasEl = document.getElementById('dlxBracketCanvas');
   if (canvasEl) canvasEl.innerHTML = '<div class="dlx-bracket-empty">Chargement du bracket…</div>';
   try {
+    // 1) Récupère la liste des events du tournoi (sans les sets)
     const data = (typeof sggQuery === 'function')
-      ? await sggQuery(DLX_BRACKET_QUERY, { slug: dlxSgg.slug })
-      : await dlxSggRawQuery(DLX_BRACKET_QUERY, { slug: dlxSgg.slug });
+      ? await sggQuery(DLX_BRACKET_EVENTS_QUERY, { slug: dlxSgg.slug })
+      : await dlxSggRawQuery(DLX_BRACKET_EVENTS_QUERY, { slug: dlxSgg.slug });
     const t = data && data.tournament;
     if (!t) { canvasEl.innerHTML = '<div class="dlx-bracket-empty">Tournoi introuvable.</div>'; return; }
-    dlxBracket.events = (t.events || []).map(ev => {
+    const events = (t.events || []).map(ev => {
       const imgs = (ev.videogame && ev.videogame.images) || [];
       const img = (imgs.find(i => i.type === 'profile') || imgs[0] || {}).url || '';
       return {
         id: ev.id,
         name: ev.name || '',
         videogameImg: img,
-        sets: (ev.sets && ev.sets.nodes) || [],
+        sets: [], // rempli ensuite
       };
     });
-    dlxBracket.loaded = true;
-    if (!dlxBracket.currentEventId && dlxBracket.events.length) {
-      dlxBracket.currentEventId = dlxBracket.events[0].id;
+    dlxBracket.events = events;
+    if (!dlxBracket.currentEventId && events.length) {
+      dlxBracket.currentEventId = events[0].id;
     }
+    // 2) Pour chaque event, on pagine ses sets (en parallèle pour ne pas
+    // bloquer trop longtemps). Render dès que l'event courant est prêt
+    // pour que l'utilisateur voie quelque chose rapidement.
+    await Promise.all(events.map(async (ev) => {
+      try {
+        ev.sets = await dlxBracketFetchEventSets(ev.id);
+        if (String(ev.id) === String(dlxBracket.currentEventId)) {
+          dlxBracketRender();
+        }
+      } catch (e) {
+        ev.sets = [];
+      }
+    }));
+    dlxBracket.loaded = true;
     dlxBracketRender();
   } catch (e) {
     if (canvasEl) canvasEl.innerHTML = '<div class="dlx-bracket-empty">Erreur : ' + dlxSggEsc(e.message) + '</div>';
