@@ -1141,10 +1141,11 @@ function dlxOnDragMove(ev) {
     dlxApplySelectionClasses();
     return;
   }
-  // Push des rooms : si on bouge/redimensionne une room, les rooms en-dessous
-  // qui se chevauchent horizontalement sont poussées vers le bas.
+  // Push des rooms : si on bouge/redimensionne une room, les rooms qui se
+  // chevauchent horizontalement sont poussées (vers le bas ET vers le haut).
   if (s.type === 'room' && (_dlxDrag.mode === 'move' || _dlxDrag.mode === 'resize')) {
     dlxPushRoomsBelow(s);
+    dlxPushRoomsAbove(s);
   }
   // Le canvas s'adapte à l'élément déplacé/redimensionné : refit (agrandit
   // + recale si débordement haut/gauche) puis re-render complet. Le shift
@@ -1222,6 +1223,37 @@ function dlxPushRoomsBelow(resizedRoom) {
     }
     if (changed) modified.push(r);
     frontier = r.y + r.h;
+  }
+  return modified;
+}
+
+// Symétrique de dlxPushRoomsBelow : quand une room est agrandie/déplacée
+// VERS LE HAUT, les rooms situées AU-DESSUS qui se chevauchent
+// horizontalement sont poussées vers le haut. Pas de clamp à 0 : le canvas
+// s'agrandit/recale automatiquement si ça déborde en haut.
+function dlxPushRoomsAbove(resizedRoom) {
+  if (!resizedRoom || resizedRoom.type !== 'room') return [];
+  const modified = [];
+  // Rooms triées par Y DÉCROISSANT : on remonte depuis la room
+  // redimensionnée vers le haut.
+  const rooms = dlxPlan.elements
+    .filter(e => e.type === 'room')
+    .sort((a, b) => b.y - a.y);
+  // Frontier = coord Y MAX que le BAS de la prochaine room (au-dessus) peut
+  // atteindre. Initialisée au haut de la room redimensionnée.
+  let frontier = resizedRoom.y;
+  for (const r of rooms) {
+    if (r.id === resizedRoom.id) continue;
+    if (r.y >= resizedRoom.y) continue; // ignore les rooms en dessous / même niveau
+    const overlapX = !(r.x + r.w <= resizedRoom.x || r.x >= resizedRoom.x + resizedRoom.w);
+    if (!overlapX) continue;
+    let changed = false;
+    if (r.y + r.h > frontier) {
+      r.y = frontier - r.h;
+      changed = true;
+    }
+    if (changed) modified.push(r);
+    frontier = r.y;
   }
   return modified;
 }
@@ -1570,7 +1602,7 @@ function dlxUpdateProp(prop, value) {
   }
   // Push des rooms si on a changé une dimension/position d'une room
   if (s.type === 'room' && ['x','y','w','h'].includes(prop)) {
-    const moved = dlxPushRoomsBelow(s);
+    const moved = dlxPushRoomsBelow(s).concat(dlxPushRoomsAbove(s));
     moved.forEach(dlxUpdateElDom);
   }
   // Si on a resize une porte, le SVG doit se régénérer (viewBox = w/h)
