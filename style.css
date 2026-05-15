@@ -5092,7 +5092,15 @@ canvas { width: 100%; display: block; }
   min-width: 0;
 }
 .dlx-canvas-wrap {
-  background: rgba(255,255,255,0.6);
+  /* Fond beige + grille déplacés du canvas vers le wrap → le fond
+     remplit toujours le viewport, plus jamais de blanc visible, et on
+     peut pan/zoom le plan où on veut sans tomber sur un fond blanc. */
+  background-color: #f5e8d0;
+  background-image:
+    linear-gradient(rgba(120,80,40,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,80,40,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-attachment: local;
   border: 2px dashed rgba(155,127,184,0.4);
   border-radius: 16px;
   /* marge interne : laisse de la place aux poignées (vertices de murs,
@@ -5824,15 +5832,14 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   width: 600px;
   height: 1500px;
   margin: 0;
-  background: #f5e8d0; /* parquet beige clair */
+  /* Plus de fond propre : c'est le wrap qui porte le fond beige+grille
+     pour qu'il s'étende à l'infini (au-delà du canvas). Le canvas reste
+     juste la zone de coordonnées du plan. */
+  background: transparent;
   border-radius: 12px;
   /* overflow visible : les poignées des murs/éléments collés au bord
      restent entièrement visibles et cliquables au lieu d'être coupées */
   overflow: visible;
-  background-image:
-    linear-gradient(rgba(120,80,40,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120,80,40,0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
 }
 .dlx-canvas-edit { cursor: default; }
 .dlx-canvas-edit .dlx-el { cursor: move; }
