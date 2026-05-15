@@ -1222,20 +1222,45 @@ function dlxOnDragMove(ev) {
     if (_dlxDrag.mode === 'vertex') {
       const idx = _dlxDrag.vertexIdx;
       if (s.points && s.points[idx]) {
-        let nx = _dlxDrag.origX + cdx;
-        let ny = _dlxDrag.origY + cdy;
-        // Magnétisme : le vertex snappe aux bords des autres éléments, aux
-        // vertices des autres murs et aux bords du canvas.
-        // Avec Shift (verrouillage d'axe), le verrouillage est PRIORITAIRE :
-        // le snap ne s'applique que sur l'axe LIBRE, l'axe verrouillé reste
-        // figé (le point reste donc parfaitement horizontal / vertical).
-        const cand = dlxCollectSnapCandidates(s.id);
+        // Deltas BRUTS (le verrouillage d'axe global ne s'applique pas au
+        // vertex : on le gère ici, relativement au voisin).
+        const rawDx = (ev.clientX - _dlxDrag.startX) * scaleX;
+        const rawDy = (ev.clientY - _dlxDrag.startY) * scaleY;
+        let nx = _dlxDrag.origX + rawDx;
+        let ny = _dlxDrag.origY + rawDy;
         if (ev.shiftKey) {
-          // cdx/cdy ont déjà été contraints à un seul axe plus haut :
-          // l'axe non nul est l'axe libre, le seul où le snap est permis.
-          if (cdx !== 0) nx += dlxBestSnap([nx], cand.xs);
-          if (cdy !== 0) ny += dlxBestSnap([ny], cand.ys);
+          // Shift = aligner le vertex sur un VOISIN pour rendre le segment
+          // parfaitement horizontal ou vertical (selon l'axe de drag
+          // dominant). Le voisin choisi est celui dont la coord est la plus
+          // proche → le segment vers ce voisin devient droit.
+          const n = s.points.length;
+          const wrap = (s.type === 'room'); // polygone fermé
+          const neighbors = [];
+          if (idx - 1 >= 0)      neighbors.push(s.points[idx - 1]);
+          else if (wrap)         neighbors.push(s.points[n - 1]);
+          if (idx + 1 < n)       neighbors.push(s.points[idx + 1]);
+          else if (wrap)         neighbors.push(s.points[0]);
+          if (Math.abs(rawDx) >= Math.abs(rawDy)) {
+            // drag horizontal dominant → X libre, Y aligné sur un voisin
+            let best = ny, bestD = Infinity;
+            neighbors.forEach(nb => {
+              const d = Math.abs(ny - nb.y);
+              if (d < bestD) { bestD = d; best = nb.y; }
+            });
+            ny = best;
+          } else {
+            // drag vertical dominant → Y libre, X aligné sur un voisin
+            let best = nx, bestD = Infinity;
+            neighbors.forEach(nb => {
+              const d = Math.abs(nx - nb.x);
+              if (d < bestD) { bestD = d; best = nb.x; }
+            });
+            nx = best;
+          }
         } else {
+          // Magnétisme normal : snappe aux bords des autres éléments, aux
+          // vertices des autres murs et aux bords du canvas.
+          const cand = dlxCollectSnapCandidates(s.id);
           nx += dlxBestSnap([nx], cand.xs);
           ny += dlxBestSnap([ny], cand.ys);
         }
