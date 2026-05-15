@@ -2359,9 +2359,24 @@ function dlxRenderReportGames() {
   wrap.innerHTML = html;
 }
 
-// Mémorise le personnage choisi pour un game / un joueur
+// Mémorise le personnage choisi pour un game / un joueur. Propage
+// automatiquement le perso aux autres games VIDES du même joueur (les
+// games déjà renseignés ne sont pas écrasés, on peut donc surcharger un
+// game en particulier).
 function dlxReportSetChar(game, player, value) {
   _dlxReportChars[game + '_' + player] = value || '';
+  if (!value) return;
+  const { total } = dlxReportReadScore();
+  let propagated = false;
+  for (let g = 1; g <= total; g++) {
+    if (g === game) continue;
+    const k = g + '_' + player;
+    if (!_dlxReportChars[k]) {
+      _dlxReportChars[k] = value;
+      propagated = true;
+    }
+  }
+  if (propagated) dlxRenderReportGames();
 }
 
 function dlxSggCloseReport() {
