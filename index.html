@@ -1052,6 +1052,53 @@
       </div>
 
       <div id="cfgStatus" class="cfg-status"></div>
+
+      <!-- Toggle Jour / Nuit (visible uniquement dans cet onglet) -->
+      <div class="dn-widget dn-widget-inline">
+        <div id="dnSlider" class="dn-slider" role="switch" aria-checked="false"
+             aria-label="Toggle day or night" tabindex="0" style="--t:0">
+          <div class="dn-bg"></div>
+          <div class="dn-scene">
+            <div class="dn-day">
+              <div class="dn-cloud dn-c1"></div>
+              <div class="dn-cloud dn-c2"></div>
+              <div class="dn-cloud dn-c3"></div>
+            </div>
+            <div class="dn-night">
+              <div class="dn-ncloud dn-nc1"></div>
+              <div class="dn-ncloud dn-nc2"></div>
+              <div class="dn-stars">
+                <div class="dn-star dn-s1"></div>
+                <div class="dn-star dn-s2"></div>
+                <div class="dn-star dn-s3"></div>
+                <div class="dn-star dn-s4"></div>
+                <div class="dn-star dn-s5"></div>
+                <div class="dn-star dn-s6"></div>
+                <div class="dn-dot dn-d1"></div>
+                <div class="dn-dot dn-d2"></div>
+                <div class="dn-dot dn-d3"></div>
+              </div>
+            </div>
+          </div>
+          <div class="dn-sheen"></div>
+          <div class="dn-rim"></div>
+          <div class="dn-knob">
+            <div class="dn-halo dn-halo-sun"></div>
+            <div class="dn-halo dn-halo-moon"></div>
+            <div class="dn-knob-sun"></div>
+            <div class="dn-knob-moon"></div>
+            <div class="dn-crater dn-cr1"></div>
+            <div class="dn-crater dn-cr2"></div>
+            <div class="dn-crater dn-cr3"></div>
+            <div class="dn-shine"></div>
+          </div>
+        </div>
+        <div class="dn-caption">
+          <span id="dnLblDay" class="dn-label active">Jour</span>
+          <span class="dn-dot-sep"></span>
+          <span id="dnLblNight" class="dn-label">Nuit</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2146,53 +2193,6 @@ function liquidSwitchTab(tab) {
     </g>
   </svg>
   <div id="liqBubbles" style="position:absolute;inset:0;pointer-events:none;"></div>
-</div>
-
-<!-- ── DAY/NIGHT SLIDER WIDGET ── -->
-<div class="dn-widget">
-  <div id="dnSlider" class="dn-slider" role="switch" aria-checked="false"
-       aria-label="Toggle day or night" tabindex="0" style="--t:0">
-    <div class="dn-bg"></div>
-    <div class="dn-scene">
-      <div class="dn-day">
-        <div class="dn-cloud dn-c1"></div>
-        <div class="dn-cloud dn-c2"></div>
-        <div class="dn-cloud dn-c3"></div>
-      </div>
-      <div class="dn-night">
-        <div class="dn-ncloud dn-nc1"></div>
-        <div class="dn-ncloud dn-nc2"></div>
-        <div class="dn-stars">
-          <div class="dn-star dn-s1"></div>
-          <div class="dn-star dn-s2"></div>
-          <div class="dn-star dn-s3"></div>
-          <div class="dn-star dn-s4"></div>
-          <div class="dn-star dn-s5"></div>
-          <div class="dn-star dn-s6"></div>
-          <div class="dn-dot dn-d1"></div>
-          <div class="dn-dot dn-d2"></div>
-          <div class="dn-dot dn-d3"></div>
-        </div>
-      </div>
-    </div>
-    <div class="dn-sheen"></div>
-    <div class="dn-rim"></div>
-    <div class="dn-knob">
-      <div class="dn-halo dn-halo-sun"></div>
-      <div class="dn-halo dn-halo-moon"></div>
-      <div class="dn-knob-sun"></div>
-      <div class="dn-knob-moon"></div>
-      <div class="dn-crater dn-cr1"></div>
-      <div class="dn-crater dn-cr2"></div>
-      <div class="dn-crater dn-cr3"></div>
-      <div class="dn-shine"></div>
-    </div>
-  </div>
-  <div class="dn-caption">
-    <span id="dnLblDay" class="dn-label active">Jour</span>
-    <span class="dn-dot-sep"></span>
-    <span id="dnLblNight" class="dn-label">Nuit</span>
-  </div>
 </div>
 
 <script src="layouts.js"></script>

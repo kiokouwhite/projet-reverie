@@ -8411,6 +8411,12 @@ body.night-mode .nav-tab-active {
   align-items: center;
   gap: 10px;
 }
+/* Variante inline : intégrée dans le flux de la page Configuration */
+.dn-widget.dn-widget-inline {
+  position: static;
+  margin: 18px auto 4px auto;
+  z-index: auto;
+}
 
 /* ── Slider ── */
 .dn-slider {
