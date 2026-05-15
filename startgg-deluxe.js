@@ -468,6 +468,29 @@ function dlxInstallResizerBottom() {
 
 function dlxWinKey(id) { return 'top8_deluxe_win_' + id; }
 
+// Candidats de snap : bords du viewport + bords des autres fenêtres visibles
+function dlxWinGetSnapCandidates(excludeWin) {
+  const xs = [0, window.innerWidth];
+  const ys = [0, window.innerHeight];
+  document.querySelectorAll('.dlx-win').forEach(w => {
+    if (w === excludeWin) return;
+    const r = w.getBoundingClientRect();
+    if (r.width < 5 || r.height < 5) return; // ignore les fenêtres invisibles
+    xs.push(r.left, r.right);
+    ys.push(r.top, r.bottom);
+  });
+  return { xs, ys };
+}
+// Renvoie le meilleur delta de snap (le plus petit en valeur absolue) parmi les candidats
+function dlxWinBestSnap(value, candidates, threshold) {
+  let best = 0, bestAbs = threshold;
+  for (let i = 0; i < candidates.length; i++) {
+    const d = candidates[i] - value;
+    if (Math.abs(d) < bestAbs) { bestAbs = Math.abs(d); best = d; }
+  }
+  return best;
+}
+
 // Installe le drag + restore l'état pour une fenêtre donnée
 function dlxInstallWindow(windowId) {
   const win = document.getElementById(windowId);
@@ -514,16 +537,21 @@ function dlxInstallWindow(windowId) {
     win.classList.add('dragging');
     // Met cette fenêtre au-dessus pendant le drag
     win.style.zIndex = '100';
-    const SNAP = 14; // magnétisme aux bords du viewport
+    const SNAP = 14;
     const onMove = (e) => {
       let nx = startLeft + (e.clientX - startX);
       let ny = startTop  + (e.clientY - startY);
       const vw = window.innerWidth, vh = window.innerHeight;
-      // Magnétisme : snap aux bords si on s'en approche
-      if (Math.abs(nx) < SNAP)                       nx = 0;
-      else if (Math.abs(nx + r.width - vw) < SNAP)   nx = vw - r.width;
-      if (Math.abs(ny) < SNAP)                       ny = 0;
-      else if (Math.abs(ny + r.height - vh) < SNAP)  ny = vh - r.height;
+      // Magnétisme : snap aux bords (viewport + autres fenêtres). On
+      // applique le meilleur delta de snap entre les bords G/D et les
+      // candidats X, idem pour H/B sur Y.
+      const cand = dlxWinGetSnapCandidates(win);
+      const dxL = dlxWinBestSnap(nx,           cand.xs, SNAP);
+      const dxR = dlxWinBestSnap(nx + r.width, cand.xs, SNAP);
+      const dyT = dlxWinBestSnap(ny,           cand.ys, SNAP);
+      const dyB = dlxWinBestSnap(ny + r.height,cand.ys, SNAP);
+      nx += (Math.abs(dxL) <= Math.abs(dxR) && dxL !== 0) ? dxL : dxR;
+      ny += (Math.abs(dyT) <= Math.abs(dyB) && dyT !== 0) ? dyT : dyB;
       // Garde au moins 60 px visibles dans tous les cas
       nx = Math.max(60 - r.width, Math.min(vw - 60, nx));
       ny = Math.max(0, Math.min(vh - 40, ny));
@@ -562,20 +590,28 @@ function dlxInstallWindow(windowId) {
       win.classList.add('dragging');
       const minW = 220, minH = 120, SNAP = 14;
       const startTop = r.top;
+      const right = startLeft + startW; // bord droit fixe pendant ce drag
       const onMove = (e) => {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        let newW = startW - dx;
         let newL = startLeft + dx;
         let newH = startH + dy;
-        if (newW < minW) { newL -= (minW - newW); newW = minW; }
+        // Magnétisme : snap du bord gauche aux candidats X (viewport + autres
+        // fenêtres), snap du bord bas aux candidats Y.
+        const cand = dlxWinGetSnapCandidates(win);
+        const dL = dlxWinBestSnap(newL, cand.xs, SNAP);
+        if (dL !== 0) newL += dL;
+        const dB = dlxWinBestSnap(startTop + newH, cand.ys, SNAP);
+        if (dB !== 0) newH += dB;
+        // Largeur dérivée pour garder le bord droit fixe
+        let newW = right - newL;
+        // Bornes minimales
+        if (newW < minW) { newL = right - minW; newW = minW; }
         if (newH < minH) newH = minH;
-        // Magnétisme + clamp : bord gauche colle à 0 / bord bas colle au viewport
-        const vh = window.innerHeight;
-        const right = startLeft + startW; // bord droit fixe pendant ce drag
-        if (newL < SNAP) { newW = right; newL = 0; }
-        const maxH = vh - startTop;
-        if (newH > maxH - SNAP) newH = maxH;
+        // Clamp : bas ne sort pas du viewport
+        const maxH = window.innerHeight - startTop;
+        if (newH > maxH) newH = maxH;
+        if (newL < 0) { newW = right; newL = 0; }
         win.style.width  = newW + 'px';
         win.style.height = newH + 'px';
         win.style.left   = newL + 'px';
@@ -601,11 +637,17 @@ function dlxInstallWindow(windowId) {
       const vw = window.innerWidth, vh = window.innerHeight;
       let needAdjust = false;
       let newW = r.width, newH = r.height;
-      // Bord droit hors viewport → on coince à la limite
-      if (r.right > vw)              { newW = Math.max(220, vw - r.left); needAdjust = true; }
-      else if (vw - r.right < SNAP)  { newW = vw - r.left;                needAdjust = true; }
-      if (r.bottom > vh)             { newH = Math.max(120, vh - r.top);  needAdjust = true; }
-      else if (vh - r.bottom < SNAP) { newH = vh - r.top;                 needAdjust = true; }
+      // Clamp hors viewport
+      if (r.right > vw)  { newW = Math.max(220, vw - r.left); needAdjust = true; }
+      if (r.bottom > vh) { newH = Math.max(120, vh - r.top);  needAdjust = true; }
+      // Magnétisme : snap du bord droit/bas aux candidats (viewport + autres fenêtres)
+      const cand = dlxWinGetSnapCandidates(win);
+      const dR = dlxWinBestSnap(r.left + newW, cand.xs, SNAP);
+      if (dR !== 0) { newW += dR; needAdjust = true; }
+      const dB = dlxWinBestSnap(r.top + newH, cand.ys, SNAP);
+      if (dB !== 0) { newH += dB; needAdjust = true; }
+      if (newW < 220) { newW = 220; }
+      if (newH < 120) { newH = 120; }
       if (needAdjust) {
         win.style.width  = newW + 'px';
         win.style.height = newH + 'px';
