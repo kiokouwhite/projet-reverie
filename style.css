@@ -5858,6 +5858,11 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
+/* Variante : zoom-fab en bas à DROITE (utilisée pour la fenêtre Bracket) */
+.dlx-zoom-fab.dlx-zoom-fab-right {
+  left: auto;
+  right: 18px;
+}
 
 /* Bascule Plan / Bracket — segmented control en haut-gauche du plan */
 .dlx-view-toggle {
