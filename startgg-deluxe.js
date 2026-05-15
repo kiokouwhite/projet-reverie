@@ -621,13 +621,14 @@ function dlxElementHTML(el) {
   const safeLabel = String(el.label || '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
-  const removeBtn = isEdit
+  // La croix de suppression n'apparaît que sur l'élément sélectionné.
+  const isSelected = dlxIsSelected(el.id);
+  const removeBtn = (isEdit && isSelected)
     ? `<button class="dlx-el-remove" onclick="dlxRemoveElement('${el.id}')" title="Supprimer">✕</button>`
     : '';
   // 8 handles de resize (4 côtés + 4 coins) — visibles uniquement quand
   // l'élément est le SEUL sélectionné (en multi-sélection on ne redimensionne
   // pas, on ne fait que déplacer le groupe).
-  const isSelected = dlxIsSelected(el.id);
   const resizeHandle = (isEdit && isSelected && dlxSelectedIds.length === 1)
     ? ['nw','n','ne','e','se','s','sw','w'].map(dir =>
         `<div class="dlx-el-handle dlx-el-handle-${dir}" data-resize="${el.id}" data-dir="${dir}"></div>`
@@ -659,7 +660,7 @@ function dlxElementHTML(el) {
         let overlay = `<svg class="dlx-poly-outline" width="${el.w}" height="${el.h}"
           viewBox="0 0 ${el.w} ${el.h}" style="left:${el.x}px;top:${el.y}px;">
           <polygon points="${localPts}" /></svg>`;
-        if (isEdit) {
+        if (isEdit && isSelected) {
           overlay += `<button class="dlx-poly-remove" onclick="dlxRemoveElement('${el.id}')"
             style="left:${el.x + el.w}px;top:${el.y}px;" title="Supprimer">✕</button>`;
         }
