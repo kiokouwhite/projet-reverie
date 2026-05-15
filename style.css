@@ -5813,7 +5813,7 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 50px 16px 10px 16px; /* top padding pour ne pas chevaucher la toggle */
+  padding: 10px 14px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,0.5);
@@ -5848,8 +5848,11 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   flex: 1;
   overflow: auto;
   position: relative;
-  padding: 16px;
+  padding: 10px;
 }
+/* Pan du bracket (clic-glissé sur le fond) */
+.dlx-bracket-scroll.dlx-panning,
+.dlx-bracket-scroll.dlx-panning * { cursor: grabbing !important; }
 .dlx-bracket-canvas {
   position: relative;
   min-width: 100%;

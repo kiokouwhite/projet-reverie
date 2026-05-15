@@ -201,6 +201,7 @@ function dlxInit() {
   dlxInstallPan();
   dlxInstallZoomWheel();
   dlxInstallBracketZoomWheel();
+  dlxInstallBracketPan();
   dlxInstallWindows();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
@@ -686,6 +687,34 @@ function dlxBracketApplyZoom(newZoom, anchorClientX, anchorClientY) {
 
 function dlxBracketZoomBy(factor) { dlxBracketApplyZoom(_dlxBracketZoom * factor); }
 function dlxBracketZoomReset()    { dlxBracketApplyZoom(1); }
+
+// Pan du bracket : clic-glissé sur le fond déplace le viewport.
+// Skip si le mousedown part d'une carte ou d'un chip (pour préserver le
+// clic-report et le clic-switch d'event).
+function dlxInstallBracketPan() {
+  const scroll = document.querySelector('.dlx-bracket-scroll');
+  if (!scroll || scroll._dlxBracketPanBound) return;
+  scroll._dlxBracketPanBound = true;
+  const interactiveSel = '.dlx-br-card, .dlx-bracket-chip, .dlx-rr-cell';
+  scroll.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0) return;
+    if (ev.target.closest && ev.target.closest(interactiveSel)) return;
+    const startX = ev.clientX, startY = ev.clientY;
+    const sLeft = scroll.scrollLeft, sTop = scroll.scrollTop;
+    scroll.classList.add('dlx-panning');
+    ev.preventDefault();
+    const onMove = (e) => {
+      scroll.scrollLeft = sLeft - (e.clientX - startX);
+      scroll.scrollTop  = sTop  - (e.clientY - startY);
+    };
+    const onUp = () => {
+      scroll.classList.remove('dlx-panning');
+      document.removeEventListener('mousemove', onMove);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, { once: true });
+  });
+}
 
 // Wheel sur le viewport bracket : zoom autour du curseur
 function dlxInstallBracketZoomWheel() {
@@ -3134,8 +3163,8 @@ function dlxBracketMakeCard(s, setById) {
 function dlxBracketLayout(sets) {
   const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
   const MIN_VGAP = 18;       // marge minimale verticale entre cartes d'une même colonne
-  const SECTION_TITLE_H = 38; // bandeau de section ("WINNERS BRACKET" / "LOSERS BRACKET")
-  const COL_HEADER_H = 28;    // ligne d'en-têtes de colonne ("Round 1", "Round 2"…)
+  const SECTION_TITLE_H = 30; // bandeau de section ("WINNERS BRACKET" / "LOSERS BRACKET")
+  const COL_HEADER_H = 22;    // ligne d'en-têtes de colonne ("Round 1", "Round 2"…)
   const HEADER_H = SECTION_TITLE_H + COL_HEADER_H; // hauteur totale d'en-tête
   const SECTION_GAP = 80;     // espace entre la fin des Winners et le bandeau Losers
   const setById = {};
