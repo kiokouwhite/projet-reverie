@@ -1972,6 +1972,8 @@ async function dlxSggFetch() {
       const imgs = (ev.videogame && ev.videogame.images) || [];
       const gameImg = (imgs.find(i => i.type === 'profile') || imgs[0] || {}).url || '';
       ((ev.sets && ev.sets.nodes) || []).forEach(s => {
+        const e1 = s.slots && s.slots[0] && s.slots[0].entrant;
+        const e2 = s.slots && s.slots[1] && s.slots[1].entrant;
         sets.push({
           id: s.id,
           eventName: ev.name || '',
@@ -1980,8 +1982,10 @@ async function dlxSggFetch() {
           round: s.fullRoundText || s.identifier || '',
           state: s.state,
           stationNumber: s.station && s.station.number != null ? s.station.number : null,
-          p1: (s.slots && s.slots[0] && s.slots[0].entrant && s.slots[0].entrant.name) || null,
-          p2: (s.slots && s.slots[1] && s.slots[1].entrant && s.slots[1].entrant.name) || null,
+          p1: (e1 && e1.name) || null,
+          p2: (e2 && e2.name) || null,
+          p1Id: (e1 && e1.id) || null,
+          p2Id: (e2 && e2.id) || null,
         });
       });
     });
@@ -2062,7 +2066,8 @@ function dlxSggRenderPanel() {
           draggable="true" data-set-id="${dlxSggEsc(s.id)}"
           ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
           ondragend="dlxSggSetDragEnd(event)"
-          title="Glisse ce match sur un setup du plan">
+          onclick="dlxSggOpenReport('${dlxSggEsc(s.id)}')"
+          title="Clic : reporter le score · Glisser : placer sur un setup">
           <div class="dlx-sgg-set-head">
             <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
             <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
@@ -2165,4 +2170,98 @@ function dlxUnassignMatch(elId) {
   dlxSavePlan();
   dlxRender();
   dlxSggRenderPanel();
+}
+
+// ── REPORT DE SCORE — modale d'édition du score d'un match start.gg ─────
+let _dlxReportSetId = null;
+
+function dlxReportStatus(type, msg) {
+  const el = document.getElementById('dlxReportStatus');
+  if (!el) return;
+  el.className = 'dlx-report-status dlx-report-status-' + type;
+  el.textContent = msg || '';
+}
+
+// Ouvre la modale de report pour un set start.gg (depuis le panneau)
+function dlxSggOpenReport(setId) {
+  const set = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (!set) return;
+  _dlxReportSetId = set.id;
+  const modal = document.getElementById('dlxReportModal');
+  if (!modal) return;
+  const setText = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+  setText('dlxReportTitle', set.round || 'Reporter le score');
+  setText('dlxReportEvent', set.eventName || '');
+  setText('dlxReportP1Name', set.p1 || 'TBD');
+  setText('dlxReportP2Name', set.p2 || 'TBD');
+  const p1 = document.getElementById('dlxReportP1Score');
+  const p2 = document.getElementById('dlxReportP2Score');
+  if (p1) p1.value = 0;
+  if (p2) p2.value = 0;
+  const ready = !!(set.p1Id && set.p2Id);
+  const btn = document.getElementById('dlxReportSubmitBtn');
+  if (btn) btn.disabled = !ready;
+  dlxReportStatus(ready ? '' : 'error',
+    ready ? '' : 'Les deux joueurs ne sont pas encore déterminés pour ce match.');
+  modal.style.display = 'flex';
+}
+
+function dlxSggCloseReport() {
+  _dlxReportSetId = null;
+  const modal = document.getElementById('dlxReportModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Boutons +/- d'incrément de score
+function dlxReportBump(which, delta) {
+  const el = document.getElementById(which === 'p1' ? 'dlxReportP1Score' : 'dlxReportP2Score');
+  if (!el) return;
+  el.value = Math.max(0, (parseInt(el.value, 10) || 0) + delta);
+}
+
+const DLX_SGG_REPORT_MUTATION = `
+  mutation DlxReportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
+    reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData) {
+      id state
+    }
+  }`;
+
+// Envoie le score à start.gg via reportBracketSet
+async function dlxSggSubmitReport() {
+  const set = dlxSgg.sets.find(s => String(s.id) === String(_dlxReportSetId));
+  if (!set) return dlxReportStatus('error', 'Match introuvable — recharge le tournoi.');
+  if (!set.p1Id || !set.p2Id) {
+    return dlxReportStatus('error', 'Joueurs non déterminés — impossible de reporter.');
+  }
+  const sa = Math.max(0, parseInt(document.getElementById('dlxReportP1Score').value, 10) || 0);
+  const sb = Math.max(0, parseInt(document.getElementById('dlxReportP2Score').value, 10) || 0);
+  if (sa === 0 && sb === 0) return dlxReportStatus('error', 'Entre un score.');
+  if (sa === sb) return dlxReportStatus('error', 'Il faut un gagnant — les scores ne peuvent pas être égaux.');
+  if (!dlxSggGetToken()) {
+    return dlxReportStatus('error', '⚠️ Clé API start.gg manquante (onglet Configuration).');
+  }
+
+  const winnerId = sa > sb ? set.p1Id : set.p2Id;
+  // gameData : 1 entrée par game jouée (sa games gagnés par p1, sb par p2).
+  // L'ordre des games n'affecte pas le score total affiché par start.gg.
+  const gameData = [];
+  let gameNum = 1;
+  for (let i = 0; i < sa; i++) gameData.push({ gameNum: gameNum++, winnerId: set.p1Id });
+  for (let i = 0; i < sb; i++) gameData.push({ gameNum: gameNum++, winnerId: set.p2Id });
+
+  const btn = document.getElementById('dlxReportSubmitBtn');
+  if (btn) btn.disabled = true;
+  dlxReportStatus('loading', 'Envoi du score à start.gg…');
+  try {
+    const vars = { setId: set.id, winnerId, gameData };
+    if (typeof sggQuery === 'function') await sggQuery(DLX_SGG_REPORT_MUTATION, vars);
+    else await dlxSggRawQuery(DLX_SGG_REPORT_MUTATION, vars);
+    dlxReportStatus('ok', `✅ Score ${sa}-${sb} envoyé !`);
+    // Rafraîchit la liste (le match terminé disparaîtra des "non terminés")
+    await dlxSggFetch();
+    setTimeout(dlxSggCloseReport, 900);
+  } catch (e) {
+    dlxReportStatus('error', 'Erreur : ' + e.message);
+    if (btn) btn.disabled = false;
+  }
 }

@@ -5292,6 +5292,127 @@ canvas { width: 100%; display: block; }
   outline-offset: 2px;
   background: rgba(124,92,255,0.12) !important;
 }
+
+/* ── Modale de report de score ────────────────────────────────────────── */
+.dlx-report-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20,10,30,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.dlx-report-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 92vw;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.dlx-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+}
+.dlx-report-close {
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 12px;
+}
+.dlx-report-close:hover { background: rgba(255,255,255,0.35); }
+.dlx-report-event {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-soft);
+  font-style: italic;
+  padding: 10px 18px 0;
+}
+.dlx-report-players {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px;
+}
+.dlx-report-player {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.dlx-report-pname {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text);
+  text-align: center;
+  word-break: break-word;
+}
+.dlx-report-vs {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+.dlx-report-score-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dlx-report-score-ctrl button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f4f0fa;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--text);
+}
+.dlx-report-score-ctrl button:hover { background: #e9e1f6; }
+.dlx-report-score-ctrl input {
+  width: 48px;
+  height: 38px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+.dlx-report-status {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 16px;
+  padding: 0 18px;
+}
+.dlx-report-status-loading { color: var(--text-soft); }
+.dlx-report-status-ok      { color: #2e9e5b; }
+.dlx-report-status-error   { color: #d23b78; }
+.dlx-report-actions {
+  padding: 14px 18px 18px;
+  display: flex;
+  justify-content: center;
+}
+.dlx-report-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .dlx-canvas {
   position: relative;
   width: 600px;
