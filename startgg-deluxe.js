@@ -2490,6 +2490,26 @@ function dlxSggSwitchEvent(name) {
   dlxSggRenderPanel();
 }
 
+// Ouvre / ferme le menu déroulant d'event du panneau Matchs
+function dlxSggToggleEventMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const menu = document.getElementById('dlxSggEventMenu');
+  if (!menu) return;
+  const open = menu.style.display === 'block';
+  menu.style.display = open ? 'none' : 'block';
+}
+function dlxSggCloseEventMenu() {
+  const menu = document.getElementById('dlxSggEventMenu');
+  if (menu) menu.style.display = 'none';
+}
+// Ferme le menu au clic en dehors
+document.addEventListener('click', (ev) => {
+  const menu = document.getElementById('dlxSggEventMenu');
+  if (!menu || menu.style.display !== 'block') return;
+  if (ev.target.closest && ev.target.closest('.dlx-sgg-event-dropdown')) return;
+  menu.style.display = 'none';
+});
+
 function dlxSggInit() {
   const saved = localStorage.getItem(DLX_SGG_LS_KEY) || '';
   const input = document.getElementById('dlxSggUrl');
@@ -2668,15 +2688,24 @@ function dlxSggRenderPanel() {
   if (!_dlxSggCurrentEventName || !eventsMap[_dlxSggCurrentEventName]) {
     _dlxSggCurrentEventName = eventsList[0] ? eventsList[0].name : null;
   }
-  // Chips de switch d'event (style identique au bracket)
-  const chipsHtml = `<div class="dlx-sgg-event-chips">
-    ${eventsList.map(ev =>
-      `<button class="dlx-sgg-event-chip${ev.name === _dlxSggCurrentEventName ? ' active' : ''}"
-         onclick="dlxSggSwitchEvent('${dlxSggEsc(ev.name).replace(/'/g, "\\'")}')"
-         title="${dlxSggEsc(ev.name)}">
-         ${ev.gameImg ? `<img src="${dlxSggEsc(ev.gameImg)}" alt="">` : ''}
-         <span>${dlxSggEsc(ev.name)}</span>
-       </button>`).join('')}
+  // Menu déroulant d'event (compact, lisible dans une fenêtre étroite)
+  const currentEv = eventsMap[_dlxSggCurrentEventName] || eventsList[0];
+  const chipsHtml = `<div class="dlx-sgg-event-dropdown">
+    <button type="button" class="dlx-sgg-event-selected"
+      onclick="dlxSggToggleEventMenu(event)">
+      ${currentEv && currentEv.gameImg ? `<img src="${dlxSggEsc(currentEv.gameImg)}" alt="">` : ''}
+      <span class="dlx-sgg-event-selected-name">${dlxSggEsc(currentEv ? currentEv.name : '—')}</span>
+      <span class="dlx-sgg-event-arrow">▾</span>
+    </button>
+    <div class="dlx-sgg-event-menu" id="dlxSggEventMenu" style="display:none;">
+      ${eventsList.map(ev =>
+        `<button type="button" class="dlx-sgg-event-menu-item${ev.name === _dlxSggCurrentEventName ? ' active' : ''}"
+           onclick="dlxSggSwitchEvent('${dlxSggEsc(ev.name).replace(/'/g, "\\'")}'); dlxSggCloseEventMenu();"
+           title="${dlxSggEsc(ev.name)}">
+           ${ev.gameImg ? `<img src="${dlxSggEsc(ev.gameImg)}" alt="">` : ''}
+           <span>${dlxSggEsc(ev.name)}</span>
+         </button>`).join('')}
+    </div>
   </div>`;
 
   if (!dlxSgg.sets.length) {

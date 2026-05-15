@@ -5350,43 +5350,84 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 .dlx-sgg-filter input { cursor: pointer; accent-color: #7c5cff; }
 .dlx-sgg-filter:hover { background: rgba(124,92,255,0.12); }
 
-/* Chips de switch d'event en haut du panneau Matchs */
-.dlx-sgg-event-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+/* Menu déroulant d'event en haut du panneau Matchs */
+.dlx-sgg-event-dropdown {
+  position: relative;
   margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
 }
-.dlx-sgg-event-chip {
-  display: inline-flex;
+.dlx-sgg-event-selected {
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.dlx-sgg-event-chip:hover { background: #f4f0fa; }
-.dlx-sgg-event-chip.active {
+  border-radius: 8px;
   background: linear-gradient(135deg, #7c5cff, #e85a8a);
   color: #fff;
-  border-color: transparent;
+  cursor: pointer;
+  text-align: left;
 }
-.dlx-sgg-event-chip img {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
+.dlx-sgg-event-selected img {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
   object-fit: cover;
 }
-.dlx-sgg-event-chip span {
-  max-width: 130px;
+.dlx-sgg-event-selected-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-sgg-event-arrow {
+  font-size: 10px;
+  opacity: 0.9;
+}
+.dlx-sgg-event-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  z-index: 200;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dlx-sgg-event-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.dlx-sgg-event-menu-item:hover { background: #f4f0fa; }
+.dlx-sgg-event-menu-item.active {
+  background: rgba(124,92,255,0.12);
+  color: #4a3a8a;
+}
+.dlx-sgg-event-menu-item img {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.dlx-sgg-event-menu-item span {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
