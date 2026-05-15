@@ -1098,8 +1098,17 @@ function dlxOnDragMove(ev) {
     if (_dlxDrag.mode === 'vertex') {
       const idx = _dlxDrag.vertexIdx;
       if (s.points && s.points[idx]) {
-        s.points[idx].x = clampCoord(_dlxDrag.origX + cdx);
-        s.points[idx].y = clampCoord(_dlxDrag.origY + cdy);
+        let nx = _dlxDrag.origX + cdx;
+        let ny = _dlxDrag.origY + cdy;
+        // Magnétisme : le vertex snappe aux bords des autres éléments,
+        // aux vertices des autres murs et aux bords du canvas (Shift désactive).
+        if (!ev.shiftKey) {
+          const cand = dlxCollectSnapCandidates(s.id);
+          nx += dlxBestSnap([nx], cand.xs);
+          ny += dlxBestSnap([ny], cand.ys);
+        }
+        s.points[idx].x = clampCoord(nx);
+        s.points[idx].y = clampCoord(ny);
       }
     } else {
       // wall-translate : applique le delta UNIQUEMENT aux vertices du
@@ -1113,6 +1122,25 @@ function dlxOnDragMove(ev) {
           const proj = cdx * _dlxDrag.perp.x + cdy * _dlxDrag.perp.y;
           mdx = proj * _dlxDrag.perp.x;
           mdy = proj * _dlxDrag.perp.y;
+        }
+        // Magnétisme : le pan de mur déplacé snappe aux bords des autres
+        // éléments / vertices de murs / bords du canvas. Le snap est
+        // reprojeté sur la perpendiculaire pour ne pas casser la contrainte.
+        if (!ev.shiftKey && moveIdx) {
+          const cand = dlxCollectSnapCandidates(s.id);
+          const movedXs = [], movedYs = [];
+          moveIdx.forEach(i => {
+            const op = _dlxDrag.origPoints[i];
+            if (op) { movedXs.push(op.x + mdx); movedYs.push(op.y + mdy); }
+          });
+          let sdx = dlxBestSnap(movedXs, cand.xs);
+          let sdy = dlxBestSnap(movedYs, cand.ys);
+          if (_dlxDrag.perp) {
+            const projS = sdx * _dlxDrag.perp.x + sdy * _dlxDrag.perp.y;
+            sdx = projS * _dlxDrag.perp.x;
+            sdy = projS * _dlxDrag.perp.y;
+          }
+          mdx += sdx; mdy += sdy;
         }
         s.points = _dlxDrag.origPoints.map((p, i) => {
           if (moveIdx && moveIdx.indexOf(i) === -1) return { x: p.x, y: p.y };
