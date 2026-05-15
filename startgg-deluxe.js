@@ -2918,7 +2918,14 @@ function dlxOpenGamePicker(elId, ev) {
   const picker = document.createElement('div');
   picker.id = 'dlxGamePicker';
   picker.className = 'dlx-game-picker';
-  picker.innerHTML = '<div class="dlx-game-picker-body" id="dlxGamePickerBody"></div>';
+  // Le champ de recherche est posé EN DEHORS du body : il survit aux
+  // re-renders du body → l'input garde son focus pendant qu'on tape.
+  picker.innerHTML = `
+    <div class="dlx-game-picker-search">
+      <input id="dlxGamePickerSearch" type="text" placeholder="Rechercher un jeu sur start.gg…"
+        oninput="dlxGamePickerSearch(this.value)" autocomplete="off">
+    </div>
+    <div class="dlx-game-picker-body" id="dlxGamePickerBody"></div>`;
   // Position
   picker.style.left = Math.max(8, rect.left) + 'px';
   const estimatedH = 360;
@@ -2970,11 +2977,7 @@ function dlxRenderGamePicker() {
     </button>`;
   };
 
-  let html = `
-    <div class="dlx-game-picker-search">
-      <input id="dlxGamePickerSearch" type="text" placeholder="Rechercher un jeu sur start.gg…"
-        oninput="dlxGamePickerSearch(this.value)" autocomplete="off">
-    </div>`;
+  let html = '';
   if (current.length) {
     html += `<div class="dlx-game-picker-section">Sur ce setup</div>`;
     html += current.map(g => row(g)).join('');
