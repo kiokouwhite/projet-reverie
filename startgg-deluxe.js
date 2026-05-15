@@ -3007,11 +3007,11 @@ function dlxBracketMakeCard(s, setById) {
 //     colonne se recouvrent, on pousse la suivante vers le bas
 function dlxBracketLayout(sets) {
   const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
-  const MIN_VGAP = 8;        // marge minimale verticale entre cartes d'une même colonne
+  const MIN_VGAP = 18;       // marge minimale verticale entre cartes d'une même colonne
   const SECTION_TITLE_H = 38; // bandeau de section ("WINNERS BRACKET" / "LOSERS BRACKET")
   const COL_HEADER_H = 28;    // ligne d'en-têtes de colonne ("Round 1", "Round 2"…)
   const HEADER_H = SECTION_TITLE_H + COL_HEADER_H; // hauteur totale d'en-tête
-  const SECTION_GAP = 50;     // espace entre la fin des Winners et le bandeau Losers
+  const SECTION_GAP = 80;     // espace entre la fin des Winners et le bandeau Losers
   const setById = {};
   sets.forEach(s => { setById[s.id] = s; });
 
@@ -3052,8 +3052,22 @@ function dlxBracketLayout(sets) {
   placeColumns(winners);
   placeColumns(losers);
 
-  // Phase 2 : Y des winners
-  function layoutY(sideSets, ySideOffset) {
+  // Anti-chevauchement par colonne (un côté à la fois)
+  function fixOverlaps(cards) {
+    const byX = {};
+    cards.forEach(c => { (byX[c.x] = byX[c.x] || []).push(c); });
+    Object.values(byX).forEach(col => {
+      col.sort((a, b) => (a.y || 0) - (b.y || 0));
+      for (let i = 1; i < col.length; i++) {
+        const minY = col[i - 1].y + CARD_H + MIN_VGAP;
+        if (col[i].y < minY) col[i].y = minY;
+      }
+    });
+  }
+
+  // Layout d'un côté : Y des cartes en fonction de leurs prereqs.
+  // computePreYs(card) renvoie les Y à moyenner pour ce card (ou []).
+  function layoutY(sideSets, ySideOffset, computePreYs) {
     const byRound = {};
     sideSets.forEach(s => {
       const r = Math.abs(s.round);
@@ -3062,48 +3076,53 @@ function dlxBracketLayout(sets) {
     const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
     rounds.forEach((r, idx) => {
       const cardsInR = byRound[r].map(s => cardById[s.id]);
-      if (idx === 0) {
-        cardsInR.forEach((c, i) => { c.y = ySideOffset + i * (CARD_H + ROW_GAP); });
-      } else {
-        cardsInR.forEach((c, i) => {
-          // Prend en compte tous les prereqs résolus (winners ET losers déjà
-          // positionnés) → un losers R-N qui reçoit un dropper du winners
-          // R-M se positionne entre son voisin losers et le winners.
-          const preYs = c.prereqs
-            .map(pid => (pid && cardById[pid] && cardById[pid].y != null) ? cardById[pid].y : null)
-            .filter(y => y != null);
-          if (preYs.length) {
-            c.y = preYs.reduce((a, b) => a + b, 0) / preYs.length;
-          } else {
-            c.y = ySideOffset + i * (CARD_H + ROW_GAP); // fallback : stack
-          }
-        });
-      }
+      cardsInR.forEach((c, i) => {
+        const preYs = computePreYs(c);
+        if (preYs.length) {
+          c.y = preYs.reduce((a, b) => a + b, 0) / preYs.length;
+        } else {
+          c.y = ySideOffset + i * (CARD_H + ROW_GAP);
+        }
+      });
     });
   }
-  // Décale les winners de HEADER_H pour laisser la place à l'en-tête de colonne
-  layoutY(winners, HEADER_H);
+
+  // ── Phase 2a : Y des WINNERS (n'utilise que les prereqs winners) ─────
+  layoutY(winners, HEADER_H, (c) => c.prereqs
+    .map(pid => {
+      if (!pid || !cardById[pid] || cardById[pid].y == null) return null;
+      const pre = cardById[pid];
+      return pre.round > 0 ? pre.y : null;
+    })
+    .filter(y => y != null));
+
+  // Phase 3a : anti-chevauchement Winners
+  fixOverlaps(allCards.filter(c => c.round > 0));
+
+  // Hauteur réelle de la section Winners (post-anti-overlap)
   const winnersHeight = allCards
     .filter(c => c.round > 0)
     .reduce((m, c) => Math.max(m, (c.y || 0) + CARD_H), HEADER_H);
-  // Y de DÉBUT de la section losers (ligne de démarcation), losers cards
-  // commencent à losersOffsetY + HEADER_H pour laisser place à leur en-tête.
   const losersOffsetY = winnersHeight + SECTION_GAP;
   const hasLosers = losers.length > 0;
-  layoutY(losers, hasLosers ? losersOffsetY + HEADER_H : 0);
 
-  // Phase 3 : anti-chevauchement par colonne (x) — pousse les cartes qui se
-  // recouvrent verticalement vers le bas. Préserve les cartes du même round
-  // (même x) à leur position relative tout en garantissant un écart minimal.
-  const byX = {};
-  allCards.forEach(c => { (byX[c.x] = byX[c.x] || []).push(c); });
-  Object.values(byX).forEach(col => {
-    col.sort((a, b) => (a.y || 0) - (b.y || 0));
-    for (let i = 1; i < col.length; i++) {
-      const minY = col[i - 1].y + CARD_H + MIN_VGAP;
-      if (col[i].y < minY) col[i].y = minY;
-    }
-  });
+  // ── Phase 2b : Y des LOSERS ─────────────────────────────────────────
+  // Pour un losers card : prereqs LOSERS comptent à leur Y propre. Les
+  // prereqs cross-side (winners droppers) sont TRANSLATÉS dans la section
+  // losers (pre.y + losersOffsetY) → la structure des losers reflète celle
+  // des winners et les cartes se spread proprement au lieu de se stacker.
+  layoutY(losers, hasLosers ? losersOffsetY + HEADER_H : 0, (c) => c.prereqs
+    .map(pid => {
+      if (!pid || !cardById[pid] || cardById[pid].y == null) return null;
+      const pre = cardById[pid];
+      if (pre.round < 0) return pre.y; // même côté
+      if (pre.round > 0) return pre.y + losersOffsetY; // dropper : translate
+      return null;
+    })
+    .filter(y => y != null));
+
+  // Phase 3b : anti-chevauchement Losers
+  fixOverlaps(allCards.filter(c => c.round < 0));
 
   // Lignes de connexion (prereqs → carte)
   const lines = [];
