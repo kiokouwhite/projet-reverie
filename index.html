@@ -826,10 +826,6 @@
     <div class="dlx-page">
       <div class="dlx-toolbar">
         <h2 class="dlx-title">🎯 start.gg Deluxe</h2>
-        <div class="dlx-mode-toggle">
-          <button id="dlxModeEdit" type="button" class="dlx-mode-btn active" onclick="dlxSetMode('edit')">📝 Édition</button>
-          <button id="dlxModeRun"  type="button" class="dlx-mode-btn"        onclick="dlxSetMode('run')">▶ Tournoi</button>
-        </div>
       </div>
       <div class="dlx-editor-actions" id="dlxEditorActions">
         <select id="dlxAddTypeSelect" class="dc-text-input" style="width:auto;min-width:180px;"></select>
@@ -872,8 +868,17 @@
         <span id="dlxSggStatus" class="dlx-sgg-status"></span>
       </div>
       <div class="dlx-main-row">
-        <div class="dlx-canvas-wrap">
-          <div id="dlxCanvas" class="dlx-canvas"></div>
+        <div class="dlx-canvas-area">
+          <div class="dlx-canvas-wrap">
+            <div id="dlxCanvas" class="dlx-canvas"></div>
+          </div>
+          <!-- Zoom (bas-gauche) + bascule mode édition (bas-droite) flottants -->
+          <div class="dlx-zoom-fab">
+            <button type="button" onclick="dlxZoomBy(1.2)" title="Zoom +">+</button>
+            <button type="button" onclick="dlxZoomReset()" title="Zoom 100%" class="dlx-zoom-reset" id="dlxZoomLabel">100%</button>
+            <button type="button" onclick="dlxZoomBy(1/1.2)" title="Zoom −">−</button>
+          </div>
+          <button type="button" id="dlxModeFab" class="dlx-mode-fab active" onclick="dlxToggleMode()" title="Mode édition (clic pour basculer)">✏️</button>
         </div>
         <div class="dlx-sgg-panel" id="dlxSggPanel">
           <div class="dlx-sgg-panel-title">🎮 Matchs</div>

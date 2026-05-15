@@ -31,6 +31,13 @@ const DLX_COORD_LIMIT  = 50000;
 const DLX_FIT_MARGIN   = 150; // marge laissée autour du contenu
 let DLX_CANVAS_W = DLX_CANVAS_W_MIN;
 let DLX_CANVAS_H = DLX_CANVAS_H_MIN;
+// Zoom du viewport (CSS `zoom` sur le canvas) — persistant. Les coords
+// internes du plan restent en pixels canvas ; le facteur sert juste à
+// rendre le visuel plus gros/petit + à scroller dans le viewport.
+const DLX_ZOOM_LS_KEY = 'top8_deluxe_zoom';
+const DLX_ZOOM_MIN = 0.25;
+const DLX_ZOOM_MAX = 3;
+let _dlxZoom = 1;
 let dlxPlan = { version: DLX_PLAN_VERSION, elements: [] };
 let dlxMode = 'edit'; // 'edit' | 'run'
 let dlxInitDone = false;
@@ -192,6 +199,16 @@ function dlxInit() {
   dlxSggInit();
   dlxInstallScrollPersistence();
   dlxInstallPan();
+  dlxInstallZoomWheel();
+  // Restaure le zoom mémorisé
+  try {
+    const z = parseFloat(localStorage.getItem(DLX_ZOOM_LS_KEY));
+    if (z && isFinite(z) && z > 0) dlxApplyZoom(z);
+    else {
+      const lbl = document.getElementById('dlxZoomLabel');
+      if (lbl) lbl.textContent = '100%';
+    }
+  } catch (e) {}
   // Click sur le fond du canvas (pas sur un élément) = désélection.
   // ev.target === canvas signifie qu'on a cliqué sur le fond beige et pas
   // sur un élément enfant (les clics sur éléments ont leur target = l'élément).
@@ -378,6 +395,59 @@ function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
 }
 
+// ── ZOOM ────────────────────────────────────────────────────────────────
+// Applique un nouveau zoom CSS au canvas. Si (anchorX, anchorY) est fourni
+// (coordonnées écran), on ajuste le scroll pour garder ce point sous le
+// curseur. Sinon, on garde le centre du viewport.
+function dlxApplyZoom(newZoom, anchorClientX, anchorClientY) {
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  const canvas = document.getElementById('dlxCanvas');
+  if (!wrap || !canvas) return;
+  newZoom = Math.max(DLX_ZOOM_MIN, Math.min(DLX_ZOOM_MAX, newZoom));
+  // Si pas d'ancre fournie → centre du viewport
+  const rect = wrap.getBoundingClientRect();
+  const ax = (anchorClientX == null) ? rect.left + wrap.clientWidth  / 2 : anchorClientX;
+  const ay = (anchorClientY == null) ? rect.top  + wrap.clientHeight / 2 : anchorClientY;
+  // Point dans le contenu scrollable, avant changement de zoom
+  const px = (ax - rect.left) + wrap.scrollLeft;
+  const py = (ay - rect.top)  + wrap.scrollTop;
+  // Coord canvas correspondante (le canvas commence à l'origine du contenu
+  // car on a retiré margin auto)
+  const oldZoom = _dlxZoom;
+  const cx = px / oldZoom;
+  const cy = py / oldZoom;
+  // Applique le nouveau zoom
+  _dlxZoom = newZoom;
+  canvas.style.zoom = String(newZoom);
+  try { localStorage.setItem(DLX_ZOOM_LS_KEY, String(newZoom)); } catch (e) {}
+  // Met à jour l'indicateur "100%" du contrôle
+  const lbl = document.getElementById('dlxZoomLabel');
+  if (lbl) lbl.textContent = Math.round(newZoom * 100) + '%';
+  // Recale le scroll pour garder l'ancre stable
+  wrap.scrollLeft = cx * newZoom - (ax - rect.left);
+  wrap.scrollTop  = cy * newZoom - (ay - rect.top);
+}
+
+function dlxZoomBy(factor) {
+  dlxApplyZoom(_dlxZoom * factor);
+}
+
+function dlxZoomReset() {
+  dlxApplyZoom(1);
+}
+
+// Wheel sur le viewport : zoom autour du curseur (préempte le scroll natif)
+function dlxInstallZoomWheel() {
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  if (!wrap || wrap._dlxZoomBound) return;
+  wrap._dlxZoomBound = true;
+  wrap.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
+    dlxApplyZoom(_dlxZoom * factor, ev.clientX, ev.clientY);
+  }, { passive: false });
+}
+
 // Pan : clic-glissé sur le fond du plan = on déplace le viewport (comme
 // Google Maps). Ne s'active QUE si le clic part du fond (ni d'un élément,
 // ni d'une poignée), pour ne pas casser les drags d'édition existants.
@@ -537,11 +607,24 @@ function dlxSetMode(mode) {
   const runBtn  = document.getElementById('dlxModeRun');
   if (editBtn) editBtn.classList.toggle('active', mode === 'edit');
   if (runBtn)  runBtn.classList.toggle('active', mode === 'run');
+  // Bouton flottant (FAB) bas-droite : actif en mode édition
+  const fab = document.getElementById('dlxModeFab');
+  if (fab) {
+    fab.classList.toggle('active', mode === 'edit');
+    fab.title = mode === 'edit'
+      ? 'Mode édition (clic : passer en Tournoi)'
+      : 'Mode tournoi (clic : passer en Édition)';
+  }
   const actions = document.getElementById('dlxEditorActions');
   if (actions) actions.style.display = mode === 'edit' ? '' : 'none';
   const canvas = document.getElementById('dlxCanvas');
   if (canvas) canvas.classList.toggle('dlx-canvas-edit', mode === 'edit');
   dlxRender();
+}
+
+// Bascule le mode via le bouton flottant
+function dlxToggleMode() {
+  dlxSetMode(dlxMode === 'edit' ? 'run' : 'edit');
 }
 
 // ── RENDU DU PLAN ───────────────────────────────────────────────────────────
@@ -1274,6 +1357,14 @@ function dlxOnDragMove(ev) {
   // créer d'angle non voulu, ou aligner une station horizontalement.
   if (ev.shiftKey) {
     if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0;
+  }
+  // Avec zoom CSS, un pixel écran ≠ un pixel canvas. On convertit ici pour
+  // les modes move / resize qui appliquent dx/dy directement en coords plan.
+  // (Les modes vertex / wall-translate / move-group ont leur propre scale
+  // basé sur getBoundingClientRect qui intègre déjà le zoom.)
+  if (_dlxZoom !== 1 && (_dlxDrag.mode === 'move' || _dlxDrag.mode === 'resize')) {
+    dx /= _dlxZoom;
+    dy /= _dlxZoom;
   }
   if (_dlxDrag.mode === 'move') {
     let nx = _dlxDrag.origX + dx;

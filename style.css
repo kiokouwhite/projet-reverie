@@ -5083,9 +5083,13 @@ canvas { width: 100%; display: block; }
   gap: 16px;
   align-items: flex-start;
 }
-.dlx-canvas-wrap {
+/* Conteneur du plan : .dlx-canvas-wrap (scrollable) + FABs en overlay */
+.dlx-canvas-area {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+.dlx-canvas-wrap {
   background: rgba(255,255,255,0.6);
   border: 2px dashed rgba(155,127,184,0.4);
   border-radius: 16px;
@@ -5482,7 +5486,7 @@ canvas { width: 100%; display: block; }
   position: relative;
   width: 600px;
   height: 1500px;
-  margin: 0 auto;
+  margin: 0;
   background: #f5e8d0; /* parquet beige clair */
   border-radius: 12px;
   /* overflow visible : les poignées des murs/éléments collés au bord
@@ -5498,6 +5502,66 @@ canvas { width: 100%; display: block; }
 /* Pan du plan (clic-glissé sur le fond) — cursor "main fermée" pendant le pan */
 .dlx-canvas-wrap.dlx-panning,
 .dlx-canvas-wrap.dlx-panning * { cursor: grabbing !important; }
+
+/* ── Boutons flottants : mode édition (bas-droite) + zoom (bas-gauche) ── */
+.dlx-mode-fab {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  z-index: 50;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.dlx-mode-fab:hover { transform: scale(1.06); }
+.dlx-mode-fab.active {
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(124,92,255,0.45);
+}
+.dlx-zoom-fab {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  overflow: hidden;
+  z-index: 50;
+}
+.dlx-zoom-fab button {
+  width: 40px;
+  height: 36px;
+  border: none;
+  background: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+.dlx-zoom-fab button:hover { background: #f4f0fa; }
+.dlx-zoom-fab .dlx-zoom-reset {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
 
 /* Élément de base — toutes les variantes en héritent */
 .dlx-el {
