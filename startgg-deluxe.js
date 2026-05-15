@@ -190,6 +190,7 @@ function dlxInit() {
   dlxRender();
   dlxInstallKeyboardShortcuts();
   dlxSggInit();
+  dlxInstallScrollPersistence();
   // Click sur le fond du canvas (pas sur un élément) = désélection.
   // ev.target === canvas signifie qu'on a cliqué sur le fond beige et pas
   // sur un élément enfant (les clics sur éléments ont leur target = l'élément).
@@ -374,6 +375,36 @@ function dlxLoadPlan() {
 
 function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
+}
+
+// Mémorise la position de scroll du viewport (canvas-wrap) pour la
+// restaurer au rechargement → l'utilisateur retrouve la même vue du plan.
+const DLX_SCROLL_LS_KEY = 'top8_deluxe_scroll';
+let _dlxScrollSaveTimer = null;
+function dlxInstallScrollPersistence() {
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  if (!wrap || wrap._dlxScrollBound) return;
+  wrap._dlxScrollBound = true;
+  // Restaure la position au premier passage (après le 1er render qui a
+  // fixé la taille du canvas, sinon scrollLeft/Top serait ignoré).
+  try {
+    const raw = localStorage.getItem(DLX_SCROLL_LS_KEY);
+    if (raw) {
+      const { x, y } = JSON.parse(raw);
+      if (typeof x === 'number') wrap.scrollLeft = x;
+      if (typeof y === 'number') wrap.scrollTop  = y;
+    }
+  } catch (e) {}
+  // Sauvegarde (débouncée) à chaque scroll
+  wrap.addEventListener('scroll', () => {
+    clearTimeout(_dlxScrollSaveTimer);
+    _dlxScrollSaveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(DLX_SCROLL_LS_KEY,
+          JSON.stringify({ x: wrap.scrollLeft, y: wrap.scrollTop }));
+      } catch (e) {}
+    }, 200);
+  }, { passive: true });
 }
 
 // Synchronise les dimensions courantes du canvas depuis le plan chargé
