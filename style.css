@@ -6430,6 +6430,17 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   text-overflow: ellipsis;
   max-width: 100%;
 }
+/* Texte des éléments rotatables : compense la rotation parent pour
+   rester à l'horizontale (tournée la box, pas le texte) */
+.dlx-el-station-label,
+.dlx-el-table-label,
+.dlx-el-station-num,
+.dlx-el-match,
+.dlx-el-match-p,
+.dlx-el-match-vs {
+  transform: rotate(var(--dlx-counter-rot, 0deg));
+  transform-origin: center;
+}
 
 /* Table : simple rectangle au nom éditable */
 .dlx-el-table {

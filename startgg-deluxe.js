@@ -1184,9 +1184,12 @@ function dlxElementHTML(el) {
         `<div class="dlx-el-handle dlx-el-handle-${dir}" data-resize="${el.id}" data-dir="${dir}"></div>`
       ).join('')
     : '';
-  // Rotation 0/90/180/270 — appliquée via CSS transform (transform-origin center)
+  // Rotation 0/90/180/270 — appliquée via CSS transform (transform-origin center).
+  // On expose --dlx-counter-rot pour que les labels textuels restent à
+  // l'horizontale même quand l'élément est tourné (CSS counter-rotation
+  // sur les classes .dlx-el-*-label / .dlx-el-match).
   const rot = el.rotation || 0;
-  const rotCss = rot ? `transform:rotate(${rot}deg);` : '';
+  const rotCss = rot ? `transform:rotate(${rot}deg);--dlx-counter-rot:${-rot}deg;` : '';
 
   // Rendu spécifique par type. Walls passent par dlxWallSvg (SVG overlay),
   // pas par ce switch.
