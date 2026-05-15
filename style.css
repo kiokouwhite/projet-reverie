@@ -5394,12 +5394,67 @@ canvas { width: 100%; display: block; }
   border-radius: 8px;
   color: var(--text);
 }
+/* Personnages joués game par game */
+.dlx-report-games {
+  padding: 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.dlx-report-games-hint {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-style: italic;
+  text-align: center;
+  margin: 0;
+}
+.dlx-report-game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f7f4fc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.dlx-report-game-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dlx-report-game-chars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+.dlx-report-char {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+}
+.dlx-report-char:disabled { opacity: 0.5; }
+.dlx-report-game-vs {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-soft);
+  flex-shrink: 0;
+}
 .dlx-report-status {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
   min-height: 16px;
-  padding: 0 18px;
+  padding: 8px 18px 0;
 }
 .dlx-report-status-loading { color: var(--text-soft); }
 .dlx-report-status-ok      { color: #2e9e5b; }

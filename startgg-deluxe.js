@@ -2008,6 +2008,7 @@ async function dlxSggFetch() {
           id: s.id,
           eventName: ev.name || '',
           gameName: (ev.videogame && ev.videogame.name) || '',
+          videogameId: (ev.videogame && ev.videogame.id) || null,
           gameImg,
           round: s.fullRoundText || s.identifier || '',
           state: s.state,
@@ -2210,6 +2211,31 @@ function dlxUnassignMatch(elId) {
 
 // ── REPORT DE SCORE — modale d'édition du score d'un match start.gg ─────
 let _dlxReportSetId = null;
+let _dlxCharCache = {};       // videogameId → liste de personnages (cache)
+let _dlxReportCharList = [];  // personnages du jeu du match en cours
+let _dlxReportChars = {};     // sélection courante : clé "game_player" → characterId
+
+// Récupère (et cache) la liste des personnages d'un jeu start.gg
+const DLX_SGG_CHARS_QUERY = `
+  query DlxChars($id: ID!) {
+    videogame(id: $id) { id characters { id name } }
+  }`;
+async function dlxSggFetchCharacters(videogameId) {
+  if (!videogameId) return [];
+  if (_dlxCharCache[videogameId]) return _dlxCharCache[videogameId];
+  try {
+    const data = (typeof sggQuery === 'function')
+      ? await sggQuery(DLX_SGG_CHARS_QUERY, { id: videogameId })
+      : await dlxSggRawQuery(DLX_SGG_CHARS_QUERY, { id: videogameId });
+    const chars = ((data && data.videogame && data.videogame.characters) || [])
+      .slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    _dlxCharCache[videogameId] = chars;
+    return chars;
+  } catch (e) {
+    return [];
+  }
+}
 
 function dlxReportStatus(type, msg) {
   const el = document.getElementById('dlxReportStatus');
@@ -2239,7 +2265,60 @@ function dlxSggOpenReport(setId) {
   if (btn) btn.disabled = !ready;
   dlxReportStatus(ready ? '' : 'error',
     ready ? '' : 'Les deux joueurs ne sont pas encore déterminés pour ce match.');
+  // Réinitialise la sélection de personnages et charge la liste du jeu
+  _dlxReportChars = {};
+  _dlxReportCharList = [];
+  dlxRenderReportGames();
+  if (set.videogameId) {
+    dlxSggFetchCharacters(set.videogameId).then(chars => {
+      // ne re-render que si la modale est toujours sur ce même match
+      if (String(_dlxReportSetId) === String(set.id)) {
+        _dlxReportCharList = chars;
+        dlxRenderReportGames();
+      }
+    });
+  }
   modal.style.display = 'flex';
+}
+
+// (Re)génère la liste "Game N → personnages" sous le score. Régénérée à
+// chaque changement de score ; les persos déjà choisis sont conservés.
+function dlxRenderReportGames() {
+  const wrap = document.getElementById('dlxReportGames');
+  if (!wrap) return;
+  const elA = document.getElementById('dlxReportP1Score');
+  const elB = document.getElementById('dlxReportP2Score');
+  const sa = Math.max(0, parseInt(elA && elA.value, 10) || 0);
+  const sb = Math.max(0, parseInt(elB && elB.value, 10) || 0);
+  const total = sa + sb;
+  if (!total) { wrap.innerHTML = ''; return; }
+  const chars = _dlxReportCharList;
+  const optsHtml = (selectedId) => {
+    let h = '<option value="">— personnage —</option>';
+    chars.forEach(c => {
+      h += `<option value="${dlxSggEsc(c.id)}"${String(c.id) === String(selectedId) ? ' selected' : ''}>${dlxSggEsc(c.name)}</option>`;
+    });
+    return h;
+  };
+  let html = chars.length ? '' : '<p class="dlx-report-games-hint">Chargement des personnages…</p>';
+  for (let g = 1; g <= total; g++) {
+    const c1 = _dlxReportChars[g + '_1'] || '';
+    const c2 = _dlxReportChars[g + '_2'] || '';
+    html += `<div class="dlx-report-game">
+      <div class="dlx-report-game-title">Game ${g}</div>
+      <div class="dlx-report-game-chars">
+        <select class="dlx-report-char" onchange="dlxReportSetChar(${g},1,this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(c1)}</select>
+        <span class="dlx-report-game-vs">vs</span>
+        <select class="dlx-report-char" onchange="dlxReportSetChar(${g},2,this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(c2)}</select>
+      </div>
+    </div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+// Mémorise le personnage choisi pour un game / un joueur
+function dlxReportSetChar(game, player, value) {
+  _dlxReportChars[game + '_' + player] = value || '';
 }
 
 function dlxSggCloseReport() {
@@ -2266,6 +2345,7 @@ function dlxReportBump(which, delta) {
   const el = document.getElementById(which === 'p1' ? 'dlxReportP1Score' : 'dlxReportP2Score');
   if (!el) return;
   el.value = Math.max(0, (parseInt(el.value, 10) || 0) + delta);
+  dlxRenderReportGames(); // le nombre de games dépend du score
 }
 
 const DLX_SGG_REPORT_MUTATION = `
@@ -2293,10 +2373,21 @@ async function dlxSggSubmitReport() {
   const winnerId = sa > sb ? set.p1Id : set.p2Id;
   // gameData : 1 entrée par game jouée (sa games gagnés par p1, sb par p2).
   // L'ordre des games n'affecte pas le score total affiché par start.gg.
+  // On y joint les personnages choisis (selections) quand ils sont renseignés.
+  const mkGame = (g, gameWinnerId) => {
+    const entry = { gameNum: g, winnerId: gameWinnerId };
+    const sel = [];
+    const c1 = _dlxReportChars[g + '_1'];
+    const c2 = _dlxReportChars[g + '_2'];
+    if (c1) sel.push({ entrantId: set.p1Id, characterId: c1 });
+    if (c2) sel.push({ entrantId: set.p2Id, characterId: c2 });
+    if (sel.length) entry.selections = sel;
+    return entry;
+  };
   const gameData = [];
   let gameNum = 1;
-  for (let i = 0; i < sa; i++) gameData.push({ gameNum: gameNum++, winnerId: set.p1Id });
-  for (let i = 0; i < sb; i++) gameData.push({ gameNum: gameNum++, winnerId: set.p2Id });
+  for (let i = 0; i < sa; i++) gameData.push(mkGame(gameNum++, set.p1Id));
+  for (let i = 0; i < sb; i++) gameData.push(mkGame(gameNum++, set.p2Id));
 
   const btn = document.getElementById('dlxReportSubmitBtn');
   if (btn) btn.disabled = true;

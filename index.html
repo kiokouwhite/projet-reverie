@@ -898,7 +898,7 @@
           <div class="dlx-report-pname" id="dlxReportP1Name">Joueur 1</div>
           <div class="dlx-report-score-ctrl">
             <button type="button" onclick="dlxReportBump('p1',-1)">−</button>
-            <input id="dlxReportP1Score" type="number" min="0" value="0">
+            <input id="dlxReportP1Score" type="number" min="0" value="0" oninput="dlxRenderReportGames()">
             <button type="button" onclick="dlxReportBump('p1',1)">+</button>
           </div>
         </div>
@@ -907,11 +907,13 @@
           <div class="dlx-report-pname" id="dlxReportP2Name">Joueur 2</div>
           <div class="dlx-report-score-ctrl">
             <button type="button" onclick="dlxReportBump('p2',-1)">−</button>
-            <input id="dlxReportP2Score" type="number" min="0" value="0">
+            <input id="dlxReportP2Score" type="number" min="0" value="0" oninput="dlxRenderReportGames()">
             <button type="button" onclick="dlxReportBump('p2',1)">+</button>
           </div>
         </div>
       </div>
+      <!-- Personnages joués game par game (rempli dynamiquement selon le score) -->
+      <div id="dlxReportGames" class="dlx-report-games"></div>
       <div id="dlxReportStatus" class="dlx-report-status"></div>
       <div class="dlx-report-actions">
         <button type="button" class="btn" id="dlxReportSubmitBtn" onclick="dlxSggSubmitReport()">✅ Valider le score</button>
