@@ -6420,6 +6420,84 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   border-radius: 8px;
   padding: 6px 8px;
 }
+/* Badge "jeu disponible" en bas-gauche du setup */
+.dlx-el-game-btn {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.18);
+  background: rgba(255,255,255,0.92);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  z-index: 6;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transform: rotate(var(--dlx-counter-rot, 0deg));
+  transform-origin: center;
+}
+.dlx-el-game-btn img {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.dlx-el-game-btn:hover { background: #f0eaff; }
+
+/* Popup de choix du jeu */
+.dlx-game-picker {
+  position: fixed;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+  padding: 4px;
+  z-index: 10000;
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dlx-game-picker button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+  font-family: inherit;
+}
+.dlx-game-picker button:hover { background: #f4f0fa; }
+.dlx-game-picker button.active {
+  background: rgba(124,92,255,0.12);
+  color: #4a3a8a;
+}
+.dlx-game-picker img {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.dlx-game-picker-noimg { font-size: 16px; }
+.dlx-game-picker-none {
+  color: var(--text-soft);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  font-style: italic;
+}
+
 /* Setup marqué "pas de setup" (mode Tournoi) : grisé + barré */
 .dlx-el-broken {
   background: rgba(120,120,120,0.45) !important;
