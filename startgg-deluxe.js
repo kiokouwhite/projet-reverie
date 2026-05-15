@@ -25,8 +25,11 @@ const DLX_PLAN_VERSION = 7;
 // pour suivre le contenu (murs/zones qu'on étire au-delà du cadre). Les
 // constantes _MIN sont la taille plancher (le canvas ne rétrécit jamais
 // en-dessous). DLX_COORD_LIMIT = garde-fou anti-emballement.
-const DLX_CANVAS_W_MIN = 600;
-const DLX_CANVAS_H_MIN = 1500;
+// Taille plancher du canvas : volontairement très grande pour donner
+// l'impression d'un fond beige "infini" et permettre de pan le plan
+// librement à l'intérieur de n'importe quelle fenêtre.
+const DLX_CANVAS_W_MIN = 5000;
+const DLX_CANVAS_H_MIN = 5000;
 const DLX_COORD_LIMIT  = 50000;
 const DLX_FIT_MARGIN   = 150; // marge laissée autour du contenu
 let DLX_CANVAS_W = DLX_CANVAS_W_MIN;
