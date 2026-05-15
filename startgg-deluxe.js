@@ -200,6 +200,12 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
+  // Restaure le mode (édition / tournoi) mémorisé — important pour que la
+  // barre d'actions d'édition reste cachée si on était en Tournoi avant.
+  try {
+    const m = localStorage.getItem(DLX_MODE_LS_KEY);
+    if (m === 'run' || m === 'edit') dlxSetMode(m);
+  } catch (e) {}
   // Restaure la vue (plan / bracket) mémorisée
   try {
     const v = localStorage.getItem(DLX_VIEW_LS_KEY);
@@ -605,9 +611,11 @@ function dlxResetDefaultPlan() {
 }
 
 // ── MODE EDIT / RUN ─────────────────────────────────────────────────────────
+const DLX_MODE_LS_KEY = 'top8_deluxe_mode';
 function dlxSetMode(mode) {
   if (mode !== 'edit' && mode !== 'run') return;
   dlxMode = mode;
+  try { localStorage.setItem(DLX_MODE_LS_KEY, mode); } catch (e) {}
   const editBtn = document.getElementById('dlxModeEdit');
   const runBtn  = document.getElementById('dlxModeRun');
   if (editBtn) editBtn.classList.toggle('active', mode === 'edit');
@@ -652,6 +660,13 @@ function dlxSetView(view) {
   document.querySelectorAll('.dlx-zoom-fab, .dlx-mode-fab').forEach(el => {
     el.style.display = (view === 'map') ? '' : 'none';
   });
+  // La barre d'actions d'édition ne sert qu'au plan : on la cache dans le
+  // bracket (et l'état mode-édition reste mémorisé pour quand on revient).
+  const actions = document.getElementById('dlxEditorActions');
+  if (actions) {
+    if (view !== 'map') actions.style.display = 'none';
+    else actions.style.display = (dlxMode === 'edit') ? '' : 'none';
+  }
   if (view === 'bracket') {
     // Charge le bracket à la 1re ouverture si pas déjà chargé
     if (dlxSgg.slug && !dlxBracket.loaded) dlxBracketFetch();
