@@ -201,6 +201,7 @@ function dlxInit() {
   dlxInstallPan();
   dlxInstallZoomWheel();
   dlxInstallResizer();
+  dlxInstallResizerBottom();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
   // les visuels (FAB, barre d'actions, classes du canvas) avec l'état JS.
@@ -408,6 +409,51 @@ function dlxLoadPlan() {
 
 function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
+}
+
+// ── REDIMENSIONNEMENT DU PLAN (hauteur) ─────────────────────────────────
+// Poignée horizontale sous le viewport du plan : drag vertical pour ajuster
+// la hauteur (et celle de la vue bracket). Persistée.
+const DLX_WRAP_H_LS_KEY = 'top8_deluxe_wrap_h';
+function dlxInstallResizerBottom() {
+  const resizer = document.getElementById('dlxResizerBottom');
+  if (!resizer || resizer._dlxBound) return;
+  resizer._dlxBound = true;
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  const brView = document.getElementById('dlxBracketView');
+  // Restaure la hauteur mémorisée
+  try {
+    const h = parseInt(localStorage.getItem(DLX_WRAP_H_LS_KEY), 10);
+    if (h >= 280 && h <= 3000) {
+      if (wrap)   wrap.style.height = h + 'px';
+      if (brView) brView.style.height = h + 'px';
+    }
+  } catch (e) {}
+  resizer.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const startY = ev.clientY;
+    // Cible la vue visible (plan ou bracket) pour la mesure d'origine
+    const visible = (dlxView === 'bracket' && brView) ? brView : wrap;
+    const startH = visible ? visible.offsetHeight : 600;
+    resizer.classList.add('resizing');
+    document.body.classList.add('dlx-resizing-v');
+    const onMove = (e) => {
+      let newH = startH + (e.clientY - startY);
+      newH = Math.max(280, Math.min(3000, newH));
+      if (wrap)   wrap.style.height = newH + 'px';
+      if (brView) brView.style.height = newH + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      resizer.classList.remove('resizing');
+      document.body.classList.remove('dlx-resizing-v');
+      const h = (visible || wrap || brView || {}).offsetHeight;
+      if (h) { try { localStorage.setItem(DLX_WRAP_H_LS_KEY, String(h)); } catch (e) {} }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, { once: true });
+  });
 }
 
 // ── REDIMENSIONNEMENT DU PANNEAU MATCHS (splitter) ──────────────────────
