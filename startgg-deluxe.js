@@ -1259,15 +1259,26 @@ function dlxElementHTML(el) {
       } else {
         inner = `<div class="dlx-el-station-label">${safeLabel}</div>`;
       }
-      // Petit badge "jeu disponible" en bas-gauche : indique le jeu setup
-      // sur ce poste. Clic = popup pour le choisir / changer.
-      const gameImg = el.game && el.game.img;
-      const gameName = el.game && el.game.name;
-      const gameBtn = `<button class="dlx-el-game-btn" type="button"
+      // Badge "jeux disponibles" en bas-gauche : 0, 1 ou plusieurs jeux
+      // associés au setup. Clic = popup multi-sélection avec recherche.
+      const games = Array.isArray(el.games) ? el.games : (el.game ? [el.game] : []);
+      let badgeContent;
+      if (games.length === 0) {
+        badgeContent = '🎮';
+      } else {
+        const visible = games.slice(0, 3);
+        const more = games.length > 3 ? games.length - 3 : 0;
+        badgeContent = visible.map(g => g.img
+          ? `<img src="${dlxSggEsc(g.img)}" alt="">`
+          : '<span class="dlx-game-noimg">🎮</span>'
+        ).join('') + (more ? `<span class="dlx-el-game-more">+${more}</span>` : '');
+      }
+      const gameTitle = games.length
+        ? 'Jeux : ' + games.map(g => g.name).join(', ') + ' (clic pour modifier)'
+        : 'Assigner un jeu à ce setup';
+      const gameBtn = `<button class="dlx-el-game-btn${games.length > 1 ? ' dlx-el-game-btn-multi' : ''}" type="button"
         onclick="event.stopPropagation(); dlxOpenGamePicker('${el.id}', event)"
-        title="${gameName ? dlxSggEsc('Jeu : ' + gameName + ' (clic pour changer)') : 'Assigner un jeu à ce setup'}">
-        ${gameImg ? `<img src="${dlxSggEsc(gameImg)}" alt="">` : '🎮'}
-      </button>`;
+        title="${dlxSggEsc(gameTitle)}">${badgeContent}</button>`;
       inner += gameBtn;
       return `<div class="dlx-el dlx-el-station${el.match ? ' dlx-el-has-match' : ''}${el.broken ? ' dlx-el-broken' : ''}" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color}33;border-color:${el.color};${rotCss}"
@@ -2878,55 +2889,170 @@ function dlxAssignMatch(elId, set) {
   dlxSggRenderPanel();
 }
 
-// ── Picker "jeu disponible sur un setup" ──────────────────────────────
+// ── Picker "jeux disponibles sur un setup" (multi-sélection + recherche) ──
+let _dlxGamePickerElId = null;
+let _dlxGameSearchTimer = null;
+let _dlxGameSearchResults = [];
+
+// Helpers d'accès au tableau de jeux d'un élément (avec migration depuis
+// l'ancien champ singleton `el.game`).
+function dlxGetGames(el) {
+  if (!el) return [];
+  if (Array.isArray(el.games)) return el.games;
+  if (el.game) return [el.game];
+  return [];
+}
+function dlxSetGames(el, list) {
+  el.games = list;
+  if (el.game) delete el.game;
+}
+
 function dlxOpenGamePicker(elId, ev) {
   if (ev && ev.stopPropagation) ev.stopPropagation();
-  // Liste des jeux uniques tirée des matchs start.gg chargés
-  const map = {};
-  (dlxSgg.sets || []).forEach(s => {
-    if (s.gameName && !map[s.gameName]) {
-      map[s.gameName] = { name: s.gameName, img: s.gameImg };
-    }
-  });
-  const games = Object.values(map);
-  if (!games.length) {
-    alert('Charge un tournoi start.gg pour récupérer la liste des jeux disponibles.');
-    return;
-  }
   dlxCloseGamePicker();
+  _dlxGamePickerElId = elId;
+  _dlxGameSearchResults = [];
   const btn = document.querySelector(`.dlx-el[data-id="${elId}"] .dlx-el-game-btn`);
   if (!btn) return;
   const rect = btn.getBoundingClientRect();
   const picker = document.createElement('div');
   picker.id = 'dlxGamePicker';
   picker.className = 'dlx-game-picker';
-  picker.innerHTML = games.map(g => {
-    const isCurrent = elId && (() => {
-      const el = dlxPlan.elements.find(x => x.id === elId);
-      return el && el.game && el.game.name === g.name;
-    })();
-    return `<button type="button" class="${isCurrent ? 'active' : ''}"
-      onmousedown="event.preventDefault()"
-      onclick="dlxAssignGame('${elId}', '${dlxSggEsc(g.name).replace(/'/g,"\\'")}', '${dlxSggEsc(g.img).replace(/'/g,"\\'")}')">
-      ${g.img ? `<img src="${dlxSggEsc(g.img)}" alt="">` : '<span class="dlx-game-picker-noimg">🎮</span>'}
-      <span>${dlxSggEsc(g.name)}</span>
-    </button>`;
-  }).join('') +
-  `<button type="button" class="dlx-game-picker-none"
-     onmousedown="event.preventDefault()"
-     onclick="dlxAssignGame('${elId}', '', '')">— Aucun</button>`;
+  picker.innerHTML = '<div class="dlx-game-picker-body" id="dlxGamePickerBody"></div>';
+  // Position
   picker.style.left = Math.max(8, rect.left) + 'px';
-  // ouvre en-dessous si possible, sinon au-dessus
-  const estimatedH = Math.min(200, 28 * (games.length + 1) + 8);
+  const estimatedH = 360;
   if (window.innerHeight - rect.bottom > estimatedH + 12) {
     picker.style.top = (rect.bottom + 4) + 'px';
   } else {
     picker.style.top = Math.max(8, rect.top - estimatedH - 4) + 'px';
   }
   document.body.appendChild(picker);
+  dlxRenderGamePicker();
   setTimeout(() => {
     document.addEventListener('mousedown', dlxGamePickerOutsideHandler, true);
+    const inp = document.getElementById('dlxGamePickerSearch');
+    if (inp) inp.focus();
   }, 0);
+}
+
+// (Re)génère le contenu du picker. Appelé après chaque toggle / recherche.
+function dlxRenderGamePicker() {
+  const body = document.getElementById('dlxGamePickerBody');
+  if (!body) return;
+  const el = dlxPlan.elements.find(x => x.id === _dlxGamePickerElId);
+  if (!el) { dlxCloseGamePicker(); return; }
+  const current = dlxGetGames(el);
+  const currentKey = (g) => (g.id != null ? 'id:' + g.id : 'name:' + (g.name || '').toLowerCase());
+  const currentKeys = new Set(current.map(currentKey));
+  // Jeux locaux (extraits du tournoi chargé)
+  const local = {};
+  (dlxSgg.sets || []).forEach(s => {
+    if (s.gameName && !local[s.gameName]) {
+      local[s.gameName] = { name: s.gameName, img: s.gameImg };
+    }
+  });
+  const localList = Object.values(local);
+  // Sépare ce qui est déjà choisi du reste
+  const localOther = localList.filter(g => !currentKeys.has(currentKey(g)));
+
+  const row = (g, opts = {}) => {
+    const checked = currentKeys.has(currentKey(g));
+    const nameJs = String(g.name || '').replace(/'/g, "\\'");
+    const imgJs  = String(g.img  || '').replace(/'/g, "\\'");
+    const idAttr = (g.id != null) ? `, ${g.id}` : ', null';
+    return `<button type="button" class="dlx-game-row${checked ? ' active' : ''}"
+      onmousedown="event.preventDefault()"
+      onclick="dlxToggleGameOnSetup('${nameJs}', '${imgJs}'${idAttr})">
+      ${g.img ? `<img src="${dlxSggEsc(g.img)}" alt="">` : '<span class="dlx-game-picker-noimg">🎮</span>'}
+      <span class="dlx-game-row-name">${dlxSggEsc(g.name)}</span>
+      <span class="dlx-game-row-check">${checked ? '✓' : '+'}</span>
+    </button>`;
+  };
+
+  let html = `
+    <div class="dlx-game-picker-search">
+      <input id="dlxGamePickerSearch" type="text" placeholder="Rechercher un jeu sur start.gg…"
+        oninput="dlxGamePickerSearch(this.value)" autocomplete="off">
+    </div>`;
+  if (current.length) {
+    html += `<div class="dlx-game-picker-section">Sur ce setup</div>`;
+    html += current.map(g => row(g)).join('');
+    html += `<button type="button" class="dlx-game-picker-none"
+      onmousedown="event.preventDefault()" onclick="dlxClearGamesOnSetup()">— Tout retirer</button>`;
+  }
+  if (localOther.length) {
+    html += `<div class="dlx-game-picker-section">Tournoi chargé</div>`;
+    html += localOther.map(g => row(g)).join('');
+  }
+  if (_dlxGameSearchResults.length) {
+    html += `<div class="dlx-game-picker-section">Résultats start.gg</div>`;
+    html += _dlxGameSearchResults.map(g => row(g)).join('');
+  }
+  if (!current.length && !localOther.length && !_dlxGameSearchResults.length) {
+    html += `<div class="dlx-game-picker-empty">Tape un nom de jeu pour le chercher sur start.gg.</div>`;
+  }
+  body.innerHTML = html;
+}
+
+// Toggle un jeu sur le setup (ajoute s'il n'y est pas, retire sinon)
+function dlxToggleGameOnSetup(name, img, gameId) {
+  const el = dlxPlan.elements.find(x => x.id === _dlxGamePickerElId);
+  if (!el) return;
+  const list = dlxGetGames(el).slice();
+  const key = (g) => (g.id != null ? 'id:' + g.id : 'name:' + (g.name || '').toLowerCase());
+  const newGame = { name: name, img: img || '' };
+  if (gameId != null) newGame.id = gameId;
+  const k = key(newGame);
+  const idx = list.findIndex(g => key(g) === k);
+  if (idx >= 0) list.splice(idx, 1);
+  else          list.push(newGame);
+  dlxSetGames(el, list);
+  dlxSavePlan();
+  dlxRender();
+  dlxRenderGamePicker();
+}
+
+function dlxClearGamesOnSetup() {
+  const el = dlxPlan.elements.find(x => x.id === _dlxGamePickerElId);
+  if (!el) return;
+  dlxSetGames(el, []);
+  dlxSavePlan();
+  dlxRender();
+  dlxRenderGamePicker();
+}
+
+// Recherche un jeu sur start.gg (debounce 300 ms)
+function dlxGamePickerSearch(query) {
+  clearTimeout(_dlxGameSearchTimer);
+  const q = String(query || '').trim();
+  if (q.length < 2) {
+    _dlxGameSearchResults = [];
+    dlxRenderGamePicker();
+    return;
+  }
+  _dlxGameSearchTimer = setTimeout(async () => {
+    if (!dlxSggGetToken()) return; // pas de token = pas de search
+    try {
+      const data = (typeof sggQuery === 'function')
+        ? await sggQuery(`query SearchGame($name: String) {
+            videogames(query: { filter: { name: $name }, perPage: 8 }) {
+              nodes { id name images { url type } }
+            }
+          }`, { name: q })
+        : null;
+      const nodes = (data && data.videogames && data.videogames.nodes) || [];
+      _dlxGameSearchResults = nodes.map(g => {
+        const imgs = g.images || [];
+        const img = (imgs.find(i => i.type === 'profile') || imgs[0] || {}).url || '';
+        return { id: g.id, name: g.name, img };
+      });
+      dlxRenderGamePicker();
+    } catch (e) {
+      _dlxGameSearchResults = [];
+      dlxRenderGamePicker();
+    }
+  }, 300);
 }
 
 function dlxGamePickerOutsideHandler(ev) {
@@ -2938,16 +3064,9 @@ function dlxGamePickerOutsideHandler(ev) {
 function dlxCloseGamePicker() {
   const p = document.getElementById('dlxGamePicker');
   if (p) p.remove();
+  _dlxGamePickerElId = null;
+  _dlxGameSearchResults = [];
   document.removeEventListener('mousedown', dlxGamePickerOutsideHandler, true);
-}
-function dlxAssignGame(elId, name, img) {
-  const el = dlxPlan.elements.find(x => x.id === elId);
-  if (!el) return;
-  if (!name) delete el.game;
-  else el.game = { name, img: img || '' };
-  dlxSavePlan();
-  dlxRender();
-  dlxCloseGamePicker();
 }
 
 // Bascule l'état "pas de setup" / "out of service" d'une station — utilisé
