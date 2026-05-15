@@ -5495,6 +5495,9 @@ canvas { width: 100%; display: block; }
 }
 .dlx-canvas-edit { cursor: default; }
 .dlx-canvas-edit .dlx-el { cursor: move; }
+/* Pan du plan (clic-glissé sur le fond) — cursor "main fermée" pendant le pan */
+.dlx-canvas-wrap.dlx-panning,
+.dlx-canvas-wrap.dlx-panning * { cursor: grabbing !important; }
 
 /* Élément de base — toutes les variantes en héritent */
 .dlx-el {

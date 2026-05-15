@@ -191,6 +191,7 @@ function dlxInit() {
   dlxInstallKeyboardShortcuts();
   dlxSggInit();
   dlxInstallScrollPersistence();
+  dlxInstallPan();
   // Click sur le fond du canvas (pas sur un élément) = désélection.
   // ev.target === canvas signifie qu'on a cliqué sur le fond beige et pas
   // sur un élément enfant (les clics sur éléments ont leur target = l'élément).
@@ -375,6 +376,43 @@ function dlxLoadPlan() {
 
 function dlxSavePlan() {
   try { localStorage.setItem(DLX_LS_KEY, JSON.stringify(dlxPlan)); } catch {}
+}
+
+// Pan : clic-glissé sur le fond du plan = on déplace le viewport (comme
+// Google Maps). Ne s'active QUE si le clic part du fond (ni d'un élément,
+// ni d'une poignée), pour ne pas casser les drags d'édition existants.
+function dlxInstallPan() {
+  const wrap = document.querySelector('.dlx-canvas-wrap');
+  if (!wrap || wrap._dlxPanBound) return;
+  wrap._dlxPanBound = true;
+  let panState = null;
+  const interactiveSel = '.dlx-el, .dlx-wall-vertex, .dlx-wall-hitarea,'
+    + ' .dlx-room-vertex, .dlx-poly-remove, .dlx-el-handle, .dlx-el-remove,'
+    + ' .dlx-el-resize, .dlx-el-match-x';
+  wrap.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 0) return;
+    // Ne panne pas si le clic part d'un élément interactif (élément, poignée,
+    // vertex de mur, etc.) — ces clics ont leur propre handler de drag.
+    if (ev.target.closest && ev.target.closest(interactiveSel)) return;
+    panState = {
+      startX: ev.clientX, startY: ev.clientY,
+      sLeft: wrap.scrollLeft, sTop: wrap.scrollTop,
+    };
+    wrap.classList.add('dlx-panning');
+    ev.preventDefault();
+    const onMove = (e) => {
+      if (!panState) return;
+      wrap.scrollLeft = panState.sLeft - (e.clientX - panState.startX);
+      wrap.scrollTop  = panState.sTop  - (e.clientY - panState.startY);
+    };
+    const onUp = () => {
+      panState = null;
+      wrap.classList.remove('dlx-panning');
+      document.removeEventListener('mousemove', onMove);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp, { once: true });
+  });
 }
 
 // Mémorise la position de scroll du viewport (canvas-wrap) pour la
