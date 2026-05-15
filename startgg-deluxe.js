@@ -2773,7 +2773,32 @@ function dlxFindElementByMatchSetId(setId) {
 }
 
 function dlxSggSetDragStart(ev, setId) {
-  _dlxSggDragSet = dlxSgg.sets.find(s => String(s.id) === String(setId)) || null;
+  // Cherche d'abord dans la liste des matchs "live" (panneau Matchs),
+  // sinon dans les données du bracket (qui contient aussi les matchs
+  // terminés ou non encore dans dlxSgg.sets).
+  let s = dlxSgg.sets.find(x => String(x.id) === String(setId)) || null;
+  if (!s && dlxBracket && dlxBracket.events) {
+    for (const event of dlxBracket.events) {
+      const found = (event.sets || []).find(x => String(x.id) === String(setId));
+      if (!found) continue;
+      const e1 = found.slots && found.slots[0] && found.slots[0].entrant;
+      const e2 = found.slots && found.slots[1] && found.slots[1].entrant;
+      s = {
+        id: found.id,
+        eventName: event.name || '',
+        gameName: '',
+        gameImg: event.videogameImg || '',
+        round: found.fullRoundText || found.identifier || '',
+        state: found.state,
+        p1: (e1 && e1.name) || null,
+        p2: (e2 && e2.name) || null,
+        p1Id: (e1 && e1.id) || null,
+        p2Id: (e2 && e2.id) || null,
+      };
+      break;
+    }
+  }
+  _dlxSggDragSet = s;
   if (ev.dataTransfer) {
     ev.dataTransfer.effectAllowed = 'copy';
     try { ev.dataTransfer.setData('text/plain', 'dlxset:' + setId); } catch (e) {}
@@ -3791,10 +3816,18 @@ function dlxBracketRender() {
   const cardsHtml = layout.cards.map(c => {
     const stateBadge = c.state === 2 ? '<span class="dlx-br-state live">⏵</span>'
                      : c.state === 6 ? '<span class="dlx-br-state called">📣</span>' : '';
-    return `<div class="dlx-br-card${c.state === 3 ? ' completed' : ''}"
+    // Cartes non terminées : glissables vers un setup du plan (réutilise les
+    // handlers du panneau Matchs). Cartes terminées : pas de drag.
+    const isDone = c.state === 3;
+    const dragAttrs = isDone ? '' :
+      `draggable="true"
+       ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(c.id)}')"
+       ondragend="dlxSggSetDragEnd(event)"`;
+    return `<div class="dlx-br-card${isDone ? ' completed' : ''}"
        style="left:${c.x}px;top:${c.y}px;width:${layout.CARD_W}px;height:${layout.CARD_H}px;"
+       ${dragAttrs}
        onclick="dlxBracketCardClick('${dlxSggEsc(c.id)}')"
-       title="${dlxSggEsc(c.fullRoundText || '')}">
+       title="${dlxSggEsc(c.fullRoundText || '')} · clic : reporter · glisser : placer sur un setup">
       <div class="dlx-br-id">${dlxSggEsc(c.identifier || '')}${stateBadge}</div>
       <div class="dlx-br-slot${c.winnerSlot === 0 ? ' winner' : ''}">
         <span class="dlx-br-name">${dlxSggEsc(c.p1)}</span>
