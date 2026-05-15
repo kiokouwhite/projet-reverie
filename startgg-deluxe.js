@@ -3276,6 +3276,128 @@ function dlxBracketLayout(sets) {
   };
 }
 
+// Heuristique de détection d'un Round Robin : tous les slots sont des
+// entrants déjà connus (prereqType 'seed', pas de 'set'), et le nombre
+// total de sets correspond à N*(N-1)/2 où N = nombre d'entrants. → tout
+// le monde joue tout le monde, pas d'arbre de bracket.
+function dlxBracketIsRoundRobin(sets) {
+  if (!sets || !sets.length) return false;
+  const entrants = new Set();
+  let hasSetPrereq = false;
+  sets.forEach(s => {
+    if (!s.slots) return;
+    s.slots.forEach(slot => {
+      if (slot && slot.prereqType === 'set') hasSetPrereq = true;
+      if (slot && slot.entrant && slot.entrant.id != null) entrants.add(slot.entrant.id);
+    });
+  });
+  if (hasSetPrereq) return false;
+  const n = entrants.size;
+  if (n < 3) return false;
+  // tolère un set d'écart pour les pools partiels
+  const expected = n * (n - 1) / 2;
+  return Math.abs(sets.length - expected) <= 1;
+}
+
+// Rendu spécial Round Robin : matrice joueur-vs-joueur, comme l'onglet
+// "Overview" de start.gg.
+function dlxBracketRenderRR(event) {
+  const sets = event.sets || [];
+  // Collecte tous les entrants (id → {id, name, seed})
+  const entrantsMap = {};
+  sets.forEach(s => {
+    (s.slots || []).forEach(slot => {
+      if (slot && slot.entrant && slot.entrant.id != null) {
+        if (!entrantsMap[slot.entrant.id]) {
+          entrantsMap[slot.entrant.id] = {
+            id: slot.entrant.id,
+            name: slot.entrant.name || '',
+            seed: (slot.seed && slot.seed.seedNum) || 999,
+          };
+        }
+      }
+    });
+  });
+  const entrants = Object.values(entrantsMap).sort((a, b) => a.seed - b.seed);
+
+  // Map (e1, e2) → set + parse displayScore
+  const matchMap = {};
+  sets.forEach(s => {
+    const e1 = s.slots && s.slots[0] && s.slots[0].entrant;
+    const e2 = s.slots && s.slots[1] && s.slots[1].entrant;
+    if (!e1 || !e2) return;
+    let s1 = null, s2 = null;
+    if (s.displayScore) {
+      const nums = String(s.displayScore).match(/-?\d+/g);
+      if (nums && nums.length >= 2) { s1 = parseInt(nums[0], 10); s2 = parseInt(nums[1], 10); }
+    }
+    matchMap[e1.id + '|' + e2.id] = { s, isP1Row: true, s1, s2 };
+    matchMap[e2.id + '|' + e1.id] = { s, isP1Row: false, s1: s2, s2: s1 };
+  });
+
+  // Records par joueur (W-L sets + games)
+  const records = {};
+  entrants.forEach(e => { records[e.id] = { w: 0, l: 0, gw: 0, gl: 0 }; });
+  sets.forEach(s => {
+    const e1 = s.slots && s.slots[0] && s.slots[0].entrant;
+    const e2 = s.slots && s.slots[1] && s.slots[1].entrant;
+    if (!e1 || !e2 || s.winnerId == null) return;
+    let s1 = 0, s2 = 0;
+    if (s.displayScore) {
+      const nums = String(s.displayScore).match(/-?\d+/g);
+      if (nums && nums.length >= 2) { s1 = parseInt(nums[0], 10); s2 = parseInt(nums[1], 10); }
+    }
+    if (String(s.winnerId) === String(e1.id))      { records[e1.id].w++; records[e2.id].l++; }
+    else if (String(s.winnerId) === String(e2.id)) { records[e2.id].w++; records[e1.id].l++; }
+    records[e1.id].gw += s1; records[e1.id].gl += s2;
+    records[e2.id].gw += s2; records[e2.id].gl += s1;
+  });
+
+  // Header row
+  const headerHtml = `<tr>
+    <th class="dlx-rr-corner"></th>
+    ${entrants.map(e =>
+      `<th class="dlx-rr-col-name" title="${dlxSggEsc(e.name)}">${dlxSggEsc(e.name)}</th>`
+    ).join('')}
+    <th class="dlx-rr-corner">Record</th>
+  </tr>`;
+
+  // Body rows
+  const rowsHtml = entrants.map(rowE => {
+    const cells = entrants.map(colE => {
+      if (rowE.id === colE.id) return '<td class="dlx-rr-cell dlx-rr-diag"></td>';
+      const m = matchMap[rowE.id + '|' + colE.id];
+      if (!m) return '<td class="dlx-rr-cell dlx-rr-empty"></td>';
+      const played = (m.s1 != null && m.s2 != null);
+      let cls = '', label;
+      if (played && m.s.winnerId != null) {
+        cls = String(m.s.winnerId) === String(rowE.id) ? 'dlx-rr-win' : 'dlx-rr-loss';
+        label = m.s1 + ' - ' + m.s2;
+      } else {
+        cls = 'dlx-rr-pending';
+        label = '—';
+      }
+      return `<td class="dlx-rr-cell ${cls}"
+        onclick="dlxSggOpenReport('${dlxSggEsc(m.s.id)}')"
+        title="Reporter le score">${label}</td>`;
+    }).join('');
+    const r = records[rowE.id];
+    return `<tr>
+      <th class="dlx-rr-row-name" title="${dlxSggEsc(rowE.name)}">${dlxSggEsc(rowE.name)}</th>
+      ${cells}
+      <td class="dlx-rr-record">
+        <div class="dlx-rr-record-sets">${r.w} - ${r.l}</div>
+        <div class="dlx-rr-record-games">${r.gw} - ${r.gl}</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="dlx-rr-wrap">
+    <div class="dlx-rr-title">Round Robin — ${dlxSggEsc(event.name)}</div>
+    <table class="dlx-rr-table">${headerHtml}${rowsHtml}</table>
+  </div>`;
+}
+
 function dlxBracketRender() {
   const chipsEl = document.getElementById('dlxBracketChips');
   const canvasEl = document.getElementById('dlxBracketCanvas');
@@ -3297,6 +3419,13 @@ function dlxBracketRender() {
               || dlxBracket.events[0];
   if (!event.sets.length) {
     canvasEl.innerHTML = '<div class="dlx-bracket-empty">Aucun match dans cet event.</div>';
+    return;
+  }
+  // Round Robin → affichage matriciel (tableau) plutôt qu'arbre de bracket
+  if (dlxBracketIsRoundRobin(event.sets)) {
+    canvasEl.style.width = '';
+    canvasEl.style.height = '';
+    canvasEl.innerHTML = dlxBracketRenderRR(event);
     return;
   }
   const layout = dlxBracketLayout(event.sets);

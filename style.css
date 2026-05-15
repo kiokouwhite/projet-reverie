@@ -5872,6 +5872,95 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   stroke: rgba(124,92,255,0.5);
   stroke-width: 1.5;
 }
+/* ── Round Robin : affichage en tableau (style "Overview" start.gg) ──── */
+.dlx-rr-wrap {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dlx-rr-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.dlx-rr-table {
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+.dlx-rr-corner {
+  background: transparent;
+  padding: 6px;
+}
+.dlx-rr-col-name,
+.dlx-rr-row-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 6px 10px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-rr-col-name { vertical-align: bottom; text-align: center; }
+.dlx-rr-row-name { text-align: right; }
+.dlx-rr-cell {
+  width: 80px;
+  height: 44px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+}
+.dlx-rr-cell.dlx-rr-diag {
+  background: #f4f0fa;
+  border: none;
+}
+.dlx-rr-cell.dlx-rr-empty {
+  background: #f9f7fc;
+  color: var(--text-soft);
+}
+.dlx-rr-cell.dlx-rr-pending {
+  color: var(--text-soft);
+  background: #fafafa;
+  cursor: pointer;
+}
+.dlx-rr-cell.dlx-rr-pending:hover { background: #f0eaff; }
+.dlx-rr-cell.dlx-rr-win {
+  background: #e8f7ee;
+  border-color: #4caf50;
+  color: #2e7d32;
+  cursor: pointer;
+}
+.dlx-rr-cell.dlx-rr-loss {
+  background: #fdecea;
+  border-color: #e57373;
+  color: #c62828;
+  cursor: pointer;
+}
+.dlx-rr-cell.dlx-rr-win:hover,
+.dlx-rr-cell.dlx-rr-loss:hover { filter: brightness(0.95); }
+.dlx-rr-record {
+  padding-left: 12px;
+  text-align: right;
+}
+.dlx-rr-record-sets {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.dlx-rr-record-games {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-style: italic;
+}
+
 /* Bandeau de section (Winners / Losers) — démarcation forte façon
    table-header pleine largeur, comme sur start.gg. */
 .dlx-br-section-band {
