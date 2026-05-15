@@ -495,7 +495,11 @@ function dlxRender() {
     ${walls.map(dlxWallSvg).join('')}
   </svg>`;
   canvas.innerHTML = wallsSvg + nonWalls.map(dlxElementHTML).join('');
-  if (dlxMode === 'edit') dlxAttachDragHandlers();
+  // On attache les handlers dans les DEUX modes : en mode Tournoi, seul le
+  // mousedown des .dlx-el sert (clic sur un setup → report de score) ; les
+  // poignées de resize / vertices de murs ne sont pas rendus donc les
+  // querySelectorAll correspondants sont vides → rien d'autre n'est attaché.
+  dlxAttachDragHandlers();
 }
 
 // ── DÉCOUPE DES MURS PAR LES PORTES ────────────────────────────────────────
