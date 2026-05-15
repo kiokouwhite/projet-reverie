@@ -69,6 +69,7 @@ const DLX_TYPES = {
   'wall':      { icon: '🧱',  label: 'Mur',              defaultW: 200, defaultH: 12,  color: '#2a2a2a', z: 3 },
   'room':      { icon: '🏠',  label: 'Zone (label)',     defaultW: 200, defaultH: 120, color: '#f5e6d8', z: 1 },
   'door':      { icon: '🚪',  label: 'Porte',            defaultW: 70,  defaultH: 140, color: '#2a2a2a', z: 4, rotatable: true },
+  'table':     { icon: '🪑',  label: 'Table',            defaultW: 140, defaultH: 80,  color: '#b89878', z: 6, rotatable: true },
   'station':   { icon: '🎮',  label: 'Setup (station)',  defaultW: 160, defaultH: 70,  color: '#46d18f', z: 7, rotatable: true },
 };
 
@@ -638,6 +639,12 @@ function dlxElementHTML(el) {
       return `<div class="dlx-el dlx-el-door" data-id="${el.id}"
         style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;${rotCss}">
         ${dlxDoorSvg(el.w, el.h, el.doorType || 'simple', el.color)}
+        ${removeBtn}${resizeHandle}</div>`;
+
+    case 'table':
+      return `<div class="dlx-el dlx-el-table" data-id="${el.id}"
+        style="left:${el.x}px;top:${el.y}px;width:${el.w}px;height:${el.h}px;background:${el.color};${rotCss}">
+        <div class="dlx-el-table-label">${safeLabel}</div>
         ${removeBtn}${resizeHandle}</div>`;
 
     case 'station':
@@ -1431,7 +1438,10 @@ function dlxAddElement() {
   dlxPlan.elements.push({
     id,
     type,
-    label: type === 'station' ? 'Nouvelle station' : (type === 'room' ? 'Nouvelle zone' : ''),
+    label: type === 'station' ? 'Nouvelle station'
+         : type === 'room'    ? 'Nouvelle zone'
+         : type === 'table'   ? 'Table'
+         : '',
     x: 30, y: 30,
     w: def.defaultW,
     h: def.defaultH,
@@ -1624,7 +1634,7 @@ function dlxUpdateProp(prop, value) {
       }
     }
     if (prop === 'label') {
-      const labelEl = elNode.querySelector('.dlx-el-station-label, .dlx-el-label-mini, .dlx-el-room-label, .dlx-el-outlet-num');
+      const labelEl = elNode.querySelector('.dlx-el-station-label, .dlx-el-label-mini, .dlx-el-room-label, .dlx-el-table-label, .dlx-el-outlet-num');
       if (labelEl) labelEl.textContent = s.label || '';
     }
   }

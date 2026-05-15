@@ -5251,6 +5251,25 @@ canvas { width: 100%; display: block; }
   max-width: 100%;
 }
 
+/* Table : simple rectangle au nom éditable */
+.dlx-el-table {
+  z-index: 6;
+  border: 2px solid rgba(0,0,0,0.25);
+  border-radius: 6px;
+  padding: 6px 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.dlx-el-table-label {
+  pointer-events: none;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3a2a18;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* Resize + remove handles (visibles en mode édition uniquement) */
 .dlx-el-resize {
   position: absolute;
