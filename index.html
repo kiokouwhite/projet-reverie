@@ -896,11 +896,16 @@
           <!-- Poignée de redimensionnement vertical (bas) du plan -->
           <div class="dlx-resizer-bottom" id="dlxResizerBottom" title="Glisse pour ajuster la hauteur"></div>
         </div>
-        <div class="dlx-resizer" id="dlxResizer" title="Glisse pour redimensionner le panneau"></div>
         <div class="dlx-sgg-panel" id="dlxSggPanel">
-          <div class="dlx-sgg-panel-title">🎮 Matchs</div>
-          <div id="dlxSggMatches" class="dlx-sgg-matches">
-            <p class="dlx-sgg-empty">Charge un tournoi start.gg pour voir les matchs en cours et à venir.</p>
+          <!-- Barre de titre : drag-to-move (style fenêtre Windows) -->
+          <div class="dlx-sgg-titlebar" id="dlxSggTitlebar">
+            <span class="dlx-sgg-title">🎮 Matchs</span>
+            <span class="dlx-sgg-grip" title="Glisser pour déplacer la fenêtre">⋮⋮</span>
+          </div>
+          <div class="dlx-sgg-panel-body">
+            <div id="dlxSggMatches" class="dlx-sgg-matches">
+              <p class="dlx-sgg-empty">Charge un tournoi start.gg pour voir les matchs en cours et à venir.</p>
+            </div>
           </div>
         </div>
       </div>

@@ -200,7 +200,7 @@ function dlxInit() {
   dlxInstallScrollPersistence();
   dlxInstallPan();
   dlxInstallZoomWheel();
-  dlxInstallResizer();
+  dlxInstallPanelDrag();
   dlxInstallResizerBottom();
   // Restaure le mode (édition / tournoi) mémorisé. À défaut on reste en
   // Tournoi (lecture seule) — toujours appliquer dlxSetMode pour synchroniser
@@ -456,42 +456,76 @@ function dlxInstallResizerBottom() {
   });
 }
 
-// ── REDIMENSIONNEMENT DU PANNEAU MATCHS (splitter) ──────────────────────
-// Une poignée verticale entre la zone du plan et le panneau "Matchs" permet
-// au TO d'ajuster la largeur des deux pour maximiser son espace de travail.
-// La largeur est persistée.
-const DLX_PANEL_W_LS_KEY = 'top8_deluxe_panel_w';
-function dlxInstallResizer() {
-  const resizer = document.getElementById('dlxResizer');
-  const panel   = document.getElementById('dlxSggPanel');
-  if (!resizer || !panel || resizer._dlxBound) return;
-  resizer._dlxBound = true;
-  // Restaure la largeur mémorisée
+// ── PANNEAU MATCHS FLOTTANT (drag depuis la barre de titre) ─────────────
+// Le panneau est position:fixed → on peut le poser où on veut sur l'écran.
+// Position et taille persistées dans localStorage.
+const DLX_PANEL_POS_LS_KEY = 'top8_deluxe_panel_pos';
+function dlxInstallPanelDrag() {
+  const panel  = document.getElementById('dlxSggPanel');
+  const handle = document.getElementById('dlxSggTitlebar');
+  if (!panel || !handle || handle._dlxBound) return;
+  handle._dlxBound = true;
+  // Restaure position/taille
   try {
-    const w = parseInt(localStorage.getItem(DLX_PANEL_W_LS_KEY), 10);
-    if (w >= 200 && w <= 900) panel.style.width = w + 'px';
+    const saved = JSON.parse(localStorage.getItem(DLX_PANEL_POS_LS_KEY) || '{}');
+    if (typeof saved.x === 'number') {
+      panel.style.left = saved.x + 'px';
+      panel.style.right = 'auto';
+    }
+    if (typeof saved.y === 'number') panel.style.top = saved.y + 'px';
+    if (typeof saved.w === 'number' && saved.w >= 220) panel.style.width  = saved.w + 'px';
+    if (typeof saved.h === 'number' && saved.h >= 180) panel.style.height = saved.h + 'px';
   } catch (e) {}
-  resizer.addEventListener('mousedown', (ev) => {
+
+  // Sauvegarde combinée (position + taille)
+  const saveState = () => {
+    try {
+      const r = panel.getBoundingClientRect();
+      localStorage.setItem(DLX_PANEL_POS_LS_KEY, JSON.stringify({
+        x: Math.round(r.left),
+        y: Math.round(r.top),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      }));
+    } catch (e) {}
+  };
+
+  // Drag depuis la barre de titre
+  handle.addEventListener('mousedown', (ev) => {
     if (ev.button !== 0) return;
     ev.preventDefault();
-    const startX = ev.clientX;
-    const startW = panel.offsetWidth;
-    resizer.classList.add('resizing');
-    document.body.classList.add('dlx-resizing');
+    const startX = ev.clientX, startY = ev.clientY;
+    const r = panel.getBoundingClientRect();
+    const startLeft = r.left, startTop = r.top;
+    panel.style.right = 'auto'; // bascule en mode "left:" pour pouvoir déplacer
+    panel.classList.add('dragging');
     const onMove = (e) => {
-      let newW = startW - (e.clientX - startX);
-      newW = Math.max(200, Math.min(900, newW));
-      panel.style.width = newW + 'px';
+      let nx = startLeft + (e.clientX - startX);
+      let ny = startTop  + (e.clientY - startY);
+      // Laisse toujours au moins 60 px visibles dans la fenêtre
+      nx = Math.max(60 - r.width, Math.min(window.innerWidth - 60, nx));
+      ny = Math.max(0, Math.min(window.innerHeight - 40, ny));
+      panel.style.left = nx + 'px';
+      panel.style.top  = ny + 'px';
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
-      resizer.classList.remove('resizing');
-      document.body.classList.remove('dlx-resizing');
-      try { localStorage.setItem(DLX_PANEL_W_LS_KEY, String(panel.offsetWidth)); } catch (e) {}
+      panel.classList.remove('dragging');
+      saveState();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp, { once: true });
   });
+
+  // Sauvegarde aussi quand l'utilisateur redimensionne la fenêtre (CSS resize)
+  if (typeof ResizeObserver === 'function') {
+    let t = null;
+    const obs = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(saveState, 250);
+    });
+    obs.observe(panel);
+  }
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────
