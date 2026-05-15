@@ -5854,7 +5854,33 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   stroke: rgba(124,92,255,0.5);
   stroke-width: 1.5;
 }
-/* En-tête de colonne ("Winners Round 1", "Losers Round 2"…) */
+/* Bandeau de section (Winners / Losers) — démarcation forte façon
+   table-header pleine largeur, comme sur start.gg. */
+.dlx-br-section-band {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  z-index: 3;
+}
+.dlx-br-section-band-W {
+  background: linear-gradient(90deg, #5b3eb5 0%, #7c5cff 60%, #9b7fff 100%);
+  border-radius: 8px 8px 0 0;
+}
+.dlx-br-section-band-L {
+  background: linear-gradient(90deg, #b53e6e 0%, #e85a8a 60%, #ff8db0 100%);
+  border-radius: 8px 8px 0 0;
+}
+.dlx-br-section-band-label { white-space: nowrap; }
+
+/* En-tête de colonne ("Round 1", "Quarter-Final"…) en-dessous du bandeau */
 .dlx-br-col-header {
   position: absolute;
   display: flex;
@@ -5864,33 +5890,12 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   color: var(--text);
   letter-spacing: 0.02em;
   padding: 0 4px;
+  background: rgba(255,255,255,0.85);
+  border-bottom: 1px solid var(--border);
+  z-index: 2;
 }
 .dlx-br-col-header-W { color: #4a3a8a; }
 .dlx-br-col-header-L { color: #8a3a3a; }
-
-/* Bandeau de séparation entre Winners et Losers brackets */
-.dlx-br-section-divider {
-  position: absolute;
-  left: 0;
-  height: 2px;
-  background: linear-gradient(to right, rgba(124,92,255,0.15), rgba(232,90,138,0.55), rgba(124,92,255,0.15));
-  z-index: 1;
-}
-.dlx-br-section-label {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 14px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #8a3a3a;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  white-space: nowrap;
-}
 
 .dlx-br-card {
   position: absolute;

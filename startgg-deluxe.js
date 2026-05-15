@@ -3007,9 +3007,11 @@ function dlxBracketMakeCard(s, setById) {
 //     colonne se recouvrent, on pousse la suivante vers le bas
 function dlxBracketLayout(sets) {
   const CARD_W = 220, CARD_H = 56, COL_GAP = 60, ROW_GAP = 14;
-  const MIN_VGAP = 8;       // marge minimale verticale entre cartes d'une même colonne
-  const HEADER_H = 36;      // hauteur réservée pour les en-têtes de colonne ("Winners Round 1"…)
-  const SECTION_GAP = 90;   // espace entre la section Winners et la section Losers
+  const MIN_VGAP = 8;        // marge minimale verticale entre cartes d'une même colonne
+  const SECTION_TITLE_H = 38; // bandeau de section ("WINNERS BRACKET" / "LOSERS BRACKET")
+  const COL_HEADER_H = 28;    // ligne d'en-têtes de colonne ("Round 1", "Round 2"…)
+  const HEADER_H = SECTION_TITLE_H + COL_HEADER_H; // hauteur totale d'en-tête
+  const SECTION_GAP = 50;     // espace entre la fin des Winners et le bandeau Losers
   const setById = {};
   sets.forEach(s => { setById[s.id] = s; });
 
@@ -3119,18 +3121,45 @@ function dlxBracketLayout(sets) {
     });
   });
 
-  // En-têtes de colonne (un par round visible, par côté)
+  // En-têtes de colonne (un par round visible, par côté). Pour rapprocher
+  // de start.gg : juste "Round N" ou "Quarter-Final" / "Semi-Final" /
+  // "Final" / "Grand Final" selon le contexte (heuristique sur le nombre
+  // de rounds restants côté winners).
+  const winnersRounds = winners.map(s => Math.abs(s.round));
+  const maxWRound = winnersRounds.length ? Math.max(...winnersRounds) : 0;
+  const losersRounds = losers.map(s => Math.abs(s.round));
+  const maxLRound = losersRounds.length ? Math.max(...losersRounds) : 0;
+  const labelFor = (side, r, maxR) => {
+    if (side === 'W') {
+      if (r === maxR)     return 'Grand Final';
+      if (r === maxR - 1) return 'Winners Final';
+      if (r === maxR - 2) return 'Winners Semi-Final';
+      if (r === maxR - 3) return 'Winners Quarter-Final';
+      return 'Winners Round ' + r;
+    } else {
+      if (r === maxR)     return 'Losers Final';
+      if (r === maxR - 1) return 'Losers Semi-Final';
+      if (r === maxR - 2) return 'Losers Quarter-Final';
+      return 'Losers Round ' + r;
+    }
+  };
   const headers = [];
   const seenW = {}, seenL = {};
   allCards.forEach(c => {
     if (c.round > 0) {
       if (seenW[c.x]) return;
       seenW[c.x] = true;
-      headers.push({ x: c.x, y: 0, side: 'W', label: 'Winners Round ' + c.roundAbs });
+      headers.push({
+        x: c.x, y: SECTION_TITLE_H, side: 'W',
+        label: labelFor('W', c.roundAbs, maxWRound),
+      });
     } else if (c.round < 0) {
       if (seenL[c.x]) return;
       seenL[c.x] = true;
-      headers.push({ x: c.x, y: losersOffsetY, side: 'L', label: 'Losers Round ' + c.roundAbs });
+      headers.push({
+        x: c.x, y: losersOffsetY + SECTION_TITLE_H, side: 'L',
+        label: labelFor('L', c.roundAbs, maxLRound),
+      });
     }
   });
 
@@ -3140,6 +3169,7 @@ function dlxBracketLayout(sets) {
     cards: allCards, lines, headers,
     width, height,
     CARD_W, CARD_H, HEADER_H,
+    SECTION_TITLE_H, COL_HEADER_H,
     hasLosers, losersOffsetY, winnersHeight,
   };
 }
@@ -3171,20 +3201,26 @@ function dlxBracketRender() {
   const linesSvg = `<svg class="dlx-bracket-lines" width="${layout.width}" height="${layout.height}">
     ${layout.lines.map(d => `<path d="${d}" />`).join('')}
   </svg>`;
-  // En-têtes de colonne (Winners Round N / Losers Round N)
+  // Bandes de section (style "table header" plein largeur) — démarcation
+  // forte entre Winners et Losers, comme sur start.gg.
+  const sectionBandsHtml = [
+    `<div class="dlx-br-section-band dlx-br-section-band-W"
+       style="top:0;width:${layout.width}px;height:${layout.SECTION_TITLE_H}px;">
+       <span class="dlx-br-section-band-label">🏆 Winners Bracket</span>
+     </div>`,
+    layout.hasLosers
+      ? `<div class="dlx-br-section-band dlx-br-section-band-L"
+           style="top:${layout.losersOffsetY}px;width:${layout.width}px;height:${layout.SECTION_TITLE_H}px;">
+           <span class="dlx-br-section-band-label">🔻 Losers Bracket</span>
+         </div>`
+      : ''
+  ].join('');
+  // En-têtes de colonne (Round 1, Quarter-Final, …)
   const headersHtml = layout.headers.map(h => `
     <div class="dlx-br-col-header dlx-br-col-header-${h.side}"
-      style="left:${h.x}px;top:${h.y}px;width:${layout.CARD_W}px;height:${layout.HEADER_H}px;">
+      style="left:${h.x}px;top:${h.y}px;width:${layout.CARD_W}px;height:${layout.COL_HEADER_H}px;">
       ${dlxSggEsc(h.label)}
     </div>`).join('');
-  // Ligne / bandeau de séparation entre Winners et Losers
-  let dividerHtml = '';
-  if (layout.hasLosers) {
-    const dividerY = layout.winnersHeight + 20;
-    dividerHtml = `<div class="dlx-br-section-divider" style="top:${dividerY}px;width:${layout.width}px;">
-      <span class="dlx-br-section-label">🟢 Losers Bracket</span>
-    </div>`;
-  }
   const cardsHtml = layout.cards.map(c => {
     const stateBadge = c.state === 2 ? '<span class="dlx-br-state live">⏵</span>'
                      : c.state === 6 ? '<span class="dlx-br-state called">📣</span>' : '';
@@ -3205,7 +3241,7 @@ function dlxBracketRender() {
   }).join('');
   canvasEl.style.width  = layout.width  + 'px';
   canvasEl.style.height = layout.height + 'px';
-  canvasEl.innerHTML = linesSvg + dividerHtml + headersHtml + cardsHtml;
+  canvasEl.innerHTML = linesSvg + sectionBandsHtml + headersHtml + cardsHtml;
 }
 
 // Rebascule sur le bracket à chaque fetch start.gg (pour recharger en cas
