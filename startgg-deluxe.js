@@ -2848,11 +2848,21 @@ function dlxRenderReportGames() {
   };
   const cellHtml = (g, player, cVal, pName) => {
     const isWin = (_dlxReportGameWins[g] || (g <= sa ? 1 : 2)) === player;
+    const selected = cVal ? chars.find(c => String(c.id) === String(cVal)) : null;
+    const selectedName = selected ? selected.name : '';
     return `<div class="dlx-report-cell${isWin ? ' winner' : ''}"
       onclick="dlxReportSetGameWinner(${g},${player})"
       title="Cliquer : ${dlxSggEsc(pName)} gagne le game ${g}">
-      <select class="dlx-report-char" onclick="event.stopPropagation()"
-        onchange="dlxReportSetChar(${g},${player},this.value)" ${chars.length ? '' : 'disabled'}>${optsHtml(cVal)}</select>
+      <div class="dlx-report-char-picker" data-game="${g}" data-player="${player}" onclick="event.stopPropagation()">
+        <input type="text" class="dlx-report-char-input" placeholder="— personnage —"
+          value="${dlxSggEsc(selectedName)}" autocomplete="off"
+          ${chars.length ? '' : 'disabled'}
+          onfocus="dlxReportCharFocus(this)"
+          oninput="dlxReportCharFilter(this)"
+          onkeydown="dlxReportCharKey(event, this)"
+          onblur="dlxReportCharBlur(this)">
+        <div class="dlx-report-char-dropdown" style="display:none;"></div>
+      </div>
     </div>`;
   };
   let html = chars.length ? '' : '<p class="dlx-report-games-hint">Chargement des personnages…</p>';
@@ -2864,6 +2874,124 @@ function dlxRenderReportGames() {
     </div>`;
   }
   wrap.innerHTML = html;
+}
+
+// ── Picker de personnage avec recherche ─────────────────────────────────
+// Le natif <select> est remplacé par un input texte + dropdown filtrée.
+// position: fixed sur la dropdown → elle s'échappe des overflow:hidden.
+
+function dlxReportCharFocus(input) {
+  input.select();
+  const wrap = input.closest('.dlx-report-char-picker');
+  if (wrap) dlxReportCharRenderList(wrap, '');
+}
+
+function dlxReportCharFilter(input) {
+  const wrap = input.closest('.dlx-report-char-picker');
+  if (wrap) dlxReportCharRenderList(wrap, input.value.trim());
+}
+
+function dlxReportCharRenderList(wrap, query) {
+  const dropdown = wrap.querySelector('.dlx-report-char-dropdown');
+  const input = wrap.querySelector('.dlx-report-char-input');
+  if (!dropdown || !input || !_dlxReportCharList.length) return;
+  const q = (query || '').toLowerCase();
+  const matches = q ? _dlxReportCharList.filter(c => String(c.name).toLowerCase().includes(q))
+                    : _dlxReportCharList;
+  if (!matches.length) {
+    dropdown.innerHTML = '<div class="dlx-report-char-empty">Aucun perso trouvé</div>';
+  } else {
+    dropdown.innerHTML = matches.slice(0, 80).map(c => {
+      const safeName = dlxSggEsc(c.name);
+      // onmousedown pour pré-empter le blur de l'input avant le clic
+      return `<div class="dlx-report-char-item"
+        data-id="${dlxSggEsc(c.id)}"
+        onmousedown="event.preventDefault(); dlxReportCharPick(this, '${dlxSggEsc(c.id)}', this.textContent)">${safeName}</div>`;
+    }).join('');
+  }
+  // Position fixée (échappe aux overflow:hidden des ancêtres)
+  const rect = input.getBoundingClientRect();
+  const dropdownMaxH = 220;
+  dropdown.style.position = 'fixed';
+  dropdown.style.left = rect.left + 'px';
+  dropdown.style.width = rect.width + 'px';
+  const spaceBelow = window.innerHeight - rect.bottom;
+  if (spaceBelow < dropdownMaxH && rect.top > spaceBelow) {
+    // ouvre vers le haut
+    dropdown.style.top = 'auto';
+    dropdown.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+  } else {
+    dropdown.style.top = (rect.bottom + 2) + 'px';
+    dropdown.style.bottom = 'auto';
+  }
+  dropdown.style.display = 'block';
+}
+
+function dlxReportCharPick(item, charId, charName) {
+  const wrap = item.closest('.dlx-report-char-picker');
+  if (!wrap) return;
+  const g = parseInt(wrap.dataset.game, 10);
+  const player = parseInt(wrap.dataset.player, 10);
+  const input = wrap.querySelector('.dlx-report-char-input');
+  if (input) {
+    input.value = charName;
+    input.blur();
+  }
+  const dropdown = wrap.querySelector('.dlx-report-char-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+  dlxReportSetChar(g, player, charId);
+  // re-render pour propager aux autres games vides du même joueur
+  dlxRenderReportGames();
+}
+
+function dlxReportCharBlur(input) {
+  const wrap = input.closest('.dlx-report-char-picker');
+  if (!wrap) return;
+  // Délai pour laisser le mousedown sur un item finir de propager
+  setTimeout(() => {
+    const dropdown = wrap.querySelector('.dlx-report-char-dropdown');
+    if (dropdown) dropdown.style.display = 'none';
+    // Validation : si le texte tapé correspond exactement à un perso, l'appliquer.
+    // Sinon, restaurer la valeur précédente.
+    const q = (input.value || '').trim();
+    if (!q) {
+      // vide → désélection
+      const g = parseInt(wrap.dataset.game, 10);
+      const player = parseInt(wrap.dataset.player, 10);
+      dlxReportSetChar(g, player, '');
+      return;
+    }
+    const exact = _dlxReportCharList.find(c => String(c.name).toLowerCase() === q.toLowerCase());
+    const g = parseInt(wrap.dataset.game, 10);
+    const player = parseInt(wrap.dataset.player, 10);
+    if (exact) {
+      dlxReportSetChar(g, player, exact.id);
+      input.value = exact.name;
+    } else {
+      // restaure la valeur précédente
+      const prev = _dlxReportChars[g + '_' + player];
+      const prevChar = prev ? _dlxReportCharList.find(c => String(c.id) === String(prev)) : null;
+      input.value = prevChar ? prevChar.name : '';
+    }
+  }, 150);
+}
+
+// Entrée = sélectionne le premier match ; Échap = annule
+function dlxReportCharKey(ev, input) {
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    const wrap = input.closest('.dlx-report-char-picker');
+    if (!wrap) return;
+    const first = wrap.querySelector('.dlx-report-char-item');
+    if (first) {
+      first.dispatchEvent(new MouseEvent('mousedown'));
+    } else {
+      input.blur();
+    }
+  } else if (ev.key === 'Escape') {
+    ev.preventDefault();
+    input.blur();
+  }
 }
 
 // Mémorise le personnage choisi pour un game / un joueur. Propage
