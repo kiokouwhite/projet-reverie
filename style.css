@@ -5408,6 +5408,10 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   flex-shrink: 0;
 }
 .dlx-aide-call-cancel:hover { background: #3d9140; }
+/* Appel mis en sourdine : grisé, mais reste dans la liste tant que le
+   joueur n'a pas été lancé sur le bon jeu */
+.dlx-aide-call-row.silenced { opacity: 0.55; }
+.dlx-aide-call-row.silenced .dlx-aide-call-game { color: var(--text-soft); }
 
 /* ── Bandeau d'appel global ─────────────────────────────────────────── */
 .dlx-call-banner {

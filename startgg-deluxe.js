@@ -3463,20 +3463,65 @@ async function dlxSggMarkInProgress(setId) {
     alert('⚠️ Clé API start.gg manquante (onglet Configuration).');
     return;
   }
-  // Petite mise à jour visuelle immédiate (avant le retour API)
-  const set = dlxSgg.sets.find(s => String(s.id) === String(setId));
-  if (set) { set.state = 2; dlxSggRenderPanel(); }
+  // Trouve les infos du set : d'abord dans le panneau "live", sinon dans le
+  // bracket (pour pouvoir détecter les conflits depuis le bracket aussi).
+  let set = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (!set && dlxBracket && dlxBracket.events) {
+    for (const ev of dlxBracket.events) {
+      const b = (ev.sets || []).find(x => String(x.id) === String(setId));
+      if (!b) continue;
+      const e1 = b.slots && b.slots[0] && b.slots[0].entrant;
+      const e2 = b.slots && b.slots[1] && b.slots[1].entrant;
+      set = {
+        id: b.id,
+        eventName: ev.name || '',
+        p1: (e1 && e1.name) || null,
+        p2: (e2 && e2.name) || null,
+        p1Id: (e1 && e1.id) || null,
+        p2Id: (e2 && e2.id) || null,
+      };
+      break;
+    }
+  }
+  // Conflit ? Joueur appelé sur un AUTRE jeu → confirm avant de lancer.
+  if (set && typeof dlxFindCallConflict === 'function') {
+    const conflict = dlxFindCallConflict(set);
+    if (conflict) {
+      const ok = confirm(
+        '⚠️ ' + conflict.playerName + ' est appelé pour « ' + conflict.targetGame + ' », ' +
+        'pas « ' + (set.eventName || 'cet event') + ' ».\n\n' +
+        'Lancer ce match quand même ?'
+      );
+      if (!ok) return;
+    }
+  }
+  // Update visuelle optimiste
+  const liveSet = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (liveSet) { liveSet.state = 2; dlxSggRenderPanel(); }
   try {
     const vars = { setId };
     if (typeof sggQuery === 'function') await sggQuery(DLX_SGG_START_MUTATION, vars);
     else                                 await dlxSggRawQuery(DLX_SGG_START_MUTATION, vars);
-    // Re-synchronise panneau Matchs ET bracket pour que l'état "En cours"
-    // apparaisse partout.
+    // Auto-clear : on retire les appels du / des joueur(s) concernés
+    // SI le jeu lancé est bien celui de l'appel → l'appel est rempli.
+    if (set && _dlxCalls.length) {
+      const before = _dlxCalls.length;
+      _dlxCalls = _dlxCalls.filter(c => {
+        const isCalledPlayer = c.playerName === set.p1 || c.playerName === set.p2;
+        const onCalledGame   = c.targetGame === set.eventName;
+        return !(isCalledPlayer && onCalledGame);
+      });
+      if (_dlxCalls.length !== before) {
+        dlxSaveCalls();
+        dlxRenderAideWindow();
+        if (!_dlxCalls.some(c => !c.silenced)) dlxStopBeep();
+      }
+    }
     await dlxSggFetch();
     if (typeof dlxBracketFetch === 'function') dlxBracketFetch();
   } catch (e) {
     alert('Erreur lors du lancement du match : ' + e.message);
-    if (set) { dlxSggFetch(); }
+    if (liveSet) { dlxSggFetch(); }
   }
 }
 
@@ -4254,12 +4299,13 @@ function dlxRenderAideWindow() {
       callsEl.innerHTML = '<p class="dlx-aide-empty">Aucun appel en cours.</p>';
     } else {
       callsEl.innerHTML = _dlxCalls.map(c =>
-        `<div class="dlx-aide-call-row">
+        `<div class="dlx-aide-call-row${c.silenced ? ' silenced' : ''}">
           <div class="dlx-aide-call-info">
-            <div class="dlx-aide-call-player">${dlxSggEsc(c.playerName)}</div>
+            <div class="dlx-aide-call-player">${c.silenced ? '🔕 ' : ''}${dlxSggEsc(c.playerName)}</div>
             <div class="dlx-aide-call-game">→ ${dlxSggEsc(c.targetGame)}</div>
           </div>
-          <button class="dlx-aide-call-cancel" onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')" title="Acquitter">✓</button>
+          <button class="dlx-aide-call-cancel" onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')"
+            title="Retirer l'appel (le joueur a-t-il été lancé sur le bon jeu ?)">✓</button>
         </div>`).join('');
     }
   }
@@ -4330,18 +4376,30 @@ function dlxAcknowledgeCall(callId) {
   _dlxCalls = _dlxCalls.filter(c => c.id !== callId);
   dlxSaveCalls();
   dlxRenderAideWindow();
-  if (!_dlxCalls.length) dlxStopBeep();
+  if (!_dlxCalls.some(c => !c.silenced)) dlxStopBeep();
+}
+
+// Met l'appel en sourdine : cache le bandeau et arrête le son si plus aucun
+// appel non-silencieux n'est actif, MAIS l'appel reste dans la liste tant
+// qu'un match du joueur n'a pas été lancé sur le bon jeu.
+function dlxSilenceCall(callId) {
+  const c = _dlxCalls.find(x => x.id === callId);
+  if (c) c.silenced = true;
+  dlxSaveCalls();
+  dlxRenderAideWindow();
+  if (!_dlxCalls.some(c => !c.silenced)) dlxStopBeep();
 }
 
 function dlxUpdateCallBanner() {
   const banner = document.getElementById('dlxCallBanner');
   if (!banner) return;
-  if (!_dlxCalls.length) {
+  const active = _dlxCalls.filter(c => !c.silenced);
+  if (!active.length) {
     banner.style.display = 'none';
     return;
   }
-  const c = _dlxCalls[_dlxCalls.length - 1]; // le plus récent
-  const more = _dlxCalls.length - 1;
+  const c = active[active.length - 1]; // le plus récent non-silencieux
+  const more = active.length - 1;
   banner.style.display = 'flex';
   banner.innerHTML = `
     <div class="dlx-call-banner-icon">📢</div>
@@ -4350,7 +4408,8 @@ function dlxUpdateCallBanner() {
       <strong>${dlxSggEsc(c.targetGame)}</strong> à la fin de son match
       ${more > 0 ? `<span class="dlx-call-more">(+${more} autre${more > 1 ? 's' : ''})</span>` : ''}
     </div>
-    <button class="dlx-call-banner-btn" onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')">✓ D'accord</button>`;
+    <button class="dlx-call-banner-btn" onclick="dlxSilenceCall('${dlxSggEsc(c.id)}')"
+      title="Réduit le bandeau et coupe le son. L'appel reste actif tant que le joueur n'a pas été lancé sur le bon jeu.">✓ D'accord</button>`;
 }
 
 // Son d'alerte : 2 bips alternés répétés toutes les 1.5s, jusqu'à acquittement
@@ -4400,10 +4459,8 @@ function dlxFindCallConflict(set) {
 
 // Si des appels persistaient au boot, on les recharge et on redémarre le bip
 if (_dlxCalls.length) {
-  // bip différé pour éviter d'être bloqué par les politiques autoplay du
-  // navigateur — un premier user gesture suffira ensuite.
   document.addEventListener('click', function bootBeep() {
-    if (_dlxCalls.length) dlxStartBeep();
+    if (_dlxCalls.some(c => !c.silenced)) dlxStartBeep();
     document.removeEventListener('click', bootBeep);
   }, { once: true });
   setTimeout(dlxUpdateCallBanner, 50);
