@@ -32,25 +32,18 @@
   const IN_PHASE_MS = 1300;
   const OUT_PHASE_MS = 1300;
 
-  // ── Construction d'un SVG nuage (réplique du React <Cloud>) ──
+  // ── Construction d'un SVG nuage minimaliste ──
+  // Forme épurée : 3 ellipses plates, un seul aplat de couleur, sans
+  // gradient — proche d'une icône weather minimaliste. Plus lisible et
+  // moins lourd à rasteriser que les nuages vaporeux d'origine.
   function buildCloudSvg(width, tone) {
-    const fills = tone === 'shadow'
-      ? { base: '#f4ebfb', mid: '#e8d9f3', shadow: '#cdb6e2' }
-      : { base: '#ffffff', mid: '#f3eafa', shadow: '#e1d2f0' };
-    const gradId = 'cloudGrad-' + tone + '-' + Math.random().toString(36).slice(2, 8);
-    return `<svg width="${width}" height="${width * 0.6}" viewBox="0 0 320 192" style="display:block;">
-      <defs>
-        <radialGradient id="${gradId}" cx="50%" cy="40%">
-          <stop offset="0%" stop-color="${fills.base}"/>
-          <stop offset="70%" stop-color="${fills.mid}"/>
-          <stop offset="100%" stop-color="${fills.shadow}"/>
-        </radialGradient>
-      </defs>
-      <ellipse cx="80" cy="120" rx="55" ry="42" fill="url(#${gradId})"/>
-      <ellipse cx="140" cy="95" rx="70" ry="55" fill="url(#${gradId})"/>
-      <ellipse cx="210" cy="100" rx="60" ry="48" fill="url(#${gradId})"/>
-      <ellipse cx="250" cy="125" rx="50" ry="38" fill="url(#${gradId})"/>
-      <ellipse cx="170" cy="135" rx="80" ry="40" fill="url(#${gradId})"/>
+    const fill = tone === 'shadow' ? '#ece1f4' : '#ffffff';
+    return `<svg width="${width}" height="${width * 0.55}" viewBox="0 0 320 176" style="display:block;">
+      <g fill="${fill}">
+        <ellipse cx="100" cy="110" rx="60" ry="46"/>
+        <ellipse cx="200" cy="92"  rx="80" ry="62"/>
+        <ellipse cx="160" cy="130" rx="120" ry="40"/>
+      </g>
     </svg>`;
   }
 
@@ -228,27 +221,10 @@
 .cloud-stage .cloud-veil {
   position: absolute;
   inset: 0;
-  background-color: #fbf5ff;
-  background-image:
-    radial-gradient(ellipse 240px 130px at 8% 12%, #ffffff 0%, #fbf3ff 40%, transparent 70%),
-    radial-gradient(ellipse 300px 160px at 28% 18%, #ffffff 0%, #f8ecfa 45%, transparent 75%),
-    radial-gradient(ellipse 280px 150px at 52% 10%, #ffffff 0%, #f5e7f7 45%, transparent 72%),
-    radial-gradient(ellipse 320px 170px at 75% 16%, #ffffff 0%, #f3e2f5 45%, transparent 74%),
-    radial-gradient(ellipse 260px 140px at 95% 14%, #ffffff 0%, #f5e7f7 45%, transparent 72%),
-    radial-gradient(ellipse 340px 180px at 0% 38%, #ffffff 0%, #f6e8f6 45%, transparent 75%),
-    radial-gradient(ellipse 380px 200px at 22% 42%, #ffffff 0%, #f1dff2 45%, transparent 78%),
-    radial-gradient(ellipse 420px 220px at 50% 48%, #ffffff 0%, #ecd6ee 45%, transparent 80%),
-    radial-gradient(ellipse 380px 200px at 78% 42%, #ffffff 0%, #f1dff2 45%, transparent 78%),
-    radial-gradient(ellipse 340px 180px at 100% 38%, #ffffff 0%, #f6e8f6 45%, transparent 75%),
-    radial-gradient(ellipse 320px 170px at 12% 70%, #ffffff 0%, #f4e3f6 45%, transparent 74%),
-    radial-gradient(ellipse 360px 190px at 38% 74%, #ffffff 0%, #efdaf1 45%, transparent 76%),
-    radial-gradient(ellipse 360px 190px at 62% 76%, #ffffff 0%, #efdaf1 45%, transparent 76%),
-    radial-gradient(ellipse 320px 170px at 88% 72%, #ffffff 0%, #f4e3f6 45%, transparent 74%),
-    radial-gradient(ellipse 280px 150px at 5% 96%, #ffffff 0%, #f3e1f5 45%, transparent 72%),
-    radial-gradient(ellipse 340px 180px at 32% 100%, #ffffff 0%, #eed8f1 45%, transparent 75%),
-    radial-gradient(ellipse 340px 180px at 65% 98%, #ffffff 0%, #eed8f1 45%, transparent 75%),
-    radial-gradient(ellipse 280px 150px at 96% 102%, #ffffff 0%, #f3e1f5 45%, transparent 72%),
-    linear-gradient(180deg, #f3e6f7 0%, #eddaf2 100%);
+  /* Veil minimaliste : juste un aplat blanc cassé légèrement lavande,
+     sans la couche dense de radial-gradients. Le rendu est plus net et
+     les nuages SVG ressortent mieux contre ce fond uniforme. */
+  background: #f7f1fb;
   opacity: 0;
   transform: translate3d(0, 40px, 0) scale(1.05);
   transform-origin: center bottom;
@@ -338,7 +314,9 @@
   100% { transform: translate3d(-50%, -50%, 0) translateY(-160px) scale(1.5); opacity: 0; }
 }
 
-.cloud-stage .cloud-art { position: relative; filter: drop-shadow(0 10px 24px rgba(120, 90, 180, 0.18)); }
+/* Drop-shadow très léger et plus haut pour garder la lisibilité sans
+   alourdir visuellement les formes plates. */
+.cloud-stage .cloud-art { position: relative; filter: drop-shadow(0 4px 10px rgba(120, 90, 180, 0.10)); }
 .cloud-stage .cloud-content {
   position: absolute;
   inset: 0;
