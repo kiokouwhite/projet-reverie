@@ -2937,7 +2937,11 @@ function renderNameEditor() {
 
   const hasSlotEditor = ['tekken8','2xko'].includes(layout?.slotType) || layout?.useParallelogram;
 
-  players.forEach((p, i) => {
+  // Ne montre que les slots effectivement rendus par le layout : si c'est un
+  // layout top-3 (SF6, GGST, T8, 2XKO), inutile d'afficher 8 lignes d'édition
+  // alors que seuls les 3 premiers apparaissent sur le rendu final.
+  const visibleCount = layout?.playerCount || players.length;
+  players.slice(0, visibleCount).forEach((p, i) => {
     const cfg = getPlayerNameCfg(i);
     const sc2 = hasSlotEditor ? getSlotCfg(i) : null;
 
