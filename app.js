@@ -2162,13 +2162,20 @@ function drawLayoutSlots(ctx, layout, sc) {
 
     // Perso dans le slot (avec fallback image start.gg si le mural local
     // n'existe pas, ex. Alex pour SF6 qui n'a pas encore son PNG dans le repo).
-    if (char) drawCharWithCrop(ctx, char, p.costume, {
-      pts: [[slot.cx*sc - slot.w/2*sc, slot.cy*sc + slot.h/2*sc],
-            [slot.cx*sc + slot.w/2*sc, slot.cy*sc + slot.h/2*sc],
-            [slot.cx*sc + slot.w/2*sc, slot.cy*sc - slot.h/2*sc],
-            [slot.cx*sc - slot.w/2*sc, slot.cy*sc - slot.h/2*sc]],
-      cx: slot.cx*sc, cy: slot.cy*sc, nameY: slot.nameY*sc
-    }, sc, p.charImgUrl);
+    // Pour les slots de type 'circle' (GGST), on dérive le bounding box du
+    // rayon (slot.r) car ils n'ont pas de w/h défini → sinon NaN et image
+    // jamais visible.
+    if (char) {
+      const halfW = (slot.w != null ? slot.w / 2 : (slot.r || 0)) * sc;
+      const halfH = (slot.h != null ? slot.h / 2 : (slot.r || 0)) * sc;
+      drawCharWithCrop(ctx, char, p.costume, {
+        pts: [[slot.cx*sc - halfW, slot.cy*sc + halfH],
+              [slot.cx*sc + halfW, slot.cy*sc + halfH],
+              [slot.cx*sc + halfW, slot.cy*sc - halfH],
+              [slot.cx*sc - halfW, slot.cy*sc - halfH]],
+        cx: slot.cx*sc, cy: slot.cy*sc, nameY: slot.nameY*sc
+      }, sc, p.charImgUrl);
+    }
 
     ctx.restore();
 
