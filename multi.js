@@ -494,6 +494,11 @@ function renderMultiPreview() {
   renderSlots();
 
   updateMultiTweet();
+
+  // Resync de l'état vide : maintenant qu'on a des graphs et un canvas
+  // rempli, on veut quitter le mode "no-import" (panneau droit visible,
+  // carte gauche non centrée, canvas affiché à la place de l'empty state).
+  if (typeof _togglePreviewEmptyState === 'function') _togglePreviewEmptyState();
 }
 
 function prevGraph() {
