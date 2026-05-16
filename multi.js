@@ -102,17 +102,24 @@ async function importAllEvents() {
     // de sens visuel.
     if (typeof cloudAnimSetGames === 'function') {
       const gameMap = new Map(); // videogameId → { name, imgUrl, entrants }
+      // DEBUG : log brut de ce que start.gg renvoie pour chaque event
+      // (pour qu'on diagnostique facilement quand le compte semble faux)
+      console.log('[CLOUD] events raw :', (tournament.events || []).map(e => ({
+        name: e.name,
+        videogame: e.videogame?.displayName || e.videogame?.name,
+        numEntrants: e.numEntrants,
+        entrantsTotal: e.entrants?.pageInfo?.total,
+      })));
       (tournament.events || []).forEach(e => {
         if (!e.videogame) return;
         const vgId = e.videogame.id || e.videogame.name;
         if (!vgId) return;
-        // entrants.pageInfo.totalCount est le compte fiable (interroge la
-        // table). On fallback sur numEntrants seulement si totalCount est
-        // null/0 et numEntrants > 0.
-        const realCount = e.entrants?.pageInfo?.total;
-        const cnt = (realCount != null && realCount > 0)
-          ? realCount
-          : (e.numEntrants || 0);
+        // On prend le MAX entre numEntrants (champ cached) et
+        // entrants.pageInfo.total (interroge la table). L'un ou l'autre
+        // peut être stale ou nul selon les events.
+        const num = e.numEntrants || 0;
+        const real = e.entrants?.pageInfo?.total || 0;
+        const cnt = Math.max(num, real);
         const existing = gameMap.get(vgId);
         if (existing) {
           existing.entrants += cnt;
