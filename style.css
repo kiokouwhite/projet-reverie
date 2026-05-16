@@ -5623,6 +5623,23 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   gap: 6px;
   margin-bottom: 4px;
 }
+.dlx-sgg-set-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dlx-sgg-go-btn {
+  border: none;
+  background: linear-gradient(135deg, #4caf50, #2e9e5b);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1;
+}
+.dlx-sgg-go-btn:hover { filter: brightness(1.1); }
 .dlx-sgg-set-round {
   font-size: 10px;
   font-weight: 700;

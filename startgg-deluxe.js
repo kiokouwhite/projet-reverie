@@ -2766,6 +2766,7 @@ function dlxSggRenderPanel() {
     const st = dlxSggStateInfo(s.state);
     const assignedEl = dlxFindElementByMatchSetId(s.id);
     const assignedCls = assignedEl ? ' dlx-sgg-set-assigned' : '';
+    const canLaunch = s.state !== 2 && !!s.p1Id && !!s.p2Id;
     return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}${assignedCls}"
       draggable="true" data-set-id="${dlxSggEsc(s.id)}"
       ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
@@ -2774,7 +2775,12 @@ function dlxSggRenderPanel() {
       title="Clic : reporter le score · Glisser : placer sur un setup">
       <div class="dlx-sgg-set-head">
         <span class="dlx-sgg-set-round">${dlxSggEsc(s.round)}</span>
-        <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
+        <span class="dlx-sgg-set-head-right">
+          ${canLaunch ? `<button class="dlx-sgg-go-btn"
+            onclick="event.stopPropagation(); dlxSggMarkInProgress('${dlxSggEsc(s.id)}')"
+            title="Marquer le match comme lancé (start.gg)">🚀</button>` : ''}
+          <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
+        </span>
       </div>
       <div class="dlx-sgg-set-players">
         <span class="dlx-sgg-player">${dlxSggEsc(s.p1 || 'TBD')}</span>
@@ -3439,6 +3445,33 @@ function dlxReportBump(which, delta) {
   if (!el) return;
   el.value = Math.max(0, (parseInt(el.value, 10) || 0) + delta);
   dlxReportScoreChanged(); // le nombre de games + les vainqueurs dépendent du score
+}
+
+// Marque un set "En cours" sur start.gg (state 1/6 → 2). Bouton 🚀 dans
+// le panneau Matchs : permet de signaler que le match est LANCÉ avant
+// d'en rentrer le score.
+const DLX_SGG_START_MUTATION = `
+  mutation DlxStartSet($setId: ID!) {
+    markSetInProgress(setId: $setId) { id state }
+  }`;
+async function dlxSggMarkInProgress(setId) {
+  if (!dlxSggGetToken()) {
+    alert('⚠️ Clé API start.gg manquante (onglet Configuration).');
+    return;
+  }
+  // Petite mise à jour visuelle immédiate (avant le retour API)
+  const set = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (set) { set.state = 2; dlxSggRenderPanel(); }
+  try {
+    const vars = { setId };
+    if (typeof sggQuery === 'function') await sggQuery(DLX_SGG_START_MUTATION, vars);
+    else                                 await dlxSggRawQuery(DLX_SGG_START_MUTATION, vars);
+    await dlxSggFetch(); // synchronise depuis start.gg
+  } catch (e) {
+    alert('Erreur lors du lancement du match : ' + e.message);
+    // Rollback visuel si échec
+    if (set) { dlxSggFetch(); }
+  }
 }
 
 const DLX_SGG_REPORT_MUTATION = `
