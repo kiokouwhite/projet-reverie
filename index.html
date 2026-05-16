@@ -252,7 +252,11 @@
       </div>
 
       <div class="top8-side-area">
-        <textarea id="tweetText" rows="4" style="margin-top:14px;" placeholder="Ton message…"></textarea>
+        <!-- Textarea cachée : le texte généré est toujours envoyé dans le
+             presse-papier au moment du Post sur X / Instagram, mais l'UI
+             n'affiche plus le bloc d'édition (modifiable plus tard sur
+             les plateformes elles-mêmes). -->
+        <textarea id="tweetText" rows="4" style="display:none;"></textarea>
         <div class="preview-actions">
           <button class="btn btn-secondary" onclick="generatePreview()">↻ Rafraîchir</button>
           <button class="btn btn-primary" onclick="downloadImage()">⬇ Télécharger</button>
