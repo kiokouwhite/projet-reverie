@@ -576,11 +576,15 @@
     const bgEl = _multiRoot.querySelector('.gs-pill-bg');
     if (bgEl) {
       bgEl.style.background = `linear-gradient(180deg, ${tint}f5 0%, ${tint} 100%)`;
+      // Effet néon : 3 couches de glow externes (proche / mid / large) basées
+      // sur la teinte dominante. + un bord coloré 1px + inner highlight blanc.
       bgEl.style.boxShadow = `
-        0 1px 2px rgba(0,0,0,0.04),
-        0 8px 24px ${ink}22,
-        inset 0 1px 0 rgba(255,255,255,0.7),
-        inset 0 -1px 0 ${ink}1a`;
+        0 0 0 1.5px ${tint}cc,
+        0 0 8px ${tint}aa,
+        0 0 18px ${tint}88,
+        0 0 36px ${tint}55,
+        inset 0 1px 0 rgba(255,255,255,0.55),
+        inset 0 -1px 0 ${ink}33`;
     }
     // Couleur des flèches : dérive de la dominante mais TOUJOURS contraste
     // avec le cercle blanc des arrows (sinon flèche blanche invisible).
