@@ -3384,7 +3384,7 @@ function formatPlayerForTweet(p) {
 }
 
 // Template de tweet personnalisable (sauvegardé en localStorage)
-const DEFAULT_TWEET_TEMPLATE = '🏆 {tournament} — {game}{suffix}\n\n{top}\n\nMerci à tous ! 🎮 #FGC #{tag}';
+const DEFAULT_TWEET_TEMPLATE = '🏆 {tournament} — {game}{suffix}\n\n{top}\n\nMerci à toustes ! 🎮 #FGC #{tag}';
 function getTweetTemplate() {
   try { return localStorage.getItem('tweet_template') || DEFAULT_TWEET_TEMPLATE; }
   catch { return DEFAULT_TWEET_TEMPLATE; }
