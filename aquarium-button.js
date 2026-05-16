@@ -112,20 +112,43 @@
     const LOGO_FONT = Math.round(H * 0.46);
     const MOUSE_RANGE = Math.round(H * 0.85);
 
-    // Marque le 1er ou dernier 'X' comme "logo" (rendu SVG au lieu de texte)
+    // Variante : "x" (défaut) ou "instagram" — détermine le fond du bouton
+    // et le logo de remplacement. Configurable via data-aq-style="...".
+    const styleVariant = btn.dataset.aqStyle || 'x';
+
+    // Marque le caractère qui doit être remplacé par le logo SVG. Pour la
+    // variante X : premier ou dernier 'X'. Pour Instagram : dernier
+    // caractère non-espace (typiquement "Poster sur Ⓘ" → le Ⓘ).
     const arr = text.split('');
-    const chars = arr.map((c, i) => ({
-      c, i,
-      isLogo: c === 'X' && (i === 0 || i === arr.length - 1),
-    }));
+    let chars;
+    if (styleVariant === 'instagram') {
+      // Cherche le dernier caractère non-espace pour le marquer comme logo
+      let lastIdx = -1;
+      for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i] !== ' ' && arr[i] !== ' ') { lastIdx = i; break; }
+      }
+      chars = arr.map((c, i) => ({ c, i, isLogo: i === lastIdx }));
+    } else {
+      chars = arr.map((c, i) => ({
+        c, i,
+        isLogo: c === 'X' && (i === 0 || i === arr.length - 1),
+      }));
+    }
 
     // SVG du logo X officiel (chemin compact, viewBox carré)
     const X_LOGO_SVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
       '<path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>' +
       '</svg>';
+    // SVG du logo Instagram (camera carré arrondi + cercle + dot)
+    const INSTAGRAM_LOGO_SVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/>' +
+      '<circle cx="12" cy="12" r="4.5"/>' +
+      '<circle cx="17.5" cy="6.5" r="1.1" fill="currentColor"/>' +
+      '</svg>';
+    const LOGO_SVG = styleVariant === 'instagram' ? INSTAGRAM_LOGO_SVG : X_LOGO_SVG;
 
     function letterContent(ch) {
-      if (ch.isLogo) return X_LOGO_SVG;
+      if (ch.isLogo) return LOGO_SVG;
       return ch.c === ' ' ? '&nbsp;' : escapeHtml(ch.c);
     }
 
@@ -138,11 +161,25 @@
     svg.classList.add('aq-water');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('preserveAspectRatio', 'none');
+    btn._aqId = Math.random().toString(36).slice(2, 8);
+    // Pour la variante Instagram : gradient officiel (orange→rose→violet)
+    // pour le fond, avec ripples blanches qui restent visibles. La variante
+    // X garde le fond noir d'origine.
+    const insta = styleVariant === 'instagram';
+    const bgFill = insta ? `url(#aq-bg-insta-${btn._aqId})` : '#000';
+    const instaGradDef = insta ? `
+        <linearGradient id="aq-bg-insta-${btn._aqId}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stop-color="#f09433"/>
+          <stop offset="25%"  stop-color="#e6683c"/>
+          <stop offset="50%"  stop-color="#dc2743"/>
+          <stop offset="75%"  stop-color="#cc2366"/>
+          <stop offset="100%" stop-color="#bc1888"/>
+        </linearGradient>` : '';
     svg.innerHTML = `
       <defs>
-        <clipPath id="aq-pill-clip-${btn._aqId = Math.random().toString(36).slice(2, 8)}">
+        <clipPath id="aq-pill-clip-${btn._aqId}">
           <rect x="0" y="0" width="${W}" height="${H}" rx="${R}" ry="${R}"/>
-        </clipPath>
+        </clipPath>${instaGradDef}
         <radialGradient id="aq-shine-${btn._aqId}" cx="50%" cy="35%" r="65%">
           <stop offset="0%" stop-color="rgba(255,255,255,0.07)"/>
           <stop offset="60%" stop-color="rgba(255,255,255,0.015)"/>
@@ -150,11 +187,11 @@
         </radialGradient>
         <radialGradient id="aq-vignette-${btn._aqId}" cx="50%" cy="50%" r="60%">
           <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
-          <stop offset="100%" stop-color="rgba(0,0,0,0.45)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0.35)"/>
         </radialGradient>
       </defs>
       <g clip-path="url(#aq-pill-clip-${btn._aqId})">
-        <rect x="0" y="0" width="${W}" height="${H}" fill="#000"/>
+        <rect x="0" y="0" width="${W}" height="${H}" fill="${bgFill}"/>
         <rect x="0" y="0" width="${W}" height="${H}" fill="url(#aq-shine-${btn._aqId})"/>
         <rect x="0" y="0" width="${W}" height="${H}" fill="url(#aq-vignette-${btn._aqId})"/>
         <g class="aq-ripples"></g>
