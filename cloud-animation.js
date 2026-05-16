@@ -352,7 +352,10 @@
   -webkit-backface-visibility: hidden;
 }
 .cloud-stage.stage-clouds-in .cloud-filler-item {
-  animation: cloudFillerIn 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* fill-mode: both → applique la frame 0% pendant le delay (au lieu des
+     styles statiques) ET garde la frame 100% après. Évite le clignotement
+     entre les phases. */
+  animation: cloudFillerIn 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-filler-item {
@@ -363,8 +366,10 @@
 }
 .cloud-stage.stage-clouds-out .cloud-filler-item {
   /* Easing "in" doux (lent au début, accélère vers la fin) → effet
-     d'aspiration : le nuage hésite un instant puis fonce vers le centre. */
-  animation: cloudFillerOut 1.3s cubic-bezier(0.55, 0, 0.4, 1) forwards;
+     d'aspiration : le nuage hésite un instant puis fonce vers le centre.
+     fill-mode: both → reste visible (frame 0%) pendant le delay au lieu
+     de disparaître brutalement à cause des styles statiques. */
+  animation: cloudFillerOut 1.3s cubic-bezier(0.55, 0, 0.4, 1) both;
   animation-delay: var(--delay);
 }
 /* Animations purement transform+opacity → 100% GPU. Le départ se fait
@@ -398,7 +403,7 @@
   -webkit-backface-visibility: hidden;
 }
 .cloud-stage.stage-clouds-in .cloud-item {
-  animation: cloudItemIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: cloudItemIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-item {
@@ -408,7 +413,12 @@
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-out .cloud-item {
-  animation: cloudItemOut 1.2s cubic-bezier(0.55, 0, 0.4, 1) forwards;
+  /* fill-mode: both → la frame 0% (position finale visible) reste appliquée
+     pendant l'animation-delay au lieu des styles de base invisibles.
+     Sans ça : entre le changement de phase et le start réel de cloudItemOut
+     (~0.4-0.9s plus tard à cause du delay décalé), le nuage disparaissait
+     brièvement avant de réapparaître pour se faire aspirer. */
+  animation: cloudItemOut 1.2s cubic-bezier(0.55, 0, 0.4, 1) both;
   animation-delay: var(--delay);
 }
 @keyframes cloudItemIn {
