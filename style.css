@@ -478,10 +478,6 @@ body::before {
   pointer-events: none;
   animation: wipGlowPulse 3s ease-in-out infinite;
 }
-.wip-glow-vod {
-  background: radial-gradient(circle, rgba(255,184,222,0.35) 0%, transparent 70%);
-}
-
 @keyframes wipGlowPulse {
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
   50%       { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }

@@ -29,11 +29,6 @@
         <span class="nav-tab-icon">📅</span>
         <span class="nav-tab-label">Horaires</span>
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('vod')" id="tabVod">
-        <span class="nav-tab-icon">🎬</span>
-        <span class="nav-tab-label">Publication VOD</span>
-        <span class="nav-wip">WIP</span>
-      </button>
       <button class="nav-tab" onclick="liquidSwitchTab('startgg')" id="tabStartgg">
         <span class="nav-tab-icon">🏟️</span>
         <span class="nav-tab-label">Tournoi start.gg</span>
@@ -637,32 +632,6 @@
         </div>
       </div>
 
-    </div>
-  </div>
-
-  <!-- ── PAGE VOD WIP ── -->
-  <div id="pageVod" class="page-section" style="display:none;">
-    <div class="wip-page">
-      <div class="wip-glow wip-glow-vod"></div>
-      <div class="wip-content">
-        <div class="wip-icon">🎬</div>
-        <h2 class="wip-title">Publication de VOD Automatisé</h2>
-        <p class="wip-desc">
-          Publie et organise les VODs de tes sets automatiquement<br>
-          sur YouTube, Twitch ou un Google Drive — titres générés,<br>
-          miniatures créées et playlist mise à jour en un clic.
-        </p>
-        <div class="wip-badge">
-          <span class="wip-badge-dot"></span>
-          En cours de développement
-        </div>
-        <div class="wip-features">
-          <div class="wip-feature">📺 Upload YouTube automatique</div>
-          <div class="wip-feature">🎞️ Génération de miniatures</div>
-          <div class="wip-feature">📂 Organisation en playlists</div>
-          <div class="wip-feature">✍️ Titres & descriptions auto</div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -2056,13 +2025,15 @@
 
 <script>
 function switchTab(tab) {
+  // Migration : l'onglet "vod" a été retiré. Si un ancien active_tab
+  // sauvegardé pointait dessus, on bascule sur top8.
+  if (tab === 'vod') tab = 'top8';
   localStorage.setItem('active_tab', tab);
   // Pages
   // Utiliser 'flex' (pas 'block') pour conserver la chaîne flex du viewport-fit
   document.getElementById('pageTop8').style.display      = tab === 'top8'     ? 'flex' : 'none';
   document.getElementById('pageDiscord').style.display   = tab === 'discord'   ? 'flex' : 'none';
   document.getElementById('pageHoraires').style.display  = tab === 'horaires'  ? 'flex' : 'none';
-  document.getElementById('pageVod').style.display       = tab === 'vod'       ? 'flex' : 'none';
   document.getElementById('pageStartgg').style.display   = tab === 'startgg'   ? 'flex' : 'none';
   const pageDeluxeEl = document.getElementById('pageDeluxe');
   if (pageDeluxeEl) pageDeluxeEl.style.display = tab === 'deluxe' ? 'flex' : 'none';
@@ -2072,7 +2043,6 @@ function switchTab(tab) {
   document.getElementById('tabTop8').classList.toggle('nav-tab-active',     tab === 'top8');
   document.getElementById('tabDiscord').classList.toggle('nav-tab-active',  tab === 'discord');
   document.getElementById('tabHoraires').classList.toggle('nav-tab-active', tab === 'horaires');
-  document.getElementById('tabVod').classList.toggle('nav-tab-active',      tab === 'vod');
   document.getElementById('tabStartgg').classList.toggle('nav-tab-active',  tab === 'startgg');
   const tabDeluxeEl = document.getElementById('tabDeluxe');
   if (tabDeluxeEl) tabDeluxeEl.classList.toggle('nav-tab-active', tab === 'deluxe');
@@ -2189,7 +2159,7 @@ function liquidSwitchTab(tab) {
     switchTab(tab);
 
     // Phase 3 — cards emerge + liquid dissolves
-    const pageMap = { top8: 'pageTop8', discord: 'pageDiscord', horaires: 'pageHoraires', vod: 'pageVod', startgg: 'pageStartgg' };
+    const pageMap = { top8: 'pageTop8', discord: 'pageDiscord', horaires: 'pageHoraires', startgg: 'pageStartgg' };
     const pageEl   = document.getElementById(pageMap[tab]);
     const container = pageEl && pageEl.firstElementChild;
     const cards     = container ? Array.from(container.children) : [];
