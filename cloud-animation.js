@@ -55,19 +55,22 @@
   }
 
   // ── Mur de nuages dense (couvre tout le viewport) ──
-  // Coordonnées x/y en pourcentages, w en px (taille du SVG), d = delay s
+  // Coordonnées x/y en pourcentages, w en px (taille du SVG), d = delay s.
+  // 12 nuages (vs 21 avant) + le veil CSS suffisent pour couvrir l'écran
+  // sans saturer le GPU avec trop de SVG superposés.
   const FILLER_CLOUDS = [
-    { x: -8,  y: -10, w: 520, d: 0.00 }, { x: 18,  y: -14, w: 580, d: 0.05 },
-    { x: 48,  y: -12, w: 560, d: 0.10 }, { x: 78,  y: -10, w: 540, d: 0.15 },
-    { x: 100, y: -8,  w: 520, d: 0.20 },
-    { x: -6,  y: 18,  w: 560, d: 0.08 }, { x: 30,  y: 14,  w: 600, d: 0.12 },
-    { x: 65,  y: 16,  w: 580, d: 0.18 }, { x: 98,  y: 20,  w: 540, d: 0.22 },
-    { x: -10, y: 42,  w: 600, d: 0.06 }, { x: 22,  y: 46,  w: 640, d: 0.14 },
-    { x: 58,  y: 44,  w: 620, d: 0.20 }, { x: 92,  y: 46,  w: 580, d: 0.24 },
-    { x: -8,  y: 68,  w: 580, d: 0.10 }, { x: 28,  y: 72,  w: 620, d: 0.16 },
-    { x: 62,  y: 70,  w: 600, d: 0.22 }, { x: 98,  y: 68,  w: 560, d: 0.26 },
-    { x: -10, y: 95,  w: 560, d: 0.04 }, { x: 22,  y: 100, w: 600, d: 0.10 },
-    { x: 55,  y: 98,  w: 580, d: 0.16 }, { x: 88,  y: 100, w: 560, d: 0.22 },
+    { x: 10, y: -8,  w: 620, d: 0.00 },
+    { x: 50, y: -10, w: 660, d: 0.06 },
+    { x: 90, y: -6,  w: 600, d: 0.12 },
+    { x: 0,  y: 28,  w: 700, d: 0.04 },
+    { x: 45, y: 24,  w: 720, d: 0.10 },
+    { x: 95, y: 28,  w: 660, d: 0.16 },
+    { x: 8,  y: 60,  w: 700, d: 0.08 },
+    { x: 50, y: 64,  w: 740, d: 0.14 },
+    { x: 92, y: 60,  w: 680, d: 0.20 },
+    { x: 12, y: 95,  w: 640, d: 0.10 },
+    { x: 50, y: 98,  w: 700, d: 0.16 },
+    { x: 88, y: 95,  w: 640, d: 0.22 },
   ];
 
   // ── Création (lazy) du DOM de l'animation ──
@@ -89,8 +92,8 @@
       </div>
       <div class="cloud-items-layer"></div>
       <div class="cloud-particles">
-        ${Array.from({ length: 28 }).map((_, i) => `
-          <span class="particle" style="left:${3 + (i * 3.4) % 94}%;top:${10 + ((i * 11) % 78)}%;animation-delay:${(i * 0.12) % 2.4}s;"></span>
+        ${Array.from({ length: 14 }).map((_, i) => `
+          <span class="particle" style="left:${5 + (i * 6.8) % 90}%;top:${12 + ((i * 17) % 74)}%;animation-delay:${(i * 0.18) % 2.4}s;"></span>
         `).join('')}
       </div>
     `;
@@ -202,6 +205,15 @@
   window.cloudAnimCancel = cloudAnimCancel;
 
   // ── Injection du CSS (porté du React design) ──
+  // Optimisations vs le design d'origine :
+  //  - `will-change: transform, opacity` sur les éléments animés → promotion
+  //    en couche GPU dédiée, évite les repaints à chaque frame.
+  //  - `transform: translate3d` au lieu de translate (force le composite GPU).
+  //  - `filter: blur()` retiré des animations (CPU-bound, c'est la 1re cause
+  //    de jank). Le blur de drop-shadow est conservé seulement sur les SVG
+  //    statiques (pas animé).
+  //  - `contain: layout style paint` pour isoler l'arbre du reste de la page.
+  //  - Moins de filler clouds (12 vs 21) et de particules (14 vs 28).
   const css = `
 .cloud-stage {
   position: fixed;
@@ -211,6 +223,7 @@
   pointer-events: none;
   z-index: 999999;
   overflow: hidden;
+  contain: layout style paint;
 }
 .cloud-stage .cloud-veil {
   position: absolute;
@@ -237,33 +250,35 @@
     radial-gradient(ellipse 280px 150px at 96% 102%, #ffffff 0%, #f3e1f5 45%, transparent 72%),
     linear-gradient(180deg, #f3e6f7 0%, #eddaf2 100%);
   opacity: 0;
-  transform: translateY(40px) scale(1.05);
+  transform: translate3d(0, 40px, 0) scale(1.05);
   transform-origin: center bottom;
   transition: opacity 0.9s ease, transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
 }
-.cloud-stage.stage-clouds-in .cloud-veil { opacity: 1; transform: translateY(0) scale(1); }
-.cloud-stage.stage-clouds-hold .cloud-veil { opacity: 1; transform: translateY(0) scale(1); animation: cloudVeilBob 6s ease-in-out infinite alternate; }
-.cloud-stage.stage-clouds-out .cloud-veil { opacity: 0; transform: translateY(-60px) scale(1.1); transition-duration: 1.2s; }
+.cloud-stage.stage-clouds-in   .cloud-veil { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+.cloud-stage.stage-clouds-hold .cloud-veil { opacity: 1; transform: translate3d(0, 0, 0) scale(1); animation: cloudVeilBob 6s ease-in-out infinite alternate; }
+.cloud-stage.stage-clouds-out  .cloud-veil { opacity: 0; transform: translate3d(0, -60px, 0) scale(1.1); transition-duration: 1.2s; }
 @keyframes cloudVeilBob {
-  from { transform: translateY(-4px) scale(1); }
-  to   { transform: translateY(6px) scale(1.01); }
+  from { transform: translate3d(0, -4px, 0) scale(1); }
+  to   { transform: translate3d(0, 6px, 0)  scale(1.01); }
 }
 
 .cloud-stage .cloud-filler { position: absolute; inset: 0; z-index: 1; }
 .cloud-stage .cloud-filler-item {
   position: absolute;
-  transform: translate(-50%, -50%) translateY(120px) scale(0.6);
+  transform: translate3d(-50%, -50%, 0) translateY(120px) scale(0.6);
   opacity: 0;
-  filter: blur(8px) drop-shadow(0 8px 18px rgba(120, 90, 180, 0.12));
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 .cloud-stage.stage-clouds-in .cloud-filler-item {
   animation: cloudFillerIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-filler-item {
-  transform: translate(-50%, -50%) translateY(0) scale(1);
+  transform: translate3d(-50%, -50%, 0) translateY(0) scale(1);
   opacity: 1;
-  filter: blur(0) drop-shadow(0 8px 18px rgba(120, 90, 180, 0.12));
   animation: cloudFillerBob 6s ease-in-out infinite alternate;
   animation-delay: var(--delay);
 }
@@ -271,35 +286,38 @@
   animation: cloudFillerOut 1.3s cubic-bezier(0.5, 0, 0.75, 0) forwards;
   animation-delay: var(--delay);
 }
+/* Animations purement transform+opacity → 100% GPU. Pas de blur animé.
+   Le côté "vaporeux" des nuages vient déjà du veil (gradients) +
+   drop-shadow statique sur l'art. */
 @keyframes cloudFillerIn {
-  0%   { transform: translate(-50%, -50%) translateY(140px) scale(0.55); opacity: 0; filter: blur(12px); }
-  60%  { opacity: 1; filter: blur(0); }
-  100% { transform: translate(-50%, -50%) translateY(0) scale(1); opacity: 1; filter: blur(0); }
+  0%   { transform: translate3d(-50%, -50%, 0) translateY(120px) scale(0.65); opacity: 0; }
+  100% { transform: translate3d(-50%, -50%, 0) translateY(0)     scale(1);    opacity: 1; }
 }
 @keyframes cloudFillerBob {
-  from { transform: translate(-50%, -50%) translateY(-4px) scale(1); }
-  to   { transform: translate(-50%, -50%) translateY(6px) scale(1.015); }
+  from { transform: translate3d(-50%, -50%, 0) translateY(-4px) scale(1); }
+  to   { transform: translate3d(-50%, -50%, 0) translateY(6px)  scale(1.015); }
 }
 @keyframes cloudFillerOut {
-  0%   { transform: translate(-50%, -50%) translateY(0) scale(1); opacity: 1; filter: blur(0); }
-  100% { transform: translate(-50%, -50%) translateY(-160px) scale(1.5); opacity: 0; filter: blur(22px); }
+  0%   { transform: translate3d(-50%, -50%, 0) translateY(0)      scale(1);   opacity: 1; }
+  100% { transform: translate3d(-50%, -50%, 0) translateY(-140px) scale(1.4); opacity: 0; }
 }
 
 .cloud-stage .cloud-items-layer { position: absolute; inset: 0; z-index: 3; }
 .cloud-stage .cloud-item {
   position: absolute;
-  transform: translate(-50%, -50%) translateY(180px) scale(0.3);
+  transform: translate3d(-50%, -50%, 0) translateY(180px) scale(0.35);
   opacity: 0;
-  filter: blur(10px);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 .cloud-stage.stage-clouds-in .cloud-item {
-  animation: cloudItemIn 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: cloudItemIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-item {
-  transform: translate(-50%, -50%) translateY(0) scale(1);
+  transform: translate3d(-50%, -50%, 0) translateY(0) scale(1);
   opacity: 1;
-  filter: blur(0);
   animation: cloudItemBob 4s ease-in-out infinite alternate;
   animation-delay: var(--delay);
 }
@@ -308,17 +326,16 @@
   animation-delay: var(--delay);
 }
 @keyframes cloudItemIn {
-  0%   { transform: translate(-50%, -50%) translateY(220px) scale(0.3); opacity: 0; filter: blur(12px); }
-  60%  { opacity: 1; filter: blur(0); }
-  100% { transform: translate(-50%, -50%) translateY(0) scale(1); opacity: 1; filter: blur(0); }
+  0%   { transform: translate3d(-50%, -50%, 0) translateY(180px) scale(0.4); opacity: 0; }
+  100% { transform: translate3d(-50%, -50%, 0) translateY(0)     scale(1);   opacity: 1; }
 }
 @keyframes cloudItemBob {
-  from { transform: translate(-50%, -50%) translateY(-6px) scale(1); }
-  to   { transform: translate(-50%, -50%) translateY(8px) scale(1.02); }
+  from { transform: translate3d(-50%, -50%, 0) translateY(-6px) scale(1); }
+  to   { transform: translate3d(-50%, -50%, 0) translateY(8px)  scale(1.02); }
 }
 @keyframes cloudItemOut {
-  0%   { transform: translate(-50%, -50%) translateY(0) scale(1); opacity: 1; filter: blur(0); }
-  100% { transform: translate(-50%, -50%) translateY(-180px) scale(1.6); opacity: 0; filter: blur(20px); }
+  0%   { transform: translate3d(-50%, -50%, 0) translateY(0)      scale(1);   opacity: 1; }
+  100% { transform: translate3d(-50%, -50%, 0) translateY(-160px) scale(1.5); opacity: 0; }
 }
 
 .cloud-stage .cloud-art { position: relative; filter: drop-shadow(0 10px 24px rgba(120, 90, 180, 0.18)); }
@@ -372,14 +389,15 @@
   background: #e8c878;
   opacity: 0;
   box-shadow: 0 0 10px rgba(212, 167, 71, 0.7);
+  will-change: transform, opacity;
 }
 .cloud-stage.stage-clouds-in .particle,
 .cloud-stage.stage-clouds-hold .particle {
   animation: cloudParticleFloat 2.5s ease-in-out infinite;
 }
 @keyframes cloudParticleFloat {
-  0%, 100% { opacity: 0; transform: translateY(0) scale(0.5); }
-  50%      { opacity: 0.8; transform: translateY(-20px) scale(1); }
+  0%, 100% { opacity: 0;   transform: translate3d(0, 0, 0)     scale(0.5); }
+  50%      { opacity: 0.8; transform: translate3d(0, -20px, 0) scale(1); }
 }
 `;
   const styleEl = document.createElement('style');
