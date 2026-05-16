@@ -1488,8 +1488,10 @@ canvas { width: 100%; display: block; }
    Les lettres sont rendues dans .aq-letters et animées en JS. */
 .btn-aquarium {
   position: relative;
-  width: 240px;
-  height: 56px;
+  /* Réduit à des dimensions proches des .btn standards pour ne pas écraser
+     visuellement les autres actions (Éditer / Rafraîchir / Télécharger). */
+  width: 200px;
+  height: 42px;
   padding: 0;
   border: 0;
   border-radius: 9999px;
@@ -1503,8 +1505,8 @@ canvas { width: 100%; display: block; }
   transition: box-shadow 320ms ease;
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.06),
-    0 14px 28px rgba(0, 0, 0, 0.45),
-    0 4px 10px rgba(0, 0, 0, 0.35);
+    0 10px 20px rgba(0, 0, 0, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.28);
   outline: none;
 }
 .btn-aquarium.is-hover {

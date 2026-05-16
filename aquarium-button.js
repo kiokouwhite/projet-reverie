@@ -49,9 +49,9 @@
 
   // Seuils minimums pour considérer qu'on a une vraie taille de rendu finale
   // — pas une taille intermédiaire pendant une transition page-section.
-  // L'aquarium cible est 240×56, on demande au moins 80% de chaque dimension.
-  const MIN_MOUNT_W = 180;
-  const MIN_MOUNT_H = 40;
+  // L'aquarium cible est 200×42, on demande au moins 70% de chaque dimension.
+  const MIN_MOUNT_W = 140;
+  const MIN_MOUNT_H = 30;
 
   // ── Init d'un bouton ─────────────────────────────────────────
   function mountAquariumButton(btn) {
