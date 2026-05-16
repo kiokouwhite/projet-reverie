@@ -1913,7 +1913,7 @@ function drawLayoutSlots(ctx, layout, sc) {
         cx: tx + tw/2,
         cy: ty + tsk/2 + th/2,
         nameY: sc2.nameY*sc,
-      }, sc);
+      }, sc, p.charImgUrl);
       ctx.restore();
 
       // Contour par-dessus le personnage
@@ -2089,14 +2089,15 @@ function drawLayoutSlots(ctx, layout, sc) {
       ctx.clip();
     }
 
-    // Perso dans le slot
+    // Perso dans le slot (avec fallback image start.gg si le mural local
+    // n'existe pas, ex. Alex pour SF6 qui n'a pas encore son PNG dans le repo).
     if (char) drawCharWithCrop(ctx, char, p.costume, {
       pts: [[slot.cx*sc - slot.w/2*sc, slot.cy*sc + slot.h/2*sc],
             [slot.cx*sc + slot.w/2*sc, slot.cy*sc + slot.h/2*sc],
             [slot.cx*sc + slot.w/2*sc, slot.cy*sc - slot.h/2*sc],
             [slot.cx*sc - slot.w/2*sc, slot.cy*sc - slot.h/2*sc]],
       cx: slot.cx*sc, cy: slot.cy*sc, nameY: slot.nameY*sc
-    }, sc);
+    }, sc, p.charImgUrl);
 
     ctx.restore();
 
@@ -2194,7 +2195,7 @@ function renderCanvas(canvas, size) {
     // Case principale — personnage
     drawPara(ctx,black.pts); ctx.fillStyle=slotCfg.fillColor; ctx.globalAlpha=1.0; ctx.fill(); ctx.globalAlpha=1;
     ctx.save(); drawPara(ctx,black.pts); ctx.clip();
-    if(char) drawCharWithCrop(ctx, char, p.costume, black, sc);
+    if(char) drawCharWithCrop(ctx, char, p.costume, black, sc, p.charImgUrl);
     ctx.restore();
 
     // Pseudo

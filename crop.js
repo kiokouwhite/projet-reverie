@@ -97,10 +97,20 @@ function drawImageClampedSrc(ctx, img, srcX, srcY, srcSize, dX, dY, dSize, flip)
   }
 }
 
-function drawCharWithCrop(ctx, char, costume, black, sc) {
+// fallbackCharImgUrl : URL d'image start.gg préchargée (clé imgCache
+// `__sg__${url}`), utilisée quand le mural local n'existe pas (ex. Alex
+// pas encore dans le repo SF6). Permet d'afficher quand même un visuel
+// du perso plutôt que juste l'emoji icon.
+function drawCharWithCrop(ctx, char, costume, black, sc, fallbackCharImgUrl) {
   const g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
   const key = `${g}_${char.id}_${costume}`;
-  const cached = imgCache[key];
+  let cached = imgCache[key];
+  // Fallback start.gg si le mural local n'est pas chargé (404) mais qu'on a
+  // une URL alternative préchargée.
+  if (!cached?._loaded && fallbackCharImgUrl) {
+    const fbKey = `__sg__${fallbackCharImgUrl}`;
+    if (imgCache[fbKey]?._loaded) cached = imgCache[fbKey];
+  }
   if (!cached?._loaded) {
     ctx.font = `${Math.round(70*sc)}px serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
