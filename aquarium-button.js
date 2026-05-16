@@ -193,7 +193,7 @@
       <g clip-path="url(#aq-pill-clip-${btn._aqId})">
         <rect x="0" y="0" width="${W}" height="${H}" fill="${bgFill}"/>
         <rect x="0" y="0" width="${W}" height="${H}" fill="url(#aq-shine-${btn._aqId})"/>
-        <rect x="0" y="0" width="${W}" height="${H}" fill="url(#aq-vignette-${btn._aqId})"/>
+        ${insta ? '' : `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#aq-vignette-${btn._aqId})"/>`}
         <g class="aq-ripples"></g>
         <rect x="0" y="0" width="${W}" height="2" fill="rgba(255,255,255,0.18)"/>
       </g>
