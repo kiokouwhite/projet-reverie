@@ -32,38 +32,82 @@
   const IN_PHASE_MS = 1300;
   const OUT_PHASE_MS = 1300;
 
-  // ── Construction d'un SVG nuage minimaliste ──
-  // Forme épurée : 3 ellipses plates, un seul aplat de couleur, sans
-  // gradient — proche d'une icône weather minimaliste. Plus lisible et
-  // moins lourd à rasteriser que les nuages vaporeux d'origine.
-  function buildCloudSvg(width, tone) {
+  // ── 4 formes de nuages minimalistes ──
+  // Aplat de couleur unique (pas de gradient). Chaque variante a un
+  // viewBox normalisé à la largeur de référence et une hauteur/largeur
+  // différente pour varier les silhouettes.
+  //   shape 0 : standard (3 ellipses, format ~16:9)
+  //   shape 1 : tall (cluster vertical, format carré)
+  //   shape 2 : wide (sausage horizontale)
+  //   shape 3 : tiny puff (2 ellipses, petit format compact)
+  const CLOUD_SHAPES = [
+    // [aspectRatio (h/w), svgContent]
+    [0.55, `
+      <ellipse cx="100" cy="110" rx="60"  ry="46"/>
+      <ellipse cx="200" cy="92"  rx="80"  ry="62"/>
+      <ellipse cx="160" cy="130" rx="120" ry="40"/>
+    `],
+    [0.85, `
+      <ellipse cx="160" cy="90"  rx="65" ry="55"/>
+      <ellipse cx="120" cy="140" rx="60" ry="50"/>
+      <ellipse cx="200" cy="150" rx="70" ry="55"/>
+      <ellipse cx="160" cy="200" rx="110" ry="42"/>
+    `],
+    [0.35, `
+      <ellipse cx="80"  cy="60" rx="50" ry="38"/>
+      <ellipse cx="180" cy="50" rx="60" ry="42"/>
+      <ellipse cx="260" cy="62" rx="50" ry="36"/>
+      <ellipse cx="160" cy="75" rx="150" ry="32"/>
+    `],
+    [0.65, `
+      <ellipse cx="120" cy="110" rx="70" ry="60"/>
+      <ellipse cx="200" cy="110" rx="80" ry="62"/>
+    `],
+  ];
+
+  function buildCloudSvg(width, tone, shapeIdx) {
     const fill = tone === 'shadow' ? '#ece1f4' : '#ffffff';
-    return `<svg width="${width}" height="${width * 0.55}" viewBox="0 0 320 176" style="display:block;">
-      <g fill="${fill}">
-        <ellipse cx="100" cy="110" rx="60" ry="46"/>
-        <ellipse cx="200" cy="92"  rx="80" ry="62"/>
-        <ellipse cx="160" cy="130" rx="120" ry="40"/>
-      </g>
+    const idx  = ((shapeIdx | 0) % CLOUD_SHAPES.length + CLOUD_SHAPES.length) % CLOUD_SHAPES.length;
+    const [aspect, paths] = CLOUD_SHAPES[idx];
+    const viewH = Math.round(320 * aspect);
+    return `<svg width="${width}" height="${width * aspect}" viewBox="0 0 320 ${viewH}" style="display:block;">
+      <g fill="${fill}">${paths}</g>
     </svg>`;
   }
 
   // ── Mur de nuages dense (couvre tout le viewport) ──
-  // Coordonnées x/y en pourcentages, w en px (taille du SVG), d = delay s.
-  // 12 nuages (vs 21 avant) + le veil CSS suffisent pour couvrir l'écran
-  // sans saturer le GPU avec trop de SVG superposés.
+  // x/y : position du centre du nuage en % du viewport
+  // w   : taille du SVG en px (varie de 220 à 780 pour briser la régularité)
+  // d   : délai d'apparition en secondes (échelonné pour un effet d'explosion)
+  // s   : index de forme (0..3) — 4 silhouettes différentes (cf. CLOUD_SHAPES)
+  // Les nuages les plus gros et nombreux sont autour des bords/coins pour
+  // garantir la couverture, mais on intercale des petits puffs au centre
+  // pour casser la régularité visuelle.
   const FILLER_CLOUDS = [
-    { x: 10, y: -8,  w: 620, d: 0.00 },
-    { x: 50, y: -10, w: 660, d: 0.06 },
-    { x: 90, y: -6,  w: 600, d: 0.12 },
-    { x: 0,  y: 28,  w: 700, d: 0.04 },
-    { x: 45, y: 24,  w: 720, d: 0.10 },
-    { x: 95, y: 28,  w: 660, d: 0.16 },
-    { x: 8,  y: 60,  w: 700, d: 0.08 },
-    { x: 50, y: 64,  w: 740, d: 0.14 },
-    { x: 92, y: 60,  w: 680, d: 0.20 },
-    { x: 12, y: 95,  w: 640, d: 0.10 },
-    { x: 50, y: 98,  w: 700, d: 0.16 },
-    { x: 88, y: 95,  w: 640, d: 0.22 },
+    // Coins/bords : gros nuages standard ou wide
+    { x: 8,   y: -2,  w: 720, d: 0.00, s: 0 },
+    { x: 92,  y: 0,   w: 680, d: 0.05, s: 2 },
+    { x: 5,   y: 100, w: 740, d: 0.10, s: 0 },
+    { x: 95,  y: 102, w: 700, d: 0.08, s: 2 },
+    // Hauts / bas : forme wide pour bien remplir l'horizon
+    { x: 50,  y: -6,  w: 780, d: 0.12, s: 2 },
+    { x: 50,  y: 104, w: 760, d: 0.14, s: 2 },
+    // Bandes médianes (gauche / droite) : nuages tall
+    { x: -5,  y: 35,  w: 580, d: 0.18, s: 1 },
+    { x: 105, y: 38,  w: 560, d: 0.20, s: 1 },
+    { x: -8,  y: 70,  w: 540, d: 0.16, s: 1 },
+    { x: 108, y: 72,  w: 600, d: 0.22, s: 1 },
+    // Centre-bas / centre-haut : tailles moyennes-grandes, formes variées
+    { x: 28,  y: 28,  w: 480, d: 0.26, s: 3 },
+    { x: 72,  y: 24,  w: 520, d: 0.28, s: 0 },
+    { x: 32,  y: 72,  w: 500, d: 0.30, s: 3 },
+    { x: 68,  y: 76,  w: 540, d: 0.32, s: 0 },
+    // Petits puffs au centre pour casser la régularité
+    { x: 50,  y: 50,  w: 320, d: 0.36, s: 3 },
+    { x: 22,  y: 52,  w: 280, d: 0.34, s: 3 },
+    { x: 78,  y: 48,  w: 260, d: 0.34, s: 3 },
+    { x: 42,  y: 38,  w: 220, d: 0.40, s: 3 },
+    { x: 60,  y: 62,  w: 240, d: 0.42, s: 3 },
   ];
 
   // ── Création (lazy) du DOM de l'animation ──
@@ -77,11 +121,18 @@
     root.innerHTML = `
       <div class="cloud-veil"></div>
       <div class="cloud-filler">
-        ${FILLER_CLOUDS.map((c, i) => `
-          <div class="cloud-filler-item" style="left:${c.x}%;top:${c.y}%;--delay:${c.d}s;">
-            ${buildCloudSvg(c.w, i % 3 === 0 ? 'shadow' : 'light')}
-          </div>
-        `).join('')}
+        ${FILLER_CLOUDS.map((c, i) => {
+          // Vecteur depuis le centre de l'écran (50%, 50%) vers la position
+          // finale, exprimé en vw/vh. À l'état initial le nuage est translaté
+          // de (-dx, -dy) pour se retrouver au centre ; il "explose" ensuite
+          // vers (0, 0) (sa position finale via left/top).
+          const dx = (c.x - 50);
+          const dy = (c.y - 50);
+          return `
+            <div class="cloud-filler-item" style="left:${c.x}%;top:${c.y}%;--delay:${c.d}s;--dx:${-dx}vw;--dy:${-dy}vh;">
+              ${buildCloudSvg(c.w, i % 4 === 0 ? 'shadow' : 'light', c.s)}
+            </div>`;
+        }).join('')}
       </div>
       <div class="cloud-items-layer"></div>
       <div class="cloud-particles">
@@ -121,9 +172,12 @@
       const iconInner = g.imgUrl
         ? `<img src="${escHtml(g.imgUrl)}" alt="" loading="lazy" />`
         : `<span>${escHtml(emoji)}</span>`;
+      // Vecteur depuis le centre vers la position finale (en vw/vh).
+      const dx = -(xPct - 50);
+      const dy = -(yPct - 50);
       return `
-        <div class="cloud-item" style="left:${xPct}%;top:${yPct}%;--delay:${delay}s;--size:${size}px;">
-          <div class="cloud-art">${buildCloudSvg(size, 'light')}</div>
+        <div class="cloud-item" style="left:${xPct}%;top:${yPct}%;--delay:${delay}s;--size:${size}px;--dx:${dx}vw;--dy:${dy}vh;">
+          <div class="cloud-art">${buildCloudSvg(size, 'light', 0)}</div>
           <div class="cloud-content">
             <div class="game-emoji" style="background:${color}33;border-color:${color};">${iconInner}</div>
             <div class="game-name">${escHtml(g.name || '')}</div>
@@ -242,18 +296,22 @@
 .cloud-stage .cloud-filler { position: absolute; inset: 0; z-index: 1; }
 .cloud-stage .cloud-filler-item {
   position: absolute;
-  transform: translate3d(-50%, -50%, 0) translateY(120px) scale(0.6);
+  /* État initial : translaté de (--dx, --dy) depuis sa position finale,
+     ce qui revient à le placer au centre de l'écran (50%, 50%) quel que
+     soit son left/top final. Il "explose" ensuite vers sa position via
+     l'animation cloudFillerIn. */
+  transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.2);
   opacity: 0;
   will-change: transform, opacity;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 .cloud-stage.stage-clouds-in .cloud-filler-item {
-  animation: cloudFillerIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: cloudFillerIn 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-filler-item {
-  transform: translate3d(-50%, -50%, 0) translateY(0) scale(1);
+  transform: translate3d(-50%, -50%, 0) scale(1);
   opacity: 1;
   animation: cloudFillerBob 6s ease-in-out infinite alternate;
   animation-delay: var(--delay);
@@ -262,12 +320,13 @@
   animation: cloudFillerOut 1.3s cubic-bezier(0.5, 0, 0.75, 0) forwards;
   animation-delay: var(--delay);
 }
-/* Animations purement transform+opacity → 100% GPU. Pas de blur animé.
-   Le côté "vaporeux" des nuages vient déjà du veil (gradients) +
-   drop-shadow statique sur l'art. */
+/* Animations purement transform+opacity → 100% GPU. Le départ se fait
+   depuis le centre de l'écran, les nuages s'éparpillent vers leurs
+   positions finales (effet "explosion douce"). */
 @keyframes cloudFillerIn {
-  0%   { transform: translate3d(-50%, -50%, 0) translateY(120px) scale(0.65); opacity: 0; }
-  100% { transform: translate3d(-50%, -50%, 0) translateY(0)     scale(1);    opacity: 1; }
+  0%   { transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.2); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: translate3d(-50%, -50%, 0) scale(1); opacity: 1; }
 }
 @keyframes cloudFillerBob {
   from { transform: translate3d(-50%, -50%, 0) translateY(-4px) scale(1); }
@@ -281,7 +340,9 @@
 .cloud-stage .cloud-items-layer { position: absolute; inset: 0; z-index: 3; }
 .cloud-stage .cloud-item {
   position: absolute;
-  transform: translate3d(-50%, -50%, 0) translateY(180px) scale(0.35);
+  /* Mêmes principes que les filler : départ depuis le centre via (--dx, --dy)
+     puis explosion vers la position finale. */
+  transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.25);
   opacity: 0;
   will-change: transform, opacity;
   backface-visibility: hidden;
@@ -292,7 +353,7 @@
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-hold .cloud-item {
-  transform: translate3d(-50%, -50%, 0) translateY(0) scale(1);
+  transform: translate3d(-50%, -50%, 0) scale(1);
   opacity: 1;
   animation: cloudItemBob 4s ease-in-out infinite alternate;
   animation-delay: var(--delay);
@@ -302,8 +363,9 @@
   animation-delay: var(--delay);
 }
 @keyframes cloudItemIn {
-  0%   { transform: translate3d(-50%, -50%, 0) translateY(180px) scale(0.4); opacity: 0; }
-  100% { transform: translate3d(-50%, -50%, 0) translateY(0)     scale(1);   opacity: 1; }
+  0%   { transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.25); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: translate3d(-50%, -50%, 0) scale(1); opacity: 1; }
 }
 @keyframes cloudItemBob {
   from { transform: translate3d(-50%, -50%, 0) translateY(-6px) scale(1); }
