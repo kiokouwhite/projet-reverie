@@ -578,15 +578,11 @@
     const bgEl = _multiRoot.querySelector('.gs-pill-bg');
     if (bgEl) {
       bgEl.style.background = `linear-gradient(180deg, ${tint}f5 0%, ${tint} 100%)`;
-      // Effet néon (3 couches de glow externes) + liseré coloré. On a retiré
-      // l'inset -1px noir qui assombrissait le bas du pill, et on a poussé
-      // le highlight intérieur du haut pour rendre l'ensemble plus lumineux.
+      // Look clean : un fin liseré gris discret + un highlight intérieur
+      // sur le haut. Pas de glow néon, pas d'ombre colorée.
       bgEl.style.boxShadow = `
-        0 0 0 1.5px ${tint}cc,
-        0 0 8px ${tint}aa,
-        0 0 18px ${tint}88,
-        0 0 36px ${tint}55,
-        inset 0 1px 0 rgba(255,255,255,0.8)`;
+        0 0 0 1px rgba(0,0,0,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.6)`;
     }
     // Couleur des flèches : dérive de la dominante mais TOUJOURS contraste
     // avec le cercle blanc des arrows (sinon flèche blanche invisible).
