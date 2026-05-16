@@ -243,9 +243,10 @@
     // Couleur des flèches suit l'ink
     _root.querySelectorAll('.gs-arrow').forEach(a => a.style.color = ink);
 
-    // Layers visibles (jeu courant + voisins proches pour le crossfade)
-    // bgTx = 0 → fondu pur sur les fonds (pas de frontière visible)
-    // textTx > 0 → le texte glisse latéralement pour donner l'illusion du swipe
+    // Layers visibles : crossfade en opacité ET léger slide latéral.
+    // bgMotion volontairement bas (25%) pour que les fonds restent
+    // largement superposés pendant la transition → fondu visible sans
+    // frontière marquée. Le texte glisse plus (60%) pour l'effet swipe.
     const layers = _games.map((g, i) => {
       let d = i - virtual;
       if (d >  N / 2) d -= N;
@@ -253,9 +254,10 @@
       const absD = Math.abs(d);
       if (absD >= 1.2) return null;
       const fade = smoothstep(1 - absD);
-      const textMotion = 60;    // % de glissement du texte seulement
-      const parallaxPx = 14;    // parallaxe additionnel (peak mid-swipe)
-      const bgTx   = 0;         // ← FONDU PUR : pas de translation sur le fond
+      const bgMotion   = 25;
+      const textMotion = 60;
+      const parallaxPx = 14;
+      const bgTx   = d * bgMotion;
       const textTx = d * textMotion;
       const textPx = Math.sin(absD * Math.PI) * parallaxPx * Math.sign(d || 1);
       return { g, i, fade, bgTx, textTx, textPx };
@@ -496,7 +498,7 @@
       a.style.cursor  = disabled ? 'not-allowed' : 'pointer';
     });
 
-    // Mode multi : même logique fondu pur sur le fond, swipe sur le texte
+    // Mode multi : crossfade + léger slide sur le bg, gros swipe sur le texte
     const layers = games.map((g, i) => {
       let d = i - virtual;
       if (d >  N / 2) d -= N;
@@ -504,10 +506,11 @@
       const absD = Math.abs(d);
       if (absD >= 1.2) return null;
       const fade = smoothstep(1 - absD);
+      const bgMotion   = 25;
       const textMotion = 60;
       const parallaxPx = 14;
       const textPx = Math.sin(absD * Math.PI) * parallaxPx * Math.sign(d || 1);
-      return { g, i, fade, bgTx: 0, textTx: d * textMotion, textPx };
+      return { g, i, fade, bgTx: d * bgMotion, textTx: d * textMotion, textPx };
     }).filter(Boolean);
 
     const bgLayers = _multiRoot.querySelector('.gs-bg-layers');
