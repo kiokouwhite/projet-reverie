@@ -3659,14 +3659,15 @@ async function _renderBgPicker() {
   // Assurer que tous les dossiers (même vides) apparaissent
   folders.forEach(f => { if (!userBgsByFolder[f]) userBgsByFolder[f] = []; });
 
-  // Section "Sans dossier"
-  if ((userBgsByFolder[''] || []).length || !folders.length) {
-    sections.push({
-      folder: '',
-      tiles: (userBgsByFolder[''] || []).map(b => _renderUserBgTile(b)).join('')
-        + _renderImportTile(),
-    });
-  }
+  // Section "Sans dossier" — TOUJOURS rendue car elle contient la tuile
+  // "Importer un fond" qui doit rester visible quelle que soit la
+  // configuration (avant : disparaissait quand on créait le 1er dossier
+  // sans avoir de fond à la racine).
+  sections.push({
+    folder: '',
+    tiles: (userBgsByFolder[''] || []).map(b => _renderUserBgTile(b)).join('')
+      + _renderImportTile(),
+  });
   // Sections dossiers nommés
   folders.forEach(f => {
     sections.push({
