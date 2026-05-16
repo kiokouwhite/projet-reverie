@@ -647,12 +647,18 @@ function hrTcNavigate(delta) { hrTcGo(_hrTcActive + delta); }
 //   - scroll up   → +step
 //   - scroll down → −step
 //   - Shift+scroll → ×10 (pour les longs intervalles)
-// Délégation globale au document → marche pour les sliders dynamiques (rendus
-// par renderNameEditor, etc.) sans avoir à re-binder à chaque re-render.
+// IMPORTANT : ne s'active QUE si le slider est focusé (l'utilisateur a cliqué
+// dessus avant). Sinon le scroll vertical normal de la page modifierait
+// silencieusement chaque slider que le curseur survole pendant le défilement
+// → bug très désagréable (les positions des titres SSBU, taille, etc. se
+// décalaient sans qu'on s'en rende compte en scrollant l'éditeur).
 document.addEventListener('wheel', function(e) {
   const el = e.target;
   if (!el || el.tagName !== 'INPUT' || el.type !== 'range') return;
   if (el.disabled) return;
+  // Sécurité : ignorer si pas focus → on ne touche pas aux sliders pendant
+  // un scroll de page. Le user doit cliquer sur le slider d'abord.
+  if (document.activeElement !== el) return;
   e.preventDefault();
   const step = parseFloat(el.step) || 1;
   const mult = e.shiftKey ? 10 : 1;
@@ -661,12 +667,9 @@ document.addEventListener('wheel', function(e) {
   const max = el.max !== '' ? parseFloat(el.max) : Infinity;
   let v = (parseFloat(el.value) || 0) + delta;
   v = Math.max(min, Math.min(max, v));
-  // Arrondit aux multiples de step pour éviter les valeurs flottantes bizarres
   if (step >= 1) v = Math.round(v);
   else            v = Math.round(v / step) * step;
   el.value = v;
-  // Déclenche 'input' (au lieu de 'change') car la plupart des handlers du
-  // projet écoutent 'input' pour reagir en temps réel.
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }, { passive: false });
 
