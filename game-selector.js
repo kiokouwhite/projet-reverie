@@ -112,9 +112,11 @@
   let _root = null;
   let _animating = false;
 
-  const PILL_WIDTH = 320;
-  const PILL_HEIGHT = 56;
-  const ARROW_SIZE = 44;
+  // Dimensions choisies pour matcher la hauteur du .btn standard
+  // (Éditer fait ~36px : padding 9 + 13px text + 9 + 4 border).
+  const PILL_WIDTH = 290;
+  const PILL_HEIGHT = 36;
+  const ARROW_SIZE = 30;
   const ANIM_MS = 620;
 
   function findIndexOf(gameId) {
@@ -542,12 +544,11 @@
 .gs-pill-wrap {
   position: relative;
   width: ${PILL_WIDTH}px;
-  height: ${PILL_HEIGHT + 4}px;
+  height: ${PILL_HEIGHT}px;
   max-width: 100%;
   display: flex;
   align-items: center;
   user-select: none;
-  margin-bottom: 8px;
 }
 .gs-pill-bg {
   position: absolute;
@@ -588,14 +589,14 @@
   will-change: opacity, transform;
 }
 .gs-text {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.005em;
   white-space: nowrap;
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 5px;
+  padding: 0 6px;
 }
 .gs-text-count { opacity: 0.7; font-variant-numeric: tabular-nums; font-weight: 500; }
 .gs-text-sep   { opacity: 0.45; }
