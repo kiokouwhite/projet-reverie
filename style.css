@@ -5458,6 +5458,279 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 }
 .dlx-call-banner-btn:hover { background: #fce4e9; }
 
+/* État docké : quand tous les appels sont silencés, le bandeau devient une
+   petite fenêtre persistante en haut à droite. Pas d'animation, pas de son,
+   juste un rappel discret que des appels sont toujours actifs. */
+.dlx-call-banner.dlx-call-banner-docked {
+  top: 14px;
+  left: auto;
+  right: 14px;
+  transform: none;
+  background: #fff;
+  color: var(--text);
+  border: 1.5px solid #e85a8a;
+  box-shadow: 0 6px 18px rgba(232,90,138,0.25);
+  padding: 8px 10px;
+  border-radius: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: none;
+  max-width: 320px;
+}
+.dlx-call-banner.dlx-call-banner-docked:hover {
+  box-shadow: 0 8px 24px rgba(232,90,138,0.35);
+}
+.dlx-call-dock-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c0223f;
+  font-weight: 800;
+  border-bottom: 1px solid #f4d4dd;
+  padding-bottom: 4px;
+}
+.dlx-call-dock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dlx-call-dock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #fff7fa;
+}
+.dlx-call-dock-row:hover { background: #fdebf1; }
+.dlx-call-dock-icon { font-size: 14px; flex-shrink: 0; }
+.dlx-call-dock-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  min-width: 0;
+}
+.dlx-call-dock-info strong {
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlx-call-dock-arrow { color: var(--text-soft); }
+.dlx-call-dock-game {
+  color: #c0223f;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.dlx-call-dock-close {
+  background: transparent;
+  border: none;
+  color: var(--text-soft);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.dlx-call-dock-close:hover { background: #fce4e9; color: #c0223f; }
+
+/* ── Chat TO ────────────────────────────────────────────────────────────── */
+.dlx-chat-fab {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(124,92,255,0.45);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, box-shadow 0.18s ease;
+}
+.dlx-chat-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 12px 28px rgba(124,92,255,0.55);
+}
+.dlx-chat-fab:active { transform: scale(0.96); }
+.dlx-chat-fab-icon { line-height: 1; }
+.dlx-chat-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(239,68,68,0.5);
+  animation: dlxChatBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes dlxChatBadgePulse {
+  0%, 100% { transform: scale(1);   }
+  50%      { transform: scale(1.12); }
+}
+
+#dlxChatWindow { width: 340px; height: 460px; }
+.dlx-chat-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  height: 100%;
+  min-height: 0;
+}
+.dlx-chat-pseudo-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #faf8fd;
+  flex-shrink: 0;
+}
+.dlx-chat-pseudo-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dlx-chat-pseudo-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff;
+  color: var(--text);
+}
+.dlx-chat-pseudo-input:focus {
+  outline: none;
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 2px rgba(124,92,255,0.18);
+}
+.dlx-chat-status {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.dlx-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fefefe;
+}
+.dlx-chat-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-soft);
+  font-style: italic;
+  font-size: 12px;
+}
+.dlx-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f4f0fa;
+  max-width: 88%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+.dlx-chat-msg.dlx-chat-msg-mine {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+}
+.dlx-chat-msg-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.dlx-chat-msg-pseudo { color: #5b2db5; }
+.dlx-chat-msg-mine .dlx-chat-msg-pseudo { color: #fff; }
+.dlx-chat-msg-time { font-weight: 600; opacity: 0.7; }
+.dlx-chat-msg-text {
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+.dlx-chat-input-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: #faf8fd;
+  flex-shrink: 0;
+}
+.dlx-chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  background: #fff;
+}
+.dlx-chat-input:focus {
+  outline: none;
+  border-color: #7c5cff;
+  box-shadow: 0 0 0 2px rgba(124,92,255,0.18);
+}
+.dlx-chat-send-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c5cff, #e85a8a);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.1s ease;
+}
+.dlx-chat-send-btn:hover  { transform: scale(1.06); }
+.dlx-chat-send-btn:active { transform: scale(0.94); }
+.dlx-chat-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Body du panneau Matchs : padding + scroll vertical */
 .dlx-sgg-panel .dlx-win-body { padding: 12px; overflow-y: auto; }
 /* Body du Plan : la canvas-wrap remplit l'espace dispo */
@@ -6205,24 +6478,67 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 .dlx-rr-table {
   border-collapse: separate;
   border-spacing: 4px;
+  /* table-layout: fixed → toutes les cases d'une même colonne ont la même
+     largeur (déterminée par la première ligne), peu importe la longueur des
+     noms. Les noms de joueur trop longs sont tronqués avec une ellipse. */
+  table-layout: fixed;
 }
 .dlx-rr-corner {
   background: transparent;
   padding: 6px;
+  /* Largeur fixe de la colonne des noms de joueurs (à gauche). */
+  width: 160px;
 }
 .dlx-rr-col-name,
 .dlx-rr-row-name {
   font-size: 12px;
   font-weight: 800;
   color: var(--text);
-  padding: 6px 10px;
-  max-width: 140px;
+  padding: 6px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dlx-rr-col-name { vertical-align: bottom; text-align: center; }
-.dlx-rr-row-name { text-align: right; }
+.dlx-rr-col-name {
+  vertical-align: bottom;
+  text-align: center;
+  /* Force chaque colonne joueur à la même largeur que les cellules de score. */
+  width: 80px;
+  max-width: 80px;
+}
+.dlx-rr-row-name {
+  text-align: right;
+  max-width: 160px;
+}
+/* Wrapper flex pour faire disparaître la team (= préfixe avant le dernier "|")
+   en priorité quand la cellule est trop étroite. Le pseudo (dernier segment)
+   ne se rétrécit jamais ; la team est tronquée avec une ellipse. */
+.dlx-rr-name-wrap {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.dlx-rr-col-name .dlx-rr-name-wrap { justify-content: center; }
+.dlx-rr-row-name .dlx-rr-name-wrap { justify-content: flex-end; }
+.dlx-rr-name-team {
+  flex: 0 1 auto;          /* peut rétrécir */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-soft);
+  font-weight: 600;
+}
+.dlx-rr-name-pseudo {
+  flex: 0 0 auto;          /* ne rétrécit jamais — priorité d'affichage */
+  white-space: nowrap;
+  display: inline-block;   /* nécessaire pour que transform: scaleX s'applique */
+  /* Si la team a déjà disparu mais que le pseudo dépasse encore, JS applique
+     transform: scaleX(...) pour l'écraser horizontalement plutôt que de
+     perdre des lettres. */
+}
 .dlx-rr-cell {
   width: 80px;
   height: 44px;
@@ -6233,6 +6549,8 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   border-radius: 6px;
   background: #fff;
   color: var(--text);
+  /* Empêche un contenu plus large (label EN COURS, etc.) d'élargir la colonne. */
+  overflow: hidden;
 }
 .dlx-rr-cell.dlx-rr-diag {
   background: #f4f0fa;
@@ -6262,6 +6580,53 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 }
 .dlx-rr-cell.dlx-rr-win:hover,
 .dlx-rr-cell.dlx-rr-loss:hover { filter: brightness(0.95); }
+.dlx-rr-cell.dlx-rr-live {
+  background: linear-gradient(135deg, #fff4e0, #ffe1b5);
+  border-color: #f57c00;
+  color: #c2410c;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.18) inset;
+  animation: dlxRrLivePulse 1.6s ease-in-out infinite;
+}
+@keyframes dlxRrLivePulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.18) inset; }
+  50%      { box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.45) inset; }
+}
+.dlx-rr-cell { position: relative; }
+.dlx-rr-cell-label {
+  display: block;
+  line-height: 1.1;
+  pointer-events: none;
+}
+.dlx-rr-act {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+  transition: transform 0.08s ease, filter 0.12s ease;
+}
+.dlx-rr-act:hover { filter: brightness(1.08); transform: scale(1.08); }
+.dlx-rr-act:active { transform: scale(0.94); }
+.dlx-rr-act-go {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: #fff;
+}
+.dlx-rr-act-stop {
+  background: linear-gradient(135deg, #ef5350, #c62828);
+  color: #fff;
+}
 .dlx-rr-record {
   padding-left: 12px;
   text-align: right;

@@ -1207,6 +1207,74 @@ app.post('/tweets-reset', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── CHAT TEXTUEL (start.gg Deluxe) ──────────────────────────────────────────
+// Petit chat en SSE pour les TO d'un tournoi. Stockage en RAM (ring buffer),
+// pas de salons : un seul fil partagé. Authentification via le secret partagé
+// déjà utilisé pour les autres endpoints.
+const CHAT_MAX = 500;
+const _chatMessages = [];        // [{ id, pseudo, text, ts }]
+const _chatClients  = new Set(); // res objects connectés en SSE
+
+function chatBroadcast(event, payload) {
+  const chunk = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const res of _chatClients) {
+    try { res.write(chunk); } catch (e) { /* client mort, sera nettoyé via 'close' */ }
+  }
+}
+
+// SSE : flux temps réel. EventSource ne sait pas envoyer de headers custom,
+// donc on accepte le secret en query string.
+app.get('/chat/stream', (req, res) => {
+  const secret = req.query.secret;
+  if (!secret || secret !== process.env.APP_SECRET) {
+    res.status(401).end();
+    return;
+  }
+  res.set({
+    'Content-Type':      'text/event-stream',
+    'Cache-Control':     'no-cache, no-transform',
+    'Connection':        'keep-alive',
+    'X-Accel-Buffering': 'no', // utile derrière nginx/Railway
+  });
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  res.write(`event: ready\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
+  _chatClients.add(res);
+
+  // Heartbeat pour empêcher les proxies de couper la connexion inactive
+  const hb = setInterval(() => {
+    try { res.write(`: hb\n\n`); } catch (e) {}
+  }, 25000);
+  req.on('close', () => {
+    clearInterval(hb);
+    _chatClients.delete(res);
+  });
+});
+
+app.post('/chat/send', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const pseudo = String(req.body?.pseudo || '').trim().slice(0, 40);
+  const text   = String(req.body?.text   || '').trim().slice(0, 1000);
+  if (!pseudo || !text) {
+    res.status(400).json({ ok: false, error: 'pseudo et text requis' });
+    return;
+  }
+  const msg = {
+    id:     Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    pseudo, text,
+    ts:     Date.now(),
+  };
+  _chatMessages.push(msg);
+  if (_chatMessages.length > CHAT_MAX) _chatMessages.shift();
+  chatBroadcast('message', msg);
+  res.json({ ok: true, message: msg });
+});
+
+app.get('/chat/history', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 100, CHAT_MAX);
+  res.json({ ok: true, messages: _chatMessages.slice(-limit) });
+});
+
 // ── DÉMARRAGE SERVEUR ─────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

@@ -945,6 +945,41 @@
         <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
       </div>
 
+      <!-- Fenêtre Chat -->
+      <div class="dlx-win" id="dlxChatWindow" style="display:none;">
+        <div class="dlx-win-titlebar" id="dlxChatTitlebar">
+          <span class="dlx-win-title">💬 Chat TO</span>
+          <div class="dlx-win-buttons">
+            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxChatWindow')" title="Réduire / restaurer">−</button>
+            <button type="button" class="dlx-win-min" onclick="dlxChatClose()" title="Fermer" style="font-size:14px;">✕</button>
+          </div>
+        </div>
+        <div class="dlx-win-body dlx-chat-body">
+          <div class="dlx-chat-pseudo-bar">
+            <label class="dlx-chat-pseudo-label">Pseudo</label>
+            <input type="text" id="dlxChatPseudo" class="dlx-chat-pseudo-input"
+              maxlength="40" placeholder="ex. Faruga" autocomplete="off"
+              oninput="dlxChatSavePseudo()">
+            <span id="dlxChatStatus" class="dlx-chat-status" title="État de la connexion">⚪</span>
+          </div>
+          <div id="dlxChatMessages" class="dlx-chat-messages">
+            <p class="dlx-chat-empty">Aucun message. Soyez le premier !</p>
+          </div>
+          <form class="dlx-chat-input-bar" onsubmit="event.preventDefault(); dlxChatSend()">
+            <input type="text" id="dlxChatInput" class="dlx-chat-input"
+              maxlength="1000" placeholder="Écris un message…" autocomplete="off">
+            <button type="submit" class="dlx-chat-send-btn" title="Envoyer">➤</button>
+          </form>
+        </div>
+        <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
+      </div>
+
+      <!-- Bouton flottant Chat (avec badge non-lu) -->
+      <button type="button" id="dlxChatFab" class="dlx-chat-fab" onclick="dlxChatToggle()" title="Ouvrir le chat">
+        <span class="dlx-chat-fab-icon">💬</span>
+        <span id="dlxChatBadge" class="dlx-chat-badge" style="display:none;">0</span>
+      </button>
+
       <!-- Bandeau d'appel global (visible quand un appel est actif) -->
       <div id="dlxCallBanner" class="dlx-call-banner" style="display:none;"></div>
 

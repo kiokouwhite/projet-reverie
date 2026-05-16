@@ -680,6 +680,7 @@ function dlxInstallWindows() {
   dlxInstallWindow('dlxBracketWindow');
   dlxInstallWindow('dlxSggPanel');
   dlxInstallWindow('dlxAideWindow');
+  dlxInstallWindow('dlxChatWindow');
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────
@@ -4078,11 +4079,28 @@ function dlxBracketRenderRR(event) {
     records[e2.id].gw += s2; records[e2.id].gl += s1;
   });
 
+  // Format intelligent du nom : "Team | Pseudo" → team part dans un span qui
+  // se rétrécit/disparaît en premier via CSS, pseudo dans un span fixe. Comme
+  // ça quand la cellule est trop étroite, c'est la team qui est tronquée,
+  // pas le pseudo.
+  const formatRrName = (rawName) => {
+    const parts = String(rawName || '').split('|').map(s => s.trim()).filter(Boolean);
+    if (parts.length <= 1) {
+      return `<span class="dlx-rr-name-wrap"><span class="dlx-rr-name-pseudo">${dlxSggEsc(parts[0] || rawName || '')}</span></span>`;
+    }
+    const team   = parts.slice(0, -1).join(' | ');
+    const pseudo = parts[parts.length - 1];
+    return `<span class="dlx-rr-name-wrap">` +
+             `<span class="dlx-rr-name-team">${dlxSggEsc(team)} | </span>` +
+             `<span class="dlx-rr-name-pseudo">${dlxSggEsc(pseudo)}</span>` +
+           `</span>`;
+  };
+
   // Header row
   const headerHtml = `<tr>
     <th class="dlx-rr-corner"></th>
     ${entrants.map(e =>
-      `<th class="dlx-rr-col-name" title="${dlxSggEsc(e.name)}">${dlxSggEsc(e.name)}</th>`
+      `<th class="dlx-rr-col-name" title="${dlxSggEsc(e.name)}">${formatRrName(e.name)}</th>`
     ).join('')}
     <th class="dlx-rr-corner">Record</th>
   </tr>`;
@@ -4093,22 +4111,43 @@ function dlxBracketRenderRR(event) {
       if (rowE.id === colE.id) return '<td class="dlx-rr-cell dlx-rr-diag"></td>';
       const m = matchMap[rowE.id + '|' + colE.id];
       if (!m) return '<td class="dlx-rr-cell dlx-rr-empty"></td>';
+      const setState = m.s.state;
+      const inProgress = setState === 2;
       const played = (m.s1 != null && m.s2 != null);
       let cls = '', label;
       if (played && m.s.winnerId != null) {
         cls = String(m.s.winnerId) === String(rowE.id) ? 'dlx-rr-win' : 'dlx-rr-loss';
         label = m.s1 + ' - ' + m.s2;
+      } else if (inProgress) {
+        cls = 'dlx-rr-live';
+        label = '⏵ LIVE';
       } else {
         cls = 'dlx-rr-pending';
         label = '—';
       }
+      // Boutons d'action (visible UNIQUEMENT côté ligne pour éviter doublon)
+      const isRowPrimary = String(rowE.id) < String(colE.id);
+      let actionBtn = '';
+      if (isRowPrimary && !played) {
+        const setId = dlxSggEsc(m.s.id);
+        if (inProgress) {
+          actionBtn = `<button class="dlx-rr-act dlx-rr-act-stop"
+            onclick="event.stopPropagation(); dlxSggResetSet('${setId}')"
+            title="Stopper le match">🛑</button>`;
+        } else {
+          actionBtn = `<button class="dlx-rr-act dlx-rr-act-go"
+            onclick="event.stopPropagation(); dlxSggMarkInProgress('${setId}')"
+            title="Lancer le match">🚀</button>`;
+        }
+      }
       return `<td class="dlx-rr-cell ${cls}"
         onclick="dlxSggOpenReport('${dlxSggEsc(m.s.id)}')"
-        title="Reporter le score">${label}</td>`;
+        title="${played ? 'Match joué' : (inProgress ? 'En cours' : 'Reporter le score')}">
+        <span class="dlx-rr-cell-label">${label}</span>${actionBtn}</td>`;
     }).join('');
     const r = records[rowE.id];
     return `<tr>
-      <th class="dlx-rr-row-name" title="${dlxSggEsc(rowE.name)}">${dlxSggEsc(rowE.name)}</th>
+      <th class="dlx-rr-row-name" title="${dlxSggEsc(rowE.name)}">${formatRrName(rowE.name)}</th>
       ${cells}
       <td class="dlx-rr-record">
         <div class="dlx-rr-record-sets">${r.w} - ${r.l}</div>
@@ -4121,6 +4160,32 @@ function dlxBracketRenderRR(event) {
     <div class="dlx-rr-title">Round Robin — ${dlxSggEsc(event.name)}</div>
     <table class="dlx-rr-table">${headerHtml}${rowsHtml}</table>
   </div>`;
+}
+
+// Écrase horizontalement (CSS scaleX) chaque pseudo de la matrice Round Robin
+// dont la largeur naturelle dépasse encore celle de la cellule, même après
+// que la team se soit effacée. transform-origin choisi en fonction de
+// l'alignement (centre pour colonnes, droite pour lignes) afin que l'écrasement
+// reste visuellement collé au bord pertinent du <th>.
+function dlxRrFitNames(root) {
+  if (!root) return;
+  const wraps = root.querySelectorAll('.dlx-rr-name-wrap');
+  wraps.forEach(wrap => {
+    const pseudo = wrap.querySelector('.dlx-rr-name-pseudo');
+    if (!pseudo) return;
+    // Reset avant mesure : on enlève toute transformation précédente
+    pseudo.style.transform = '';
+    const wrapW   = wrap.clientWidth;
+    const pseudoW = pseudo.offsetWidth;
+    if (pseudoW > wrapW + 0.5) {
+      const ratio = Math.max(0.5, wrapW / pseudoW);
+      // origine = bord opposé à l'alignement du flex pour que le texte
+      // ne « s'envole » pas hors de la cellule visible.
+      const isRow = wrap.closest('.dlx-rr-row-name') != null;
+      pseudo.style.transformOrigin = isRow ? 'right center' : 'center center';
+      pseudo.style.transform = `scaleX(${ratio})`;
+    }
+  });
 }
 
 function dlxBracketRender() {
@@ -4151,6 +4216,9 @@ function dlxBracketRender() {
     canvasEl.style.width = '';
     canvasEl.style.height = '';
     canvasEl.innerHTML = dlxBracketRenderRR(event);
+    // Après render : écrase horizontalement (scaleX) les pseudos qui ne
+    // rentrent toujours pas, plutôt que de perdre des lettres avec une ellipse.
+    requestAnimationFrame(() => dlxRrFitNames(canvasEl));
     return;
   }
   const layout = dlxBracketLayout(event.sets);
@@ -4393,23 +4461,58 @@ function dlxSilenceCall(callId) {
 function dlxUpdateCallBanner() {
   const banner = document.getElementById('dlxCallBanner');
   if (!banner) return;
-  const active = _dlxCalls.filter(c => !c.silenced);
-  if (!active.length) {
+  const active   = _dlxCalls.filter(c => !c.silenced);
+  const silenced = _dlxCalls.filter(c =>  c.silenced);
+
+  // Aucun appel : on cache tout.
+  if (!active.length && !silenced.length) {
     banner.style.display = 'none';
+    banner.classList.remove('dlx-call-banner-docked');
     return;
   }
-  const c = active[active.length - 1]; // le plus récent non-silencieux
-  const more = active.length - 1;
+
+  // S'il y a au moins un appel non-silencieux → grand bandeau alerte
+  // (avec son via dlxStartBeep ailleurs). Sinon → mini-fenêtre dockée
+  // en haut à droite qui liste les appels acquittés mais toujours actifs.
+  if (active.length) {
+    const c = active[active.length - 1]; // le plus récent non-silencieux
+    const more = active.length - 1;
+    banner.style.display = 'flex';
+    banner.classList.remove('dlx-call-banner-docked');
+    banner.innerHTML = `
+      <div class="dlx-call-banner-icon">📢</div>
+      <div class="dlx-call-banner-text">
+        <strong>${dlxSggEsc(c.playerName)}</strong> est attendu sur
+        <strong>${dlxSggEsc(c.targetGame)}</strong> à la fin de son match
+        ${more > 0 ? `<span class="dlx-call-more">(+${more} autre${more > 1 ? 's' : ''})</span>` : ''}
+      </div>
+      <button class="dlx-call-banner-btn" onclick="dlxSilenceCall('${dlxSggEsc(c.id)}')"
+        title="Réduit le bandeau et coupe le son. L'appel reste affiché tant que le joueur n'a pas été lancé sur le bon jeu.">✓ D'accord</button>`;
+    return;
+  }
+
+  // Mode docké : liste compacte de tous les appels silencés. Reste visible
+  // jusqu'à ce que le match soit lancé sur le bon jeu (auto-clear) ou que
+  // l'utilisateur clique sur ✕.
   banner.style.display = 'flex';
+  banner.classList.add('dlx-call-banner-docked');
+  const items = silenced.map(c => `
+    <div class="dlx-call-dock-row">
+      <span class="dlx-call-dock-icon">🔕</span>
+      <span class="dlx-call-dock-info">
+        <strong>${dlxSggEsc(c.playerName)}</strong>
+        <span class="dlx-call-dock-arrow">→</span>
+        <span class="dlx-call-dock-game">${dlxSggEsc(c.targetGame)}</span>
+      </span>
+      <button class="dlx-call-dock-close"
+        onclick="dlxAcknowledgeCall('${dlxSggEsc(c.id)}')"
+        title="Retirer cet appel (le match n'est pas encore lancé)">✕</button>
+    </div>`).join('');
   banner.innerHTML = `
-    <div class="dlx-call-banner-icon">📢</div>
-    <div class="dlx-call-banner-text">
-      <strong>${dlxSggEsc(c.playerName)}</strong> est attendu sur
-      <strong>${dlxSggEsc(c.targetGame)}</strong> à la fin de son match
-      ${more > 0 ? `<span class="dlx-call-more">(+${more} autre${more > 1 ? 's' : ''})</span>` : ''}
+    <div class="dlx-call-dock-header">
+      <span class="dlx-call-dock-title">📢 Appel${silenced.length > 1 ? 's' : ''} en attente</span>
     </div>
-    <button class="dlx-call-banner-btn" onclick="dlxSilenceCall('${dlxSggEsc(c.id)}')"
-      title="Réduit le bandeau et coupe le son. L'appel reste actif tant que le joueur n'a pas été lancé sur le bon jeu.">✓ D'accord</button>`;
+    <div class="dlx-call-dock-list">${items}</div>`;
 }
 
 // Son d'alerte : 2 bips alternés répétés toutes les 1.5s, jusqu'à acquittement
@@ -4465,3 +4568,301 @@ if (_dlxCalls.length) {
   }, { once: true });
   setTimeout(dlxUpdateCallBanner, 50);
 }
+
+// ── Chat TO ─────────────────────────────────────────────────────────────────
+// Chat textuel multi-appareils basé sur le serveur Express (bot.js). SSE pour
+// le push temps-réel, POST pour l'envoi. Notification sonore + badge non-lu
+// quand la fenêtre est fermée/minimisée. Pseudo persistant en localStorage.
+const DLX_CHAT_PSEUDO_LS_KEY  = 'dlxChatPseudo';
+const DLX_CHAT_LASTSEEN_LS    = 'dlxChatLastSeenTs';
+let _dlxChatMessages = [];
+let _dlxChatUnread   = 0;
+let _dlxChatES       = null;        // EventSource actif
+let _dlxChatESRetry  = 0;
+let _dlxChatLastSeen = 0;           // ts du dernier message vu par l'utilisateur
+
+function dlxChatBotConfig() {
+  const url    = (localStorage.getItem('dc_bot_url') || localStorage.getItem('hr_bot_url') || '').trim().replace(/\/+$/, '');
+  const secret = (localStorage.getItem('dc_bot_secret') || localStorage.getItem('hr_bot_secret') || '').trim();
+  return { url, secret };
+}
+
+function dlxChatSetStatus(state) {
+  const el = document.getElementById('dlxChatStatus');
+  if (!el) return;
+  const map = {
+    connected:    { icon: '🟢', title: 'Connecté' },
+    connecting:   { icon: '🟡', title: 'Connexion…' },
+    disconnected: { icon: '🔴', title: 'Hors-ligne — vérifie l\'URL/secret du bot' },
+    noconfig:     { icon: '⚪', title: 'Bot non configuré (onglet Configuration : URL + secret)' },
+  };
+  const v = map[state] || map.noconfig;
+  el.textContent = v.icon;
+  el.title       = v.title;
+}
+
+function dlxChatLoadPseudo() {
+  const v = localStorage.getItem(DLX_CHAT_PSEUDO_LS_KEY) || '';
+  const inp = document.getElementById('dlxChatPseudo');
+  if (inp) inp.value = v;
+}
+function dlxChatSavePseudo() {
+  const inp = document.getElementById('dlxChatPseudo');
+  if (!inp) return;
+  try { localStorage.setItem(DLX_CHAT_PSEUDO_LS_KEY, inp.value.trim().slice(0, 40)); } catch (e) {}
+  // Réaffiche pour mettre à jour le marquage "mes messages"
+  dlxChatRender();
+}
+function dlxChatGetPseudo() {
+  const inp = document.getElementById('dlxChatPseudo');
+  return (inp && inp.value.trim()) || localStorage.getItem(DLX_CHAT_PSEUDO_LS_KEY) || '';
+}
+
+function dlxChatEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'
+  })[c]);
+}
+
+function dlxChatRender() {
+  const cont = document.getElementById('dlxChatMessages');
+  if (!cont) return;
+  if (!_dlxChatMessages.length) {
+    cont.innerHTML = '<p class="dlx-chat-empty">Aucun message. Soyez le premier !</p>';
+    return;
+  }
+  const mine = dlxChatGetPseudo();
+  const wasNearBottom = (cont.scrollHeight - cont.scrollTop - cont.clientHeight) < 60;
+  cont.innerHTML = _dlxChatMessages.map(m => {
+    const isMine = m.pseudo && m.pseudo === mine;
+    const d = new Date(m.ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `<div class="dlx-chat-msg${isMine ? ' dlx-chat-msg-mine' : ''}">
+      <div class="dlx-chat-msg-head">
+        <span class="dlx-chat-msg-pseudo">${dlxChatEsc(m.pseudo)}</span>
+        <span class="dlx-chat-msg-time">${hh}:${mm}</span>
+      </div>
+      <div class="dlx-chat-msg-text">${dlxChatEsc(m.text)}</div>
+    </div>`;
+  }).join('');
+  if (wasNearBottom) cont.scrollTop = cont.scrollHeight;
+}
+
+function dlxChatUpdateBadge() {
+  const badge = document.getElementById('dlxChatBadge');
+  if (!badge) return;
+  if (_dlxChatUnread > 0) {
+    badge.textContent = _dlxChatUnread > 99 ? '99+' : String(_dlxChatUnread);
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Le bouton FAB doit toujours être visible et au-dessus des fenêtres
+// quand la fenêtre chat est fermée OU minimisée.
+function dlxChatIsWindowVisible() {
+  const win = document.getElementById('dlxChatWindow');
+  if (!win) return false;
+  if (win.style.display === 'none') return false;
+  if (win.classList.contains('minimized')) return false;
+  return true;
+}
+
+function dlxChatMarkAllRead() {
+  _dlxChatUnread = 0;
+  if (_dlxChatMessages.length) {
+    _dlxChatLastSeen = _dlxChatMessages[_dlxChatMessages.length - 1].ts;
+    try { localStorage.setItem(DLX_CHAT_LASTSEEN_LS, String(_dlxChatLastSeen)); } catch (e) {}
+  }
+  dlxChatUpdateBadge();
+}
+
+function dlxChatOnNewMessage(msg, opts) {
+  opts = opts || {};
+  // Évite les doublons (historique + SSE)
+  if (_dlxChatMessages.some(m => m.id === msg.id)) return;
+  _dlxChatMessages.push(msg);
+  if (_dlxChatMessages.length > 500) _dlxChatMessages.shift();
+  dlxChatRender();
+  // Notification : seulement si message reçu (pas pendant le replay history)
+  // ET que ce n'est pas un message envoyé par soi-même
+  const mine = dlxChatGetPseudo();
+  const isMine = msg.pseudo === mine;
+  if (!opts.silent && !isMine) {
+    if (!dlxChatIsWindowVisible()) {
+      _dlxChatUnread++;
+      dlxChatUpdateBadge();
+      try { dlxChatPlayChirp(); } catch (e) {}
+    }
+  }
+  // Si la fenêtre est visible et ce message vient de toi ou des autres,
+  // on considère qu'il a été vu.
+  if (dlxChatIsWindowVisible()) dlxChatMarkAllRead();
+}
+
+// Petit "pling" différent du bip d'appel : 2 tons rapides montants
+function dlxChatPlayChirp() {
+  try {
+    if (!_dlxAudioCtx) _dlxAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _dlxAudioCtx;
+    const tone = (freq, when, dur, vol) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'triangle';
+      gain.gain.setValueAtTime(0, ctx.currentTime + when);
+      gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + when + 0.015);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + when + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + dur + 0.04);
+    };
+    tone(740,  0,    0.10, 0.12);
+    tone(988,  0.11, 0.13, 0.12);
+  } catch (e) {}
+}
+
+async function dlxChatFetchHistory() {
+  const { url, secret } = dlxChatBotConfig();
+  if (!url || !secret) return;
+  try {
+    const r = await fetch(`${url}/chat/history?limit=100`, { headers: { 'x-secret': secret } });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    if (data && Array.isArray(data.messages)) {
+      _dlxChatMessages = [];
+      data.messages.forEach(m => dlxChatOnNewMessage(m, { silent: true }));
+      // Comptage initial des non-lus depuis la dernière visite
+      _dlxChatUnread = 0;
+      for (const m of _dlxChatMessages) {
+        if (m.ts > _dlxChatLastSeen && m.pseudo !== dlxChatGetPseudo()) _dlxChatUnread++;
+      }
+      dlxChatUpdateBadge();
+    }
+  } catch (e) {
+    // silencieux : la reconnexion SSE re-essaiera
+  }
+}
+
+function dlxChatConnectSSE() {
+  const { url, secret } = dlxChatBotConfig();
+  if (!url || !secret) {
+    dlxChatSetStatus('noconfig');
+    return;
+  }
+  // Ferme l'ancien si présent
+  if (_dlxChatES) { try { _dlxChatES.close(); } catch (e) {} _dlxChatES = null; }
+  dlxChatSetStatus('connecting');
+  let es;
+  try {
+    es = new EventSource(`${url}/chat/stream?secret=${encodeURIComponent(secret)}`);
+  } catch (e) {
+    dlxChatSetStatus('disconnected');
+    return;
+  }
+  _dlxChatES = es;
+  es.addEventListener('ready', () => {
+    dlxChatSetStatus('connected');
+    _dlxChatESRetry = 0;
+  });
+  es.addEventListener('message', ev => {
+    try {
+      const msg = JSON.parse(ev.data);
+      dlxChatOnNewMessage(msg);
+    } catch (e) {}
+  });
+  es.onerror = () => {
+    dlxChatSetStatus('disconnected');
+    // Backoff exponentiel plafonné à 30s
+    try { es.close(); } catch (e) {}
+    _dlxChatES = null;
+    _dlxChatESRetry++;
+    const delay = Math.min(30000, 1000 * Math.pow(1.6, _dlxChatESRetry));
+    setTimeout(dlxChatConnectSSE, delay);
+  };
+}
+
+async function dlxChatSend() {
+  const pseudo = dlxChatGetPseudo();
+  if (!pseudo) {
+    alert('Choisis d\'abord un pseudo en haut de la fenêtre.');
+    const inp = document.getElementById('dlxChatPseudo');
+    if (inp) inp.focus();
+    return;
+  }
+  const inp = document.getElementById('dlxChatInput');
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  const { url, secret } = dlxChatBotConfig();
+  if (!url || !secret) {
+    alert('⚠️ Bot non configuré (onglet Configuration : URL + secret).');
+    return;
+  }
+  inp.disabled = true;
+  try {
+    const r = await fetch(`${url}/chat/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-secret': secret },
+      body: JSON.stringify({ pseudo, text }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    inp.value = '';
+  } catch (e) {
+    alert('Erreur d\'envoi : ' + e.message);
+  } finally {
+    inp.disabled = false;
+    inp.focus();
+  }
+}
+
+function dlxChatOpen() {
+  const win = document.getElementById('dlxChatWindow');
+  if (!win) return;
+  win.style.display = 'flex';
+  win.classList.remove('minimized');
+  if (win._dlxSaveState) win._dlxSaveState();
+  dlxChatMarkAllRead();
+  // Focus l'input
+  setTimeout(() => {
+    const inp = document.getElementById('dlxChatInput');
+    if (inp) inp.focus();
+  }, 50);
+}
+function dlxChatClose() {
+  const win = document.getElementById('dlxChatWindow');
+  if (!win) return;
+  win.style.display = 'none';
+  if (win._dlxSaveState) win._dlxSaveState();
+}
+function dlxChatToggle() {
+  const win = document.getElementById('dlxChatWindow');
+  if (!win) return;
+  if (!dlxChatIsWindowVisible()) dlxChatOpen();
+  else dlxChatClose();
+}
+
+// Submit du form sur Enter (l'attribut onsubmit du HTML s'en occupe), mais
+// on attache aussi un raccourci : Ctrl/Cmd+Enter envoie depuis n'importe où
+// dans l'input.
+document.addEventListener('DOMContentLoaded', () => {
+  // Boot
+  try { _dlxChatLastSeen = parseInt(localStorage.getItem(DLX_CHAT_LASTSEEN_LS) || '0', 10) || 0; } catch (e) {}
+  dlxChatLoadPseudo();
+  dlxChatSetStatus('connecting');
+  // Démarre history + SSE après un petit délai pour laisser le boot finir
+  setTimeout(() => {
+    dlxChatFetchHistory().then(() => dlxChatConnectSSE());
+  }, 300);
+  // Si la config change (utilisateur rentre l'URL bot après coup), retry
+  setInterval(() => {
+    if (!_dlxChatES) {
+      const { url, secret } = dlxChatBotConfig();
+      if (url && secret) {
+        dlxChatFetchHistory().then(() => dlxChatConnectSSE());
+      }
+    }
+  }, 5000);
+});
