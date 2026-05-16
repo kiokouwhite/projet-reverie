@@ -230,7 +230,12 @@ function toggleCropFlip() {
   if (btn) btn.classList.toggle('active', cropAdjust.flip);
   const canvas = document.getElementById('cropCanvas');
   const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
-  const img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+  let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+  // Même fallback start.gg que dans openCropAdjuster
+  if (!img && typeof players !== 'undefined') {
+    const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
+    if (pWithUrl) img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
+  }
   if (img) renderCropPreview(canvas, img);
 }
 
@@ -243,7 +248,16 @@ function openCropAdjuster(charId, costume, slotIdx) {
   const modal  = document.getElementById('cropModal');
   const canvas = document.getElementById('cropCanvas');
   const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
-  const img    = imgCache[`${_g}_${charId}_${costume}`]?._img;
+  let img    = imgCache[`${_g}_${charId}_${costume}`]?._img;
+  // Fallback : image start.gg préchargée si le mural local manque
+  // (Alex SF6 par ex.). On cherche dans players[] le charImgUrl associé
+  // à ce charId pour récupérer la clé du cache fallback.
+  if (!img && typeof players !== 'undefined') {
+    const pWithUrl = players.find(p => p && p.charId === charId && p.charImgUrl);
+    if (pWithUrl) {
+      img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
+    }
+  }
   if (!img) { alert("Génère d'abord l'aperçu pour charger l'image."); return; }
 
   // Source indicator
