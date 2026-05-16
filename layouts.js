@@ -106,6 +106,9 @@ const LAYOUTS = {
       { cx:1134, cy:1080,w:289, h:270, nameY:1235, rankX:994,  rankY:950 },
     ],
     slotType: 'torn', // polygone irrégulier pour matcher le cadre du fond
+    // hideRanks : pas de 1/2/3 dessinés par le canvas (préférence
+    // utilisateur — au cas où ils gênent visuellement le rendu torn paper).
+    hideRanks: true,
   },
 
   // ── DRAGON BALL FIGHTERZ — Side Game, pas de template ────────────────────
