@@ -82,7 +82,7 @@ async function importAllEvents() {
         name
         events {
           id slug name numEntrants
-          entrants(query:{perPage:1,page:1}) { pageInfo { totalCount } }
+          entrants(query:{perPage:1,page:1}) { pageInfo { total } }
           videogame { name displayName images { url type } }
         }
       }}`, { slug });
@@ -109,7 +109,7 @@ async function importAllEvents() {
         // entrants.pageInfo.totalCount est le compte fiable (interroge la
         // table). On fallback sur numEntrants seulement si totalCount est
         // null/0 et numEntrants > 0.
-        const realCount = e.entrants?.pageInfo?.totalCount;
+        const realCount = e.entrants?.pageInfo?.total;
         const cnt = (realCount != null && realCount > 0)
           ? realCount
           : (e.numEntrants || 0);
