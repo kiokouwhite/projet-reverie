@@ -2995,6 +2995,24 @@ function openEditorModal() {
   loadNameConfig();
   renderNameEditor();
   renderEditorCanvas();
+  // Restaure le dernier onglet utilisé (Pseudos/Titres) ou Pseudos par défaut
+  const savedTab = localStorage.getItem('top8_editor_tab') || 'pseudos';
+  editorSwitchTab(savedTab);
+}
+
+// Switcher entre les onglets de la modale d'édition (Pseudos / Titres).
+function editorSwitchTab(name) {
+  const ctrl = document.getElementById('editorControls');
+  if (!ctrl) return;
+  if (name !== 'pseudos' && name !== 'titles') name = 'pseudos';
+  ctrl.dataset.activeTab = name;
+  // Mise à jour visuelle des boutons
+  ctrl.querySelectorAll('.editor-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
+  });
+  // Scroll en haut quand on change d'onglet (sinon on reste où on était dans l'autre)
+  ctrl.scrollTop = 0;
+  try { localStorage.setItem('top8_editor_tab', name); } catch (e) {}
 }
 
 function closeEditorModal() {

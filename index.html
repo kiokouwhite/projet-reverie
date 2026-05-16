@@ -1168,13 +1168,27 @@
     <div class="editor-modal-body">
 
       <!-- ── COLONNE GAUCHE ── -->
-      <div class="editor-controls">
+      <div class="editor-controls" id="editorControls" data-active-tab="pseudos">
 
-        <!-- PSEUDOS -->
+        <!-- Sélecteur d'onglet (slider) : Pseudos vs Titres.
+             Le contenu des deux groupes est conditionnellement affiché via
+             CSS basé sur data-active-tab. -->
+        <div class="editor-tabs">
+          <button type="button" class="editor-tab" data-tab="pseudos" onclick="editorSwitchTab('pseudos')">👤 Pseudos</button>
+          <button type="button" class="editor-tab" data-tab="titles"  onclick="editorSwitchTab('titles')">✏️ Titres</button>
+          <span class="editor-tab-indicator" aria-hidden="true"></span>
+        </div>
+
+        <!-- ── GROUPE PSEUDOS ── -->
+        <div class="editor-tab-group" data-group="pseudos">
         <div class="editor-block">
           <div class="editor-block-title">👤 Pseudos</div>
           <div id="nameEditorSlots"></div>
         </div>
+        </div>
+
+        <!-- ── GROUPE TITRES ── -->
+        <div class="editor-tab-group" data-group="titles">
 
         <!-- Bloc FOND retiré : redondant avec le bouton "🖼️ Changer le fond"
              dans le header de la colonne preview (à droite de l'aperçu). -->
@@ -1220,6 +1234,8 @@
 
         <button class="btn" onclick="manualSaveTitleConfig()" style="width:100%;margin-top:4px;">💾 Sauvegarder les titres</button>
         <button class="btn btn-secondary" onclick="resetTitleEditor()" style="width:100%;margin-top:4px;">↩ Réinitialiser</button>
+
+        </div><!-- /editor-tab-group data-group="titles" -->
       </div>
 
       <!-- ── COLONNE DROITE : PREVIEW ── -->

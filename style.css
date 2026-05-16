@@ -1850,6 +1850,52 @@ canvas { width: 100%; display: block; }
   gap: 10px;
 }
 
+/* ── Onglets Pseudos / Titres ─────────────────────────── */
+.editor-tabs {
+  position: sticky;
+  top: -16px;            /* compense le padding-top du parent pour adhérence */
+  z-index: 5;
+  display: flex;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  margin: -16px -4px 4px -4px;
+  gap: 0;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(120, 90, 180, 0.10);
+}
+.editor-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: var(--text-soft);
+  transition: color 0.18s, background 0.18s, transform 0.08s;
+  z-index: 1;
+  position: relative;
+  white-space: nowrap;
+}
+.editor-tab:hover { color: var(--text); }
+.editor-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--lavender), var(--purple));
+  box-shadow: 0 3px 10px rgba(155,127,232,0.35);
+}
+.editor-tab:active { transform: scale(0.96); }
+/* Indicator est optionnel (la pill colorée du .active suffit visuellement) */
+.editor-tab-indicator { display: none; }
+
+/* Toggle des groupes selon l'onglet actif */
+.editor-tab-group { display: none; flex-direction: column; gap: 10px; }
+.editor-controls[data-active-tab="pseudos"] .editor-tab-group[data-group="pseudos"] { display: flex; }
+.editor-controls[data-active-tab="titles"]  .editor-tab-group[data-group="titles"]  { display: flex; }
+
 .editor-block {
   background: #f5eeff;
   border-radius: 14px;
