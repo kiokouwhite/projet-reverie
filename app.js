@@ -3522,12 +3522,21 @@ function loadBgEditor(event) {
     // Mise à jour du label rapide dans la colonne preview
     const ql = document.getElementById('editorBgLabel');
     if (ql) ql.textContent = file.name;
+    // Persistance : on stocke aussi le fond dans la liste utilisateur pour
+    // qu'il réapparaisse dans le picker. Si la modale picker est ouverte,
+    // on la rafraîchit pour afficher la nouvelle tuile.
+    if (typeof saveImportedBg === 'function') {
+      saveImportedBg(file).then(() => {
+        if (typeof _renderBgPicker === 'function') _renderBgPicker();
+      }).catch(e => console.warn('[bg] save échoué :', e));
+    }
   }
+  // Reset l'input pour permettre de re-sélectionner le même fichier après
+  if (event.target) event.target.value = '';
 }
 
 // ── PICKER DE FOND (modale "Choisir un fond") ─────────────────────────────────
-// Liste des fonds intégrés au repo. file = chemin relatif depuis la racine
-// (sera passé à assetUrl() pour le CDN), label = ce que l'utilisateur lit.
+// Liste des fonds intégrés au repo (folder fixe "Jeux officiels").
 const BUILTIN_BACKGROUNDS = [
   { file: 'backgrounds/ssbu.jpg',    label: 'Smash Ultimate' },
   { file: 'backgrounds/sf6.jpg',     label: 'Street Fighter 6' },
@@ -3535,59 +3544,366 @@ const BUILTIN_BACKGROUNDS = [
   { file: 'backgrounds/tekken8.jpg', label: 'Tekken 8' },
   { file: 'backgrounds/2xko.jpg',    label: '2XKO' },
 ];
+const BG_FOLDER_BUILTIN = 'Jeux officiels';
+const BG_FOLDER_ROOT    = ''; // pas de dossier
+
+// ── Stockage des fonds importés par l'utilisateur ──
+// localStorage : métadonnées (id, name, folder)
+// IndexedDB    : dataUrl (réutilise le store du coffre, préfixé "bg:")
+const BG_USER_BGS_KEY     = 'top8_user_bgs';
+const BG_USER_FOLDERS_KEY = 'top8_user_bg_folders';
+
+function _loadUserBgs() {
+  try { return JSON.parse(localStorage.getItem(BG_USER_BGS_KEY) || '[]'); }
+  catch { return []; }
+}
+function _saveUserBgs(arr) {
+  try { localStorage.setItem(BG_USER_BGS_KEY, JSON.stringify(arr)); } catch {}
+}
+function _loadUserFolders() {
+  try { return JSON.parse(localStorage.getItem(BG_USER_FOLDERS_KEY) || '[]'); }
+  catch { return []; }
+}
+function _saveUserFolders(arr) {
+  try { localStorage.setItem(BG_USER_FOLDERS_KEY, JSON.stringify(arr)); } catch {}
+}
+
+// Liste des dossiers disponibles = union des dossiers utilisés dans user_bgs
+// + les dossiers vides créés manuellement. "" = racine (pas de dossier).
+function _allFolders() {
+  const fromBgs = _loadUserBgs().map(b => b.folder || '').filter(Boolean);
+  const empty   = _loadUserFolders();
+  return Array.from(new Set([...fromBgs, ...empty])).sort();
+}
+
+// Récupère le dataUrl d'un fond utilisateur depuis IndexedDB
+async function _getUserBgDataUrl(id) {
+  try { return await coffreIdbGet(`bg:${id}`); }
+  catch { return null; }
+}
+
+// Sauvegarde un nouveau fond importé : génère un id, stocke le dataUrl en IDB,
+// ajoute les métadonnées en localStorage. Retourne l'objet bg créé.
+async function saveImportedBg(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      const id = 'bg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      // Nom par défaut basé sur le filename, raccourci
+      let name = (file.name || 'Fond').replace(/\.[^.]+$/, '').slice(0, 40);
+      if (!name) name = 'Fond';
+      try {
+        await coffreIdbPut(`bg:${id}`, dataUrl);
+        const bgs = _loadUserBgs();
+        const bg = { id, name, folder: '', createdAt: Date.now() };
+        bgs.push(bg);
+        _saveUserBgs(bgs);
+        resolve(bg);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 function openBgPicker() {
   const modal = document.getElementById('bgPickerModal');
-  const grid  = document.getElementById('bgPickerGrid');
-  if (!modal || !grid) return;
-  // Construit les tuiles : 1 par fond intégré + la tuile "Importer"
-  const tiles = BUILTIN_BACKGROUNDS.map(bg => {
-    const url = (typeof assetUrl === 'function') ? assetUrl(bg.file) : bg.file;
-    const filename = bg.file.split('/').pop();
-    return `<button class="bg-picker-tile" onclick="applyBuiltinBg('${bg.file.replace(/'/g,"\\'")}', '${filename}')">
-              <div class="bg-picker-thumb" style="background-image:url('${url}');"></div>
-              <div class="bg-picker-name">${bg.label}</div>
-            </button>`;
-  }).join('');
-  const importTile = `
-    <button class="bg-picker-tile bg-picker-tile-import" onclick="closeBgPicker();document.getElementById('bgFileEditorQuick').click();">
+  if (!modal) return;
+  _renderBgPicker();
+  modal.style.display = 'flex';
+}
+
+// Rendu de la modale picker — appelée à l'ouverture ET après chaque action.
+async function _renderBgPicker() {
+  const grid = document.getElementById('bgPickerGrid');
+  if (!grid) return;
+  const userBgs = _loadUserBgs();
+  const folders = _allFolders();
+
+  // Charge les dataUrls des fonds utilisateur depuis IDB (en parallèle)
+  const userBgUrls = await Promise.all(userBgs.map(b => _getUserBgDataUrl(b.id)));
+
+  // Header avec bouton "Nouveau dossier"
+  const headerHtml = `
+    <div class="bg-picker-header-actions">
+      <button class="bg-picker-action-btn" onclick="bgPickerNewFolder()">📁 Nouveau dossier</button>
+    </div>`;
+
+  // Construit les sections par dossier
+  const sections = [];
+  // Section 1 : Jeux officiels (built-in)
+  sections.push({
+    folder: BG_FOLDER_BUILTIN,
+    isOfficial: true,
+    tiles: BUILTIN_BACKGROUNDS.map(bg => {
+      const url = (typeof assetUrl === 'function') ? assetUrl(bg.file) : bg.file;
+      const filename = bg.file.split('/').pop();
+      return `<button class="bg-picker-tile" onclick="applyBuiltinBg('${bg.file.replace(/'/g,"\\'")}', '${escHtml(filename)}')">
+        <div class="bg-picker-thumb" style="background-image:url('${url}');"></div>
+        <div class="bg-picker-name">${escHtml(bg.label)}</div>
+      </button>`;
+    }).join(''),
+  });
+
+  // Section 2+ : fonds utilisateur groupés par dossier
+  // D'abord "Sans dossier" (folder vide), puis chaque dossier nommé.
+  const userBgsByFolder = {};
+  userBgs.forEach((b, i) => {
+    const f = b.folder || '';
+    if (!userBgsByFolder[f]) userBgsByFolder[f] = [];
+    userBgsByFolder[f].push({ ...b, dataUrl: userBgUrls[i] });
+  });
+  // Assurer que tous les dossiers (même vides) apparaissent
+  folders.forEach(f => { if (!userBgsByFolder[f]) userBgsByFolder[f] = []; });
+
+  // Section "Sans dossier"
+  if ((userBgsByFolder[''] || []).length || !folders.length) {
+    sections.push({
+      folder: '',
+      tiles: (userBgsByFolder[''] || []).map(b => _renderUserBgTile(b)).join('')
+        + _renderImportTile(),
+    });
+  }
+  // Sections dossiers nommés
+  folders.forEach(f => {
+    sections.push({
+      folder: f,
+      tiles: (userBgsByFolder[f] || []).map(b => _renderUserBgTile(b)).join(''),
+    });
+  });
+  // Si pas de dossiers ET la section "Sans dossier" n'a pas été créée
+  // (cas tableau vide géré au-dessus déjà)
+
+  grid.innerHTML = headerHtml + sections.map(s => `
+    <div class="bg-picker-section">
+      <div class="bg-picker-section-label">
+        <span>${s.isOfficial ? '🎮' : '📁'} ${escHtml(s.folder || 'Sans dossier')}</span>
+        ${(!s.isOfficial && s.folder) ? `
+          <span class="bg-picker-section-actions">
+            <button class="bg-picker-section-btn" onclick="bgPickerRenameFolder('${escHtml(s.folder).replace(/'/g,'&#39;')}')" title="Renommer ce dossier">✏️</button>
+            <button class="bg-picker-section-btn" onclick="bgPickerDeleteFolder('${escHtml(s.folder).replace(/'/g,'&#39;')}')" title="Supprimer ce dossier (les fonds reviennent à la racine)">🗑️</button>
+          </span>` : ''}
+      </div>
+      <div class="bg-picker-section-grid">${s.tiles}</div>
+    </div>
+  `).join('');
+}
+
+function _renderImportTile() {
+  return `
+    <button class="bg-picker-tile bg-picker-tile-import" onclick="document.getElementById('bgFileEditorQuick').click();">
       <div class="bg-picker-thumb bg-picker-thumb-import">
         <span class="bg-picker-import-icon">⬆</span>
       </div>
       <div class="bg-picker-name">Importer un fond</div>
     </button>`;
-  grid.innerHTML = tiles + importTile;
-  modal.style.display = 'flex';
+}
+
+function _renderUserBgTile(b) {
+  const thumb = b.dataUrl
+    ? `<div class="bg-picker-thumb" style="background-image:url('${b.dataUrl}');"></div>`
+    : `<div class="bg-picker-thumb bg-picker-thumb-import"><span class="bg-picker-import-icon">⚠</span></div>`;
+  return `
+    <div class="bg-picker-tile bg-picker-tile-user" data-bg-id="${escHtml(b.id)}">
+      <button class="bg-picker-tile-apply" onclick="applyUserBg('${escHtml(b.id).replace(/'/g,'&#39;')}')">
+        ${thumb}
+        <div class="bg-picker-name">${escHtml(b.name)}</div>
+      </button>
+      <button class="bg-picker-tile-menu" onclick="bgPickerTileMenu(event, '${escHtml(b.id).replace(/'/g,'&#39;')}')" title="Actions">⋮</button>
+    </div>`;
 }
 
 function closeBgPicker() {
   const modal = document.getElementById('bgPickerModal');
   if (modal) modal.style.display = 'none';
+  // Cache aussi tout menu contextuel ouvert
+  const ctx = document.getElementById('bgPickerCtxMenu');
+  if (ctx) ctx.remove();
 }
 
 function applyBuiltinBg(relPath, filename) {
-  // Charge l'image du fond intégré → l'applique exactement comme un import.
   const url = (typeof assetUrl === 'function') ? assetUrl(relPath) : relPath;
   const img = new Image();
   img.crossOrigin = 'anonymous';
   img.onload = () => {
     if (typeof bgImg !== 'undefined') bgImg = img;
-    // Met à jour les labels comme loadBgEditor
     const el = document.getElementById('uploadContentEditor');
     if (el) el.innerHTML = `✅ <strong>${filename}</strong>`;
     const ql = document.getElementById('editorBgLabel');
     if (ql) ql.textContent = filename;
-    // Refresh des deux canvas (principal + éditeur)
     if (typeof generatePreview === 'function') generatePreview();
     if (typeof renderEditorCanvas === 'function') renderEditorCanvas();
     closeBgPicker();
   };
-  img.onerror = () => {
-    alert('Impossible de charger ce fond : ' + filename);
-    closeBgPicker();
-  };
+  img.onerror = () => { alert('Impossible de charger ce fond : ' + filename); closeBgPicker(); };
   img.src = url;
 }
+
+async function applyUserBg(id) {
+  const dataUrl = await _getUserBgDataUrl(id);
+  if (!dataUrl) { alert('Image introuvable dans le stockage local.'); return; }
+  const bgs = _loadUserBgs();
+  const meta = bgs.find(b => b.id === id);
+  const name = meta?.name || 'Fond';
+  const img = new Image();
+  img.onload = () => {
+    if (typeof bgImg !== 'undefined') bgImg = img;
+    const el = document.getElementById('uploadContentEditor');
+    if (el) el.innerHTML = `✅ <strong>${name}</strong>`;
+    const ql = document.getElementById('editorBgLabel');
+    if (ql) ql.textContent = name;
+    if (typeof generatePreview === 'function') generatePreview();
+    if (typeof renderEditorCanvas === 'function') renderEditorCanvas();
+    closeBgPicker();
+  };
+  img.onerror = () => { alert('Impossible de charger ce fond.'); closeBgPicker(); };
+  img.src = dataUrl;
+}
+
+// ── Actions sur les dossiers ──
+function bgPickerNewFolder() {
+  const name = prompt('Nom du nouveau dossier :', 'Mon dossier');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim().slice(0, 50);
+  const folders = _loadUserFolders();
+  if (folders.includes(trimmed) || _allFolders().includes(trimmed)) {
+    alert('Ce dossier existe déjà.');
+    return;
+  }
+  folders.push(trimmed);
+  _saveUserFolders(folders);
+  _renderBgPicker();
+}
+
+function bgPickerRenameFolder(oldName) {
+  const newName = prompt('Nouveau nom du dossier :', oldName);
+  if (!newName || !newName.trim() || newName.trim() === oldName) return;
+  const trimmed = newName.trim().slice(0, 50);
+  if (_allFolders().includes(trimmed)) {
+    alert('Ce dossier existe déjà.');
+    return;
+  }
+  // Rename dans les bgs ET dans la liste des folders vides
+  const bgs = _loadUserBgs();
+  bgs.forEach(b => { if (b.folder === oldName) b.folder = trimmed; });
+  _saveUserBgs(bgs);
+  const folders = _loadUserFolders().map(f => f === oldName ? trimmed : f);
+  _saveUserFolders(folders);
+  _renderBgPicker();
+}
+
+function bgPickerDeleteFolder(name) {
+  if (!confirm(`Supprimer le dossier "${name}" ?\n\nLes fonds qu'il contient ne seront PAS supprimés (ils retourneront à la racine).`)) return;
+  const bgs = _loadUserBgs();
+  bgs.forEach(b => { if (b.folder === name) b.folder = ''; });
+  _saveUserBgs(bgs);
+  const folders = _loadUserFolders().filter(f => f !== name);
+  _saveUserFolders(folders);
+  _renderBgPicker();
+}
+
+// Menu contextuel sur une tuile de fond utilisateur
+function bgPickerTileMenu(event, id) {
+  event.stopPropagation();
+  // Supprime un menu déjà ouvert
+  const existing = document.getElementById('bgPickerCtxMenu');
+  if (existing) existing.remove();
+  const bgs = _loadUserBgs();
+  const bg  = bgs.find(b => b.id === id);
+  if (!bg) return;
+  const folders = _allFolders();
+  // Construit la liste "Déplacer vers..."
+  const moveOptions = [
+    `<button class="bg-picker-ctx-item" onclick="bgPickerMoveBg('${id}', '')">${bg.folder === '' ? '✓ ' : ''}🗂 Racine</button>`,
+    ...folders
+      .filter(f => f !== bg.folder)
+      .map(f => `<button class="bg-picker-ctx-item" onclick="bgPickerMoveBg('${id}', '${escHtml(f).replace(/'/g,'&#39;')}')">📁 ${escHtml(f)}</button>`),
+    `<button class="bg-picker-ctx-item" onclick="(function(){bgPickerNewFolderForBg('${id}')})()">➕ Nouveau dossier…</button>`,
+  ].join('');
+  const menu = document.createElement('div');
+  menu.id = 'bgPickerCtxMenu';
+  menu.className = 'bg-picker-ctx-menu';
+  menu.innerHTML = `
+    <button class="bg-picker-ctx-item" onclick="bgPickerRenameBg('${id}')">✏️ Renommer</button>
+    <div class="bg-picker-ctx-sep">Déplacer vers :</div>
+    ${moveOptions}
+    <div class="bg-picker-ctx-sep"></div>
+    <button class="bg-picker-ctx-item bg-picker-ctx-danger" onclick="bgPickerDeleteBg('${id}')">🗑️ Supprimer</button>`;
+  document.body.appendChild(menu);
+  // Positionne près du bouton cliqué
+  const rect = event.currentTarget.getBoundingClientRect();
+  menu.style.top  = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  // Click outside → close
+  setTimeout(() => {
+    const onDoc = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', onDoc);
+      }
+    };
+    document.addEventListener('click', onDoc);
+  }, 0);
+}
+
+function bgPickerRenameBg(id) {
+  const bgs = _loadUserBgs();
+  const bg = bgs.find(b => b.id === id);
+  if (!bg) return;
+  const newName = prompt('Nouveau nom du fond :', bg.name);
+  if (!newName || !newName.trim()) return;
+  bg.name = newName.trim().slice(0, 40);
+  _saveUserBgs(bgs);
+  closeBgPickerCtxMenu();
+  _renderBgPicker();
+}
+
+function bgPickerMoveBg(id, folder) {
+  const bgs = _loadUserBgs();
+  const bg = bgs.find(b => b.id === id);
+  if (!bg) return;
+  bg.folder = folder;
+  _saveUserBgs(bgs);
+  closeBgPickerCtxMenu();
+  _renderBgPicker();
+}
+
+async function bgPickerDeleteBg(id) {
+  if (!confirm('Supprimer ce fond ? Action définitive.')) return;
+  const bgs = _loadUserBgs().filter(b => b.id !== id);
+  _saveUserBgs(bgs);
+  try { await coffreIdbDelete(`bg:${id}`); } catch {}
+  closeBgPickerCtxMenu();
+  _renderBgPicker();
+}
+
+function bgPickerNewFolderForBg(id) {
+  const name = prompt('Nom du nouveau dossier :', 'Mon dossier');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim().slice(0, 50);
+  if (_allFolders().includes(trimmed)) {
+    alert('Ce dossier existe déjà.');
+    return;
+  }
+  // Ajoute le dossier ET déplace le bg dedans
+  const folders = _loadUserFolders();
+  folders.push(trimmed);
+  _saveUserFolders(folders);
+  bgPickerMoveBg(id, trimmed);
+}
+
+function closeBgPickerCtxMenu() {
+  const ctx = document.getElementById('bgPickerCtxMenu');
+  if (ctx) ctx.remove();
+}
+
+// Helper escape HTML pour les attributs/contenu
+function escHtmlBgPicker(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'})[c]); }
+// (utilise escHtml existant si dispo, sinon fallback)
+if (typeof escHtml !== 'function') { window.escHtml = escHtmlBgPicker; }
 
 // Compose le nom d'affichage d'un joueur pour les tweets : "TEAM | NAME" si team.
 function formatPlayerForTweet(p) {

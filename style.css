@@ -2227,6 +2227,168 @@ canvas { width: 100%; display: block; }
   transform: translateY(-4px);
 }
 
+/* ── Sections (par dossier) ──────────────────────────── */
+.bg-picker-header-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+.bg-picker-action-btn {
+  background: linear-gradient(135deg, var(--lavender), var(--purple));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(155,127,232,0.35);
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+.bg-picker-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(155,127,232,0.5);
+}
+.bg-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.bg-picker-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple-deep);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 4px 0;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 4px;
+}
+.bg-picker-section-actions {
+  display: flex;
+  gap: 4px;
+}
+.bg-picker-section-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.bg-picker-section-btn:hover { background: rgba(155,127,184,0.15); }
+.bg-picker-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+/* On force la grid principale en colonne (sections empilées). */
+#bgPickerGrid {
+  grid-template-columns: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tuile utilisateur : a un menu ⋮ par dessus */
+.bg-picker-tile-user {
+  position: relative;
+  display: block;
+}
+.bg-picker-tile-apply {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  border-radius: 14px;
+  transition: transform 0.12s;
+}
+.bg-picker-tile-apply:hover { transform: translateY(-2px); }
+.bg-picker-tile-apply .bg-picker-thumb { width: 100%; }
+.bg-picker-tile-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.92);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: #444;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+  z-index: 2;
+}
+.bg-picker-tile-menu:hover {
+  background: #fff;
+  transform: scale(1.08);
+}
+
+/* Menu contextuel (ouvert au clic sur ⋮) — positionné en JS */
+.bg-picker-ctx-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 200px;
+  max-width: 240px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: bgCtxIn 0.12s ease;
+}
+@keyframes bgCtxIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.bg-picker-ctx-item {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bg-picker-ctx-item:hover { background: var(--lav-50, #f4eefb); }
+.bg-picker-ctx-danger { color: #c4305a; }
+.bg-picker-ctx-danger:hover { background: #fff0f5; }
+.bg-picker-ctx-sep {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 10px 2px;
+  border-top: 1px dashed var(--border);
+  margin-top: 4px;
+}
+.bg-picker-ctx-sep:first-child { border-top: none; margin-top: 0; }
+
 /* Sélecteur de police pour les titres (T1/T2/T3) dans l'éditeur :
    flex pour prendre la largeur restante après le label "Police". */
 .title-font-select {
