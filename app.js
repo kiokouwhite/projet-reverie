@@ -1779,10 +1779,14 @@ async function fetchFromStartGG() {
       if(!counts) return;
       const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
       // Premier perso (ne pas écraser la préférence)
+      // findCharIdFromName : tolérant aux variantes de noms start.gg.
       if(!players[i].charId) {
         const topChar = sorted[0]?.[0];
-        if(topChar && STARTGG_TO_ID[topChar]) {
-          players[i].charId  = STARTGG_TO_ID[topChar];
+        const id = topChar && (typeof findCharIdFromName === 'function'
+          ? findCharIdFromName(topChar)
+          : STARTGG_TO_ID[topChar]);
+        if(id) {
+          players[i].charId  = id;
           players[i].costume = 1;
           charsFound++;
         }
@@ -1790,8 +1794,11 @@ async function fetchFromStartGG() {
       // Deuxième perso pour 2XKO
       if(is2xko && !players[i].charId2) {
         const topChar2 = sorted[1]?.[0];
-        if(topChar2 && STARTGG_TO_ID[topChar2]) {
-          players[i].charId2  = STARTGG_TO_ID[topChar2];
+        const id2 = topChar2 && (typeof findCharIdFromName === 'function'
+          ? findCharIdFromName(topChar2)
+          : STARTGG_TO_ID[topChar2]);
+        if(id2) {
+          players[i].charId2  = id2;
           players[i].costume2 = 1;
           charsFound++;
         }

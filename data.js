@@ -203,6 +203,44 @@ const CHAR_EXT_AVIF = new Set([
 
 // Mural art — résout via assetUrl() pour pointer sur le CDN jsDelivr (ou en
 // local si ASSETS_BASE_URL est vide). Voir layouts.js pour la config.
+// ── Détection tolérante du charId depuis un nom start.gg ──
+// Pour les cas où start.gg renvoie une variante du nom officiel (ex.
+// "Sol" au lieu de "Sol Badguy", "Jack-O" au lieu de "Jack-O'", etc.).
+// Stratégie : normalize (lowercase, sans accents/ponctuation/espaces)
+// puis exact match → puis containment dans les deux sens → puis prefix.
+function _normalizeCharName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // strip accents
+    .replace(/[^a-z0-9]/g, '');                         // garde alphanum
+}
+let _normalizedStartggMap = null;
+function _getNormalizedStartggMap() {
+  if (_normalizedStartggMap) return _normalizedStartggMap;
+  _normalizedStartggMap = {};
+  Object.keys(STARTGG_TO_ID).forEach(k => {
+    _normalizedStartggMap[_normalizeCharName(k)] = { id: STARTGG_TO_ID[k], original: k };
+  });
+  return _normalizedStartggMap;
+}
+function findCharIdFromName(name) {
+  if (!name) return null;
+  // 1. Exact direct match (rapide)
+  if (STARTGG_TO_ID[name]) return STARTGG_TO_ID[name];
+  // 2. Match normalisé exact
+  const norm = _normalizeCharName(name);
+  if (!norm) return null;
+  const map = _getNormalizedStartggMap();
+  if (map[norm]) return map[norm].id;
+  // 3. Containment : "sol" ⊂ "solbadguy", "asuka" ⊂ "asukar"
+  for (const k of Object.keys(map)) {
+    if (k.includes(norm) || norm.includes(k)) return map[k].id;
+  }
+  return null;
+}
+// Expose globally pour multi.js
+if (typeof window !== 'undefined') window.findCharIdFromName = findCharIdFromName;
+
 function getMuralArtUrl(charId, costume, game) {
   const base = ICON_BASENAME[charId];
   if (!base) return null;

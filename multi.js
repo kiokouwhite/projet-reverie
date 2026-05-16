@@ -368,9 +368,16 @@ async function importAllEvents() {
             evPlayers[i].charImgUrl = charImage[topChar];
             evPlayers[i].charNameStartgg = topChar;
           }
-          // Si mapping local existe → on utilise aussi le mural haute-qualité
-          if (STARTGG_TO_ID[topChar]) {
-            evPlayers[i].charId = STARTGG_TO_ID[topChar];
+          // Si mapping local existe → on utilise aussi le mural haute-qualité.
+          // findCharIdFromName est tolérant : essaie direct match puis
+          // normalisation (lowercase/sans accent/sans ponctuation) puis
+          // containment dans les deux sens. Couvre les variantes de noms
+          // start.gg comme "Sol" pour "Sol Badguy", "Jack-O" pour "Jack-O'".
+          const detectedId = (typeof findCharIdFromName === 'function')
+            ? findCharIdFromName(topChar)
+            : STARTGG_TO_ID[topChar];
+          if (detectedId) {
+            evPlayers[i].charId = detectedId;
             return;
           }
           if (charImage[topChar]) {
