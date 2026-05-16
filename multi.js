@@ -91,24 +91,40 @@ async function importAllEvents() {
     }
 
     // ── Update des cartes-nuages avec les vrais jeux du tournoi ──
+    // Groupage par videogame : un tournoi peut avoir plusieurs events pour
+    // le même jeu (Singles + Doubles + Squad Strike…). On affiche 1 carte
+    // par jeu avec le TOTAL des entrants tous events confondus, sinon le
+    // nombre affiché correspondait à un event arbitraire et n'avait pas
+    // de sens visuel.
     if (typeof cloudAnimSetGames === 'function') {
-      const cloudGames = (tournament.events || [])
-        .filter(e => e.videogame)
-        .slice(0, 5)
-        .map(e => {
-          // Privilégie une image carrée si disponible (logo/profile), sinon
-          // n'importe quelle image. Le fallback emoji s'applique sans imgUrl.
-          const imgs = e.videogame?.images || [];
+      const gameMap = new Map(); // videogameId → { name, imgUrl, entrants }
+      (tournament.events || []).forEach(e => {
+        if (!e.videogame) return;
+        const vgId = e.videogame.id || e.videogame.name;
+        if (!vgId) return;
+        const existing = gameMap.get(vgId);
+        if (existing) {
+          existing.entrants += (e.numEntrants || 0);
+        } else {
+          const imgs = e.videogame.images || [];
           const img  = imgs.find(i => i.type === 'profile')
                     || imgs.find(i => i.type === 'primary')
                     || imgs[0];
-          return {
-            name:     e.videogame?.displayName || e.videogame?.name || e.name,
-            sub:      e.name && e.name !== (e.videogame?.displayName || '') ? '' : '',
-            entrants: e.numEntrants ? e.numEntrants + ' entrants' : '',
+          gameMap.set(vgId, {
+            name:     e.videogame.displayName || e.videogame.name || e.name,
             imgUrl:   img?.url || null,
-          };
-        });
+            entrants: e.numEntrants || 0,
+          });
+        }
+      });
+      const cloudGames = Array.from(gameMap.values())
+        .sort((a, b) => b.entrants - a.entrants)   // les plus gros jeux d'abord
+        .slice(0, 5)
+        .map(g => ({
+          name:     g.name,
+          imgUrl:   g.imgUrl,
+          entrants: g.entrants ? g.entrants + ' entrants' : '',
+        }));
       cloudAnimSetGames(cloudGames);
     }
 
