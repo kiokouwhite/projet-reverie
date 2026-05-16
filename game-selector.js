@@ -347,8 +347,19 @@
     _multiAnimating = false;
   }
 
+  // Accès au global `graphs` (let top-level dans multi.js → pas sur window
+   // mais accessible via typeof checks dans le scope global du navigateur).
+  function _getGraphs() {
+    try { return (typeof graphs !== 'undefined' && Array.isArray(graphs)) ? graphs : []; }
+    catch (e) { return []; }
+  }
+  function _getCurrentGraphIdx() {
+    try { return (typeof currentGraphIdx === 'number') ? currentGraphIdx : 0; }
+    catch (e) { return 0; }
+  }
+
   function _multiCurrentGames() {
-    const graphs = window.graphs || [];
+    const graphs = _getGraphs();
     return graphs.map(g => {
       const id   = g.game;
       const theme = themeFor(id);
@@ -391,14 +402,22 @@
   function _multiGo(delta) {
     if (_multiAnimating) return;
     const games = _multiCurrentGames();
-    if (!games.length) return;
+    if (games.length <= 1) return; // 1 seul graph → flèches inactives
     _multiAnimateTo(delta, () => {
       _multiOffset = 0;
-      // Délègue à la nav existante (prevGraph/nextGraph appellent
-      // renderMultiPreview qui re-render le canvas + appelle
-      // gameSelectorMultiRefresh)
-      if (delta < 0 && typeof window.prevGraph === 'function') window.prevGraph();
-      if (delta > 0 && typeof window.nextGraph === 'function') window.nextGraph();
+      // Délègue à la nav existante. Function declarations top-level vont sur
+      // window dans la plupart des navigateurs, mais on tente les deux pour
+      // robustesse.
+      try {
+        if (delta < 0) {
+          if (typeof window.prevGraph === 'function') window.prevGraph();
+          else if (typeof prevGraph === 'function')   prevGraph();
+        }
+        if (delta > 0) {
+          if (typeof window.nextGraph === 'function') window.nextGraph();
+          else if (typeof nextGraph === 'function')   nextGraph();
+        }
+      } catch (e) { console.warn('[gs] nav error', e); }
     });
   }
 
@@ -440,7 +459,7 @@
     const N = games.length;
     if (!N) { _multiRoot.style.visibility = 'hidden'; return; }
     _multiRoot.style.visibility = '';
-    const idx = (typeof window.currentGraphIdx === 'number') ? window.currentGraphIdx : 0;
+    const idx = _getCurrentGraphIdx();
     const virtual = idx + _multiOffset;
     const i0 = Math.floor(virtual);
     const i1 = Math.ceil(virtual);
@@ -460,7 +479,13 @@
         inset 0 1px 0 rgba(255,255,255,0.7),
         inset 0 -1px 0 ${ink}1a`;
     }
-    _multiRoot.querySelectorAll('.gs-arrow').forEach(a => a.style.color = ink);
+    _multiRoot.querySelectorAll('.gs-arrow').forEach(a => {
+      a.style.color = ink;
+      // Désactive visuellement les flèches quand il n'y a qu'1 graph
+      const disabled = N <= 1;
+      a.style.opacity = disabled ? '0.35' : '1';
+      a.style.cursor  = disabled ? 'not-allowed' : 'pointer';
+    });
 
     const layers = games.map((g, i) => {
       let d = i - virtual;

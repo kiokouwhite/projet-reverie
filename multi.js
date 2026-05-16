@@ -427,7 +427,9 @@ async function importAllEvents() {
     // 4. Afficher le premier
     currentGraphIdx = 0;
     renderMultiPreview();
-    showMultiNav(graphs.length > 1);
+    // Affiche le pill multi dès qu'il y a au moins 1 graph importé
+    // (indicateur visuel du jeu courant + nav désactivée s'il n'y en a qu'un).
+    showMultiNav(graphs.length >= 1);
     updateMultiTweet();
 
     showStatus('success', `✅ ${graphs.length} graph(s) générés pour "${tournament.name}" !`);
