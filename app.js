@@ -986,15 +986,21 @@ function rankLabelsForN(n) {
 
 // Auto-détecte le format graphique depuis le nom du tournoi.
 // Appelé par les flows d'import start.gg (single + multi) après réception
-// du nom. Cherche les mots-clés caractéristiques de chaque format.
+// du nom. Cherche les mots-clés caractéristiques de chaque format dans les
+// deux sens : "magna" → format magna, "lorem" → format lorem. Si aucun
+// mot-clé n'est trouvé, on laisse le format actuel intact.
 function autoDetectFormat(tournamentName) {
   if (!tournamentName) return;
   const lc = tournamentName.toLowerCase();
-  if (lc.includes('magna arena') || lc.includes('magna')) {
-    if (currentFormat !== 'magna') updateFormat('magna');
+  const wantsMagna = lc.includes('magna');
+  const wantsLorem = lc.includes('lorem');
+  // Si les deux apparaissent (cas tordu), magna gagne — c'est l'événement
+  // le plus spécifique. Sinon on switch vers celui qui matche.
+  if (wantsMagna && currentFormat !== 'magna') {
+    updateFormat('magna');
+  } else if (wantsLorem && !wantsMagna && currentFormat !== 'lorem') {
+    updateFormat('lorem');
   }
-  // Pas de bascule auto vers Lorem : on respecte le choix utilisateur si
-  // un autre nom de tournoi est importé (sinon on switch dans tous les sens).
 }
 
 // Auto-détecte magnaPlayerCount à partir du nombre de joueurs réellement
