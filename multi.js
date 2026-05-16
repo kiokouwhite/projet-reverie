@@ -639,7 +639,7 @@ function updateMultiTweet() {
     .join('  ');
   const tag = game.replace(/[^a-zA-Z0-9]/g,'');
   const tweetEl = document.getElementById('tweetText');
-  if (tweetEl) tweetEl.value = `🏆 Résultats du tournoi ${name} — ${game} !\n\n${top3}\n\nMerci à tous les participants ! 🎮 #FGC #${tag}`;
+  if (tweetEl) tweetEl.value = `🏆 Résultats du tournoi ${name} — ${game} !\n\n${top3}\n\nMerci à toustes ! 🎮 #FGC #${tag}`;
 }
 
 // ── THREAD TWITTER ────────────────────────────────────────────────────────────
