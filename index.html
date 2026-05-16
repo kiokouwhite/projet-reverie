@@ -1195,6 +1195,16 @@
 
         <!-- ── GROUPE PSEUDOS ── -->
         <div class="editor-tab-group" data-group="pseudos">
+        <!-- Police globale des pseudos : un select unique qui s'applique
+             aux 3 joueurs à la fois (cohérence visuelle + pas besoin de
+             régler chaque pseudo individuellement). -->
+        <div class="editor-block">
+          <div class="editor-block-title">🔤 Police (tous les pseudos)</div>
+          <div class="title-row name-color-row">
+            <span>Choix</span>
+            <select id="pseudoGlobalFont" class="title-font-select" onchange="syncPseudoGlobalFont(this.value)"></select>
+          </div>
+        </div>
         <div class="editor-block">
           <div class="editor-block-title">👤 Pseudos</div>
           <div id="nameEditorSlots"></div>

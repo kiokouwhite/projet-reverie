@@ -2085,7 +2085,8 @@ function drawLayoutSlots(ctx, layout, sc) {
         const nc = getPlayerNameCfg(i);
         const rawName = p.name || `Joueur ${i+1}`;
         const displayName = (p.team ? `${p.team} | ${rawName}` : rawName).toUpperCase();
-        ctx.font = `800 ${Math.round(nc.size*sc)}px Montserrat, sans-serif`;
+        const ff2 = getPlayerFontStack('800', 'Montserrat, sans-serif');
+        ctx.font = `${ff2.weight} ${Math.round(nc.size*sc)}px ${ff2.stack}`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
         ctx.letterSpacing = '2px';
         ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
@@ -2178,7 +2179,9 @@ function drawLayoutSlots(ctx, layout, sc) {
     if (p.name) {
       const nc2 = getPlayerNameCfg(i);
       const displayName = (p.team ? `${p.team} | ${p.name}` : p.name).toUpperCase();
-      ctx.font=`700 ${Math.round(nc2.size*sc)}px Montserrat, sans-serif`;
+      // Applique la police globale des pseudos si configurée (sinon Montserrat)
+      const ff = getPlayerFontStack('700', 'Montserrat, sans-serif');
+      ctx.font=`${ff.weight} ${Math.round(nc2.size*sc)}px ${ff.stack}`;
       ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=6*sc;
       ctx.shadowOffsetX=1*sc; ctx.shadowOffsetY=1*sc;
       ctx.fillStyle = nc2.color || '#ffffff';
@@ -2312,7 +2315,8 @@ function renderCanvas(canvas, size) {
       const ncSSBU = getPlayerNameCfg(i);
       const displayName = (p.team ? `${p.team} | ${p.name}` : p.name).toUpperCase();
       ctx.textBaseline='alphabetic'; ctx.textAlign='center';
-      ctx.font=`300 ${Math.round(ncSSBU.size*sc)}px Montserrat, sans-serif`;
+      const ffSSBU = getPlayerFontStack('300', 'Montserrat, sans-serif');
+      ctx.font=`${ffSSBU.weight} ${Math.round(ncSSBU.size*sc)}px ${ffSSBU.stack}`;
       ctx.letterSpacing=`${7*sc}px`;
       ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=6*sc;
       ctx.shadowOffsetX=1*sc; ctx.shadowOffsetY=1*sc;
@@ -3124,6 +3128,16 @@ function initTitleEditor() {
     }
     gFontSel.value = CONFIG.T1.font || '';
   }
+  // Police globale des pseudos (réutilise la même liste TITLE_FONTS)
+  const pFontSel = document.getElementById('pseudoGlobalFont');
+  if (pFontSel) {
+    if (!pFontSel.options.length) {
+      pFontSel.innerHTML = TITLE_FONTS.map(f =>
+        `<option value="${f.value}" style="font-family:${f.value ? `'${f.value}', sans-serif` : 'inherit'}">${f.label}</option>`
+      ).join('');
+    }
+    pFontSel.value = (typeof getPlayerGlobalFont === 'function') ? getPlayerGlobalFont() : '';
+  }
 }
 
 // Applique une police choisie aux 3 titres en une fois. Charge le WOFF
@@ -3474,6 +3488,41 @@ function resetAllPlayerNameCfgs() {
   _saveNameCfgsToStorage();
 }
 function loadNameConfig() { /* no-op — per-player now */ }
+
+// ── Police globale des pseudos (par jeu) ───────────────────────────────
+// Stockée dans _nameCfgsMem[currentGame].globalFont. Vide = police par
+// défaut du jeu (Montserrat / Anton pour Tekken 8 / etc.).
+function getPlayerGlobalFont() {
+  return _nameCfgsMem[currentGame]?.globalFont || '';
+}
+function setPlayerGlobalFont(value) {
+  if (!_nameCfgsMem[currentGame]) _nameCfgsMem[currentGame] = { players: [] };
+  _nameCfgsMem[currentGame].globalFont = value || '';
+  _saveNameCfgsToStorage();
+}
+// Construit le stack font à utiliser pour les pseudos. weight = défaut du
+// renderer ("300", "700", "800", etc.). Si une police globale est définie,
+// on la prepend ; sinon on garde le stack original.
+function getPlayerFontStack(defaultWeight, defaultStack) {
+  const gFont = getPlayerGlobalFont();
+  if (!gFont) return { weight: defaultWeight, stack: defaultStack };
+  const meta = (typeof _fontMeta === 'function') ? _fontMeta(gFont) : null;
+  return {
+    weight: meta ? meta.weight : defaultWeight,
+    stack:  `"${gFont}", ${defaultStack}`,
+  };
+}
+function syncPseudoGlobalFont(value) {
+  setPlayerGlobalFont(value);
+  if (value && typeof _fontMeta === 'function') {
+    const meta = _fontMeta(value);
+    document.fonts.load(`${meta.weight} 40px "${value}"`)
+      .catch(() => null)
+      .then(() => _renderAll());
+  } else {
+    _renderAll();
+  }
+}
 
 // ── CONFIG FORMES PAR SLOT (Tekken 8 etc.) ───────────────────────────────────
 
