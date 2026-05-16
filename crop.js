@@ -241,9 +241,13 @@ function toggleCropFlip() {
 
 function openCropAdjuster(charId, costume, slotIdx) {
   const existing = getCrop(charId, costume);
+  // Charge le masque existant si dispo, sinon par défaut un cercle (24 pts).
+  const savedMask = (typeof loadSlotMaskPolygon === 'function') ? loadSlotMaskPolygon(slotIdx) : null;
   cropAdjust = { charId, costume, slotIdx: slotIdx ?? null, dragging:false, startX:0, startY:0,
     cx: existing.cx, cy: existing.cy, zoom: existing.zoom, flip: !!existing.flip,
-    previewPolygon: computeCropPreviewShape(slotIdx ?? null) };
+    previewPolygon: computeCropPreviewShape(slotIdx ?? null),
+    mode: 'crop',
+    maskPolygon: savedMask || _defaultCirclePolygon(20) };
 
   const modal  = document.getElementById('cropModal');
   const canvas = document.getElementById('cropCanvas');
@@ -271,25 +275,8 @@ function openCropAdjuster(charId, costume, slotIdx) {
   document.getElementById('zoomVal').textContent = parseFloat(cropAdjust.zoom).toFixed(1);
   const flipBtn = document.getElementById('flipBtn');
   if (flipBtn) flipBtn.classList.toggle('active', cropAdjust.flip);
-  renderCropPreview(canvas, img);
-
-  canvas.onmousedown = e => {
-    cropAdjust.dragging = true;
-    cropAdjust.startX = e.clientX; cropAdjust.startY = e.clientY;
-    e.preventDefault();
-  };
-  canvas.onmousemove = e => {
-    if (!cropAdjust.dragging) return;
-    const rect = canvas.getBoundingClientRect();
-    const dx = (e.clientX - cropAdjust.startX) / (rect.width  * cropAdjust.zoom);
-    const dy = (e.clientY - cropAdjust.startY) / (rect.height * cropAdjust.zoom);
-    // Autorise le pan au-delà des bords du PNG (zones hors-image visibles dans l'aperçu)
-    cropAdjust.cx = Math.max(-1, Math.min(2, cropAdjust.cx - dx));
-    cropAdjust.cy = Math.max(-1, Math.min(2, cropAdjust.cy - dy));
-    cropAdjust.startX = e.clientX; cropAdjust.startY = e.clientY;
-    renderCropPreview(canvas, img);
-  };
-  canvas.onmouseup = canvas.onmouseleave = () => { cropAdjust.dragging = false; };
+  // Active le mode crop par défaut (re-bind events + render selon mode)
+  switchCropMode('crop');
 }
 
 function renderCropPreview(canvas, img) {
@@ -373,6 +360,10 @@ function resetCropToAuto() {
 
 function saveCropAdjust() {
   saveManualCrop(cropAdjust.charId, cropAdjust.costume, cropAdjust.cx, cropAdjust.cy, cropAdjust.zoom, cropAdjust.flip);
+  // Si on a édité un masque, on le sauve aussi sur le slot courant
+  if (cropAdjust.maskPolygon && cropAdjust.slotIdx != null) {
+    saveSlotMaskPolygon(cropAdjust.slotIdx, cropAdjust.maskPolygon);
+  }
   document.getElementById('cropModal').style.display = 'none';
   renderSlots();
   generatePreview();
@@ -381,3 +372,303 @@ function saveCropAdjust() {
 function closeCropModal() {
   document.getElementById('cropModal').style.display = 'none';
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// ÉDITEUR DE MASQUE POLYGONE
+// Permet de redéfinir la forme du clip d'un slot (par ex. transformer le
+// cercle GGST en un polygone qui évite les zones du fond avec numéros).
+// Stockage : _slotCfgsMem[game].slots[i].maskPolygon = [{x,y}] en coords
+// normalisées 0-1 relatives à la bbox du slot.
+// ════════════════════════════════════════════════════════════════════════
+
+// Charge le masque polygone du slot courant (depuis storage) ou retourne
+// un cercle par défaut (32 points sur le rayon du slot circle).
+function loadSlotMaskPolygon(slotIdx) {
+  if (slotIdx == null) return null;
+  try {
+    const sc = (typeof _slotCfgsMem !== 'undefined') && _slotCfgsMem[currentGame]?.slots?.[slotIdx];
+    if (sc?.maskPolygon && Array.isArray(sc.maskPolygon) && sc.maskPolygon.length >= 3) {
+      return sc.maskPolygon.map(p => ({ x: p.x, y: p.y }));
+    }
+  } catch (e) {}
+  return null;
+}
+
+function saveSlotMaskPolygon(slotIdx, polygon) {
+  if (typeof _slotCfgsMem === 'undefined') return;
+  if (!_slotCfgsMem[currentGame]) _slotCfgsMem[currentGame] = { slots: [] };
+  if (!_slotCfgsMem[currentGame].slots) _slotCfgsMem[currentGame].slots = [];
+  while (_slotCfgsMem[currentGame].slots.length <= slotIdx) {
+    _slotCfgsMem[currentGame].slots.push(null);
+  }
+  const existing = _slotCfgsMem[currentGame].slots[slotIdx] || {};
+  existing.maskPolygon = polygon.map(p => ({ x: +p.x.toFixed(4), y: +p.y.toFixed(4) }));
+  _slotCfgsMem[currentGame].slots[slotIdx] = existing;
+  if (typeof _saveSlotCfgsToStorage === 'function') _saveSlotCfgsToStorage();
+}
+
+// Génère un polygone de cercle par défaut (en coords normalisées 0-1
+// relatives au bbox du slot, centré sur 0.5/0.5).
+function _defaultCirclePolygon(nPoints) {
+  const n = nPoints || 24;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;  // démarre en haut
+    pts.push({ x: 0.5 + Math.cos(a) * 0.5, y: 0.5 + Math.sin(a) * 0.5 });
+  }
+  return pts;
+}
+
+function switchCropMode(mode) {
+  cropAdjust.mode = mode;
+  // Met à jour visuellement les onglets
+  document.querySelectorAll('.crop-mode-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+  // Affiche/cache les contrôles
+  document.getElementById('cropModeCrop').style.display = mode === 'crop' ? '' : 'none';
+  document.getElementById('cropModeMask').style.display = mode === 'mask' ? 'block' : 'none';
+  // Hide le bouton "Reset auto" en mode masque (pas pertinent)
+  const resetBtn = document.getElementById('cropResetBtn');
+  if (resetBtn) resetBtn.style.display = mode === 'crop' ? '' : 'none';
+  // Met à jour le hint en haut
+  const hint = document.getElementById('cropHint');
+  if (hint) hint.textContent = mode === 'mask'
+    ? 'Clic sur le bord pour ajouter un point · Glisse un point pour le bouger · Clic droit pour supprimer'
+    : "Glisse l'image pour repositionner · Ajuste le zoom";
+  // Re-bind les events souris selon le mode
+  _bindCropCanvasEvents();
+  // Re-render
+  _renderCropOrMask();
+}
+
+function _renderCropOrMask() {
+  const canvas = document.getElementById('cropCanvas');
+  if (!canvas) return;
+  if (cropAdjust.mode === 'mask') {
+    renderMaskEditor(canvas);
+  } else {
+    const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+    let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+    if (!img && typeof players !== 'undefined') {
+      const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
+      if (pWithUrl) img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
+    }
+    if (img) renderCropPreview(canvas, img);
+  }
+}
+
+// Récupère la bbox du slot dans les coords du canvas 1400×1400 source.
+// Pour les cercles : carré inscrit dans le cercle (cx-r, cy-r, 2r, 2r).
+function _getSlotBbox(slotIdx) {
+  const layout = LAYOUTS[currentGame];
+  if (!layout || !layout.slots || !layout.slots[slotIdx]) return null;
+  const s = layout.slots[slotIdx];
+  if (s.r != null) {
+    return { x: s.cx - s.r, y: s.cy - s.r, w: s.r * 2, h: s.r * 2 };
+  }
+  if (s.w != null && s.h != null) {
+    return { x: s.cx - s.w/2, y: s.cy - s.h/2, w: s.w, h: s.h };
+  }
+  return null;
+}
+
+function resetMaskPolygon() {
+  cropAdjust.maskPolygon = _defaultCirclePolygon(20);
+  _renderCropOrMask();
+}
+
+function renderMaskEditor(canvas) {
+  const SIZE = 280;
+  canvas.width = SIZE; canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#1a0a2e'; ctx.fillRect(0, 0, SIZE, SIZE);
+
+  // Charge le bg du jeu (en source 1400×1400) et crope la zone du slot
+  const bbox = _getSlotBbox(cropAdjust.slotIdx);
+  const layout = LAYOUTS[currentGame];
+  if (bbox && typeof bgImg !== 'undefined' && bgImg && layout?.bgFile) {
+    // bgImg est l'image complète chargée. On dessine la zone du slot
+    // (bbox source) dans le canvas 280×280, légèrement assombrie pour
+    // que les points soient bien visibles.
+    try {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      // Calcul ratio entre l'image source réelle et le canvas 1400 de ref
+      const srcSc = bgImg.naturalWidth / 1400;
+      ctx.drawImage(bgImg,
+        bbox.x * srcSc, bbox.y * srcSc, bbox.w * srcSc, bbox.h * srcSc,
+        0, 0, SIZE, SIZE);
+      // Voile sombre pour mieux voir les points
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    } catch (e) { /* CORS ou autre */ }
+  }
+
+  // Dessine le polygone courant
+  const poly = cropAdjust.maskPolygon;
+  if (!poly || !poly.length) return;
+  const drawPts = poly.map(p => ({ x: p.x * SIZE, y: p.y * SIZE }));
+
+  // Zone clippée (à l'intérieur du polygone) : effet voile sombre AUTOUR
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.beginPath();
+  ctx.rect(0, 0, SIZE, SIZE);
+  ctx.moveTo(drawPts[0].x, drawPts[0].y);
+  for (let i = drawPts.length - 1; i >= 1; i--) ctx.lineTo(drawPts[i].x, drawPts[i].y);
+  ctx.closePath();
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  // Trait du polygone
+  ctx.save();
+  ctx.strokeStyle = 'rgba(168, 132, 240, 0.95)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3;
+  ctx.beginPath();
+  ctx.moveTo(drawPts[0].x, drawPts[0].y);
+  for (let i = 1; i < drawPts.length; i++) ctx.lineTo(drawPts[i].x, drawPts[i].y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+
+  // Points draggables (cercles blancs avec contour violet)
+  drawPts.forEach((p, i) => {
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#7c5cff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+// ── Manipulation du polygone ──
+function _findClosestPointIdx(px, py, threshold) {
+  const poly = cropAdjust.maskPolygon || [];
+  const SIZE = 280;
+  let best = -1, bestDist = (threshold || 14);
+  for (let i = 0; i < poly.length; i++) {
+    const dx = poly[i].x * SIZE - px;
+    const dy = poly[i].y * SIZE - py;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d < bestDist) { best = i; bestDist = d; }
+  }
+  return best;
+}
+
+// Insère un point sur le segment le plus proche du clic. Retourne l'index inséré.
+function _insertPointAt(px, py) {
+  const poly = cropAdjust.maskPolygon;
+  if (!poly || poly.length < 2) return -1;
+  const SIZE = 280;
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i+1) % poly.length];
+    // distance du point au segment a-b (en coords canvas)
+    const ax = a.x * SIZE, ay = a.y * SIZE;
+    const bx = b.x * SIZE, by = b.y * SIZE;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx*dx + dy*dy;
+    let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    const d = Math.sqrt((px - cx)*(px - cx) + (py - cy)*(py - cy));
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  // Insère le nouveau point après bestIdx
+  poly.splice(bestIdx + 1, 0, { x: px / SIZE, y: py / SIZE });
+  return bestIdx + 1;
+}
+
+// État du drag (mode masque)
+let _maskDrag = { active: false, pointIdx: -1 };
+
+function _bindCropCanvasEvents() {
+  const canvas = document.getElementById('cropCanvas');
+  if (!canvas) return;
+  // Reset tout
+  canvas.onmousedown = canvas.onmousemove = canvas.onmouseup = canvas.onmouseleave = null;
+  canvas.oncontextmenu = null;
+  if (cropAdjust.mode === 'mask') {
+    canvas.style.cursor = 'crosshair';
+    canvas.oncontextmenu = (e) => { e.preventDefault(); return false; };
+    canvas.onmousedown = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width / rect.width;
+      const sy = canvas.height / rect.height;
+      const px = (e.clientX - rect.left) * sx;
+      const py = (e.clientY - rect.top)  * sy;
+      // Clic droit → supprime le point le plus proche
+      if (e.button === 2) {
+        const idx = _findClosestPointIdx(px, py, 14);
+        if (idx >= 0 && cropAdjust.maskPolygon.length > 3) {
+          cropAdjust.maskPolygon.splice(idx, 1);
+          renderMaskEditor(canvas);
+        }
+        e.preventDefault();
+        return;
+      }
+      // Clic gauche : sur un point existant → drag ; sinon → ajoute un point
+      const existingIdx = _findClosestPointIdx(px, py, 14);
+      if (existingIdx >= 0) {
+        _maskDrag = { active: true, pointIdx: existingIdx };
+      } else {
+        const newIdx = _insertPointAt(px, py);
+        if (newIdx >= 0) {
+          _maskDrag = { active: true, pointIdx: newIdx };
+          renderMaskEditor(canvas);
+        }
+      }
+    };
+    canvas.onmousemove = (e) => {
+      if (!_maskDrag.active) return;
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width / rect.width;
+      const sy = canvas.height / rect.height;
+      const px = Math.max(0, Math.min(canvas.width,  (e.clientX - rect.left) * sx));
+      const py = Math.max(0, Math.min(canvas.height, (e.clientY - rect.top)  * sy));
+      const p = cropAdjust.maskPolygon[_maskDrag.pointIdx];
+      if (p) {
+        p.x = px / canvas.width;
+        p.y = py / canvas.height;
+        renderMaskEditor(canvas);
+      }
+    };
+    canvas.onmouseup = canvas.onmouseleave = () => { _maskDrag.active = false; };
+  } else {
+    // Mode crop : restore le drag d'image
+    canvas.style.cursor = 'grab';
+    const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+    let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+    if (!img && typeof players !== 'undefined') {
+      const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
+      if (pWithUrl) img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
+    }
+    canvas.onmousedown = e => {
+      cropAdjust.dragging = true;
+      cropAdjust.startX = e.clientX; cropAdjust.startY = e.clientY;
+      e.preventDefault();
+    };
+    canvas.onmousemove = e => {
+      if (!cropAdjust.dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const dx = (e.clientX - cropAdjust.startX) / (rect.width  * cropAdjust.zoom);
+      const dy = (e.clientY - cropAdjust.startY) / (rect.height * cropAdjust.zoom);
+      cropAdjust.cx = Math.max(-1, Math.min(2, cropAdjust.cx - dx));
+      cropAdjust.cy = Math.max(-1, Math.min(2, cropAdjust.cy - dy));
+      cropAdjust.startX = e.clientX; cropAdjust.startY = e.clientY;
+      if (img) renderCropPreview(canvas, img);
+    };
+    canvas.onmouseup = canvas.onmouseleave = () => { cropAdjust.dragging = false; };
+  }
+}
+
+window.switchCropMode      = switchCropMode;
+window.resetMaskPolygon    = resetMaskPolygon;
+window.loadSlotMaskPolygon = loadSlotMaskPolygon;

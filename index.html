@@ -1315,28 +1315,46 @@
 <div id="cropModal" class="modal-bg" style="display:none;">
   <div class="modal" style="width:320px;">
     <div class="modal-header">
-      <span>🎯 Ajuster le cadrage</span>
+      <span id="cropModalTitle">🎯 Ajuster le cadrage</span>
       <button class="btn btn-icon" onclick="closeCropModal()">✕</button>
     </div>
+    <!-- Sélecteur de mode : Cadrage (par défaut) ou Masque (polygone custom) -->
+    <div class="crop-mode-tabs" style="display:flex;gap:6px;margin-bottom:10px;">
+      <button class="crop-mode-tab active" data-mode="crop" onclick="switchCropMode('crop')">🎯 Cadrage</button>
+      <button class="crop-mode-tab" data-mode="mask" onclick="switchCropMode('mask')">✏️ Masque</button>
+    </div>
     <div style="font-size:11px;color:#888;margin-bottom:8px;" id="cropSource"></div>
-    <p style="font-size:12px;color:#888;margin-bottom:10px;">
+    <p style="font-size:12px;color:#888;margin-bottom:10px;" id="cropHint">
       Glisse l'image pour repositionner · Ajuste le zoom
     </p>
     <canvas id="cropCanvas" style="border-radius:8px;cursor:grab;display:block;margin:0 auto 12px;"></canvas>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <label style="font-size:12px;color:#666;white-space:nowrap;">Zoom :</label>
-      <input type="range" id="zoomSlider" min="0.3" max="4.0" step="0.1" value="2.0"
-             oninput="updateCropZoom(this.value)" style="flex:1;">
-      <span id="zoomVal" style="font-size:12px;font-weight:600;width:28px;">2.0</span>
+
+    <!-- Contrôles mode CADRAGE -->
+    <div id="cropModeCrop">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <label style="font-size:12px;color:#666;white-space:nowrap;">Zoom :</label>
+        <input type="range" id="zoomSlider" min="0.3" max="4.0" step="0.1" value="2.0"
+               oninput="updateCropZoom(this.value)" style="flex:1;">
+        <span id="zoomVal" style="font-size:12px;font-weight:600;width:28px;">2.0</span>
+      </div>
+      <div style="margin-bottom:14px;">
+        <button id="flipBtn" class="btn" onclick="toggleCropFlip()"
+                style="width:100%;font-size:12px;gap:6px;">
+          ↔ Retourner l'image
+        </button>
+      </div>
     </div>
-    <div style="margin-bottom:14px;">
-      <button id="flipBtn" class="btn" onclick="toggleCropFlip()"
-              style="width:100%;font-size:12px;gap:6px;">
-        ↔ Retourner l'image
-      </button>
+
+    <!-- Contrôles mode MASQUE -->
+    <div id="cropModeMask" style="display:none;margin-bottom:10px;">
+      <p style="font-size:11px;color:#888;margin:0 0 8px 0;line-height:1.4;">
+        Clic sur le bord pour ajouter un point · Glisse pour bouger · Clic droit pour supprimer
+      </p>
+      <button class="btn" onclick="resetMaskPolygon()" style="width:100%;font-size:11px;">↩ Reset au cercle de base</button>
     </div>
+
     <div style="display:flex;gap:8px;justify-content:space-between;">
-      <button class="btn" onclick="resetCropToAuto()" style="font-size:11px;">↩ Reset auto</button>
+      <button class="btn" id="cropResetBtn" onclick="resetCropToAuto()" style="font-size:11px;">↩ Reset auto</button>
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="closeCropModal()">Annuler</button>
         <button class="btn btn-primary" onclick="saveCropAdjust()">✅ Sauvegarder</button>

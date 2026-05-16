@@ -1916,8 +1916,28 @@ function drawLayoutSlots(ctx, layout, sc) {
 
     ctx.save();
 
-    // Dessiner la forme et clipper — pas de fond coloré (transparent)
-    if (type === 'circle') {
+    // Dessiner la forme et clipper — pas de fond coloré (transparent).
+    // Si un masque polygone custom est défini pour ce slot (via l'éditeur
+    // de masque dans la modale crop), on l'utilise à la place de la forme
+    // par défaut. Points en coords normalisées 0-1 → mappés sur la bbox
+    // du slot dans le repère canvas 1400.
+    const _customMask = (typeof loadSlotMaskPolygon === 'function')
+      ? loadSlotMaskPolygon(i) : null;
+    if (_customMask && _customMask.length >= 3 && type === 'circle') {
+      const bx = (slot.cx - slot.r) * sc;
+      const by = (slot.cy - slot.r) * sc;
+      const bw = slot.r * 2 * sc;
+      const bh = slot.r * 2 * sc;
+      ctx.beginPath();
+      _customMask.forEach((p, idx) => {
+        const x = bx + p.x * bw;
+        const y = by + p.y * bh;
+        if (idx === 0) ctx.moveTo(x, y);
+        else            ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.clip();
+    } else if (type === 'circle') {
       ctx.beginPath();
       ctx.arc(slot.cx*sc, slot.cy*sc, slot.r*sc, 0, Math.PI*2);
       ctx.clip();
