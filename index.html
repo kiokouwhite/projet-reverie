@@ -182,21 +182,12 @@
               <div class="slots-grid" id="slotsGrid"></div>
             </div>
 
-            <!-- Slide 4 : Layouts Custom -->
+            <!-- Slide 4 : Layouts Custom (anciennement "coffre", remplacé par
+                 une liste inline directement dans la télé). -->
             <div class="left-slide" id="leftSlide4">
-              <div class="left-slide-coffre">
-                <button class="btn-chest" onclick="openCoffre()">
-                  <div class="chest-lid">
-                    <div class="chest-lock"><span class="chest-keyhole"></span></div>
-                    <div class="chest-hinge chest-hinge-l"></div>
-                    <div class="chest-hinge chest-hinge-r"></div>
-                  </div>
-                  <div class="chest-body">
-                    <div class="chest-band"></div>
-                    <span class="chest-label">Layouts Custom</span>
-                  </div>
-                </button>
-                <p class="left-slide-coffre-hint">Ouvre le coffre pour gérer<br>tes layouts personnalisés</p>
+              <div class="lm-inline-layouts-wrap">
+                <button class="btn btn-primary lm-inline-new-btn" onclick="openLayoutMaker()">✨ Nouveau layout</button>
+                <div id="lmInlineLayoutsGrid" class="lm-inline-layouts-grid"></div>
               </div>
             </div>
 
@@ -1962,10 +1953,10 @@
     <div class="lm-celeb-name" id="lmCelebName">Mon Layout</div>
     <img id="lmCelebThumb" style="width:180px;height:180px;object-fit:cover;border-radius:16px;border:3px solid var(--border);margin:16px auto;display:block;box-shadow:0 8px 24px rgba(130,80,220,0.3);">
     <p style="font-size:13px;color:#9b7fb8;margin-bottom:20px;line-height:1.6;">
-      Ton layout est dans le coffre. Tu peux l'appliquer à n'importe quel tournoi !
+      Ton layout est enregistré. Tu peux l'appliquer à n'importe quel tournoi !
     </p>
     <div style="display:flex;gap:10px;justify-content:center;">
-      <button class="btn btn-primary" onclick="lmCloseCelebration()">📦 Voir le coffre</button>
+      <button class="btn btn-primary" onclick="lmCloseCelebration()">🎴 Voir mes layouts</button>
       <button class="btn" onclick="document.getElementById('lmCelebModal').style.display='none';openLayoutMaker()">✨ Nouveau layout</button>
     </div>
   </div>

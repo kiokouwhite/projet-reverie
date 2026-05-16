@@ -1301,7 +1301,12 @@ function lmShowCelebration(layout) {
 
 function lmCloseCelebration() {
   document.getElementById('lmCelebModal').style.display = 'none';
-  openCoffre();
+  // Plus de modale coffre : on s'assure juste que la liste inline est à jour
+  // et on bascule sur le slide 4 (Layouts Custom) si possible.
+  if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
+  if (typeof tcGo === 'function') {
+    try { tcGo(4); } catch(e) {}
+  }
 }
 
 function lmFireConfetti() {
@@ -1339,17 +1344,27 @@ function closeCoffre() {
 
 async function lmRenderCoffreGrid() {
   const coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]');
-  const grid = document.getElementById('coffreGrid');
-  if (!grid) return;
+  const grid       = document.getElementById('coffreGrid');
+  const inlineGrid = document.getElementById('lmInlineLayoutsGrid');
+  if (!grid && !inlineGrid) return;
 
+  // Cas vide : message + bouton "Créer un layout"
   if (!coffre.length) {
-    grid.innerHTML = `
+    const emptyModalHtml = `
       <div class="coffre-empty">
         <div class="coffre-empty-icon">📦</div>
-        <div>Ton coffre est vide</div>
+        <div>Aucun layout custom</div>
         <div style="font-size:13px;color:#888;margin-top:8px;">Crée ton premier layout custom !</div>
         <button class="btn btn-primary" style="margin-top:16px;" onclick="closeCoffre();openLayoutMaker()">✨ Créer un layout</button>
       </div>`;
+    const emptyInlineHtml = `
+      <div class="lm-inline-empty">
+        <div class="lm-inline-empty-icon">🎴</div>
+        <div>Aucun layout pour l'instant</div>
+        <div class="lm-inline-empty-sub">Clique sur « Nouveau layout » pour commencer.</div>
+      </div>`;
+    if (grid)       grid.innerHTML       = emptyModalHtml;
+    if (inlineGrid) inlineGrid.innerHTML = emptyInlineHtml;
     return;
   }
 
@@ -1360,24 +1375,51 @@ async function lmRenderCoffreGrid() {
     catch { return null; }
   }));
 
-  grid.innerHTML = coffre.map((l, idx) => `
-    <div class="coffre-card" tabindex="0">
-      <div class="coffre-thumb">
-        ${thumbs[idx]
-          ? `<img src="${thumbs[idx]}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`
-          : '<div class="coffre-thumb-placeholder">🎴</div>'}
+  // Modal : cartes pleine taille (fallback retro-compat — appelée depuis la
+  // popup de célébration et openCoffre).
+  if (grid) {
+    grid.innerHTML = coffre.map((l, idx) => `
+      <div class="coffre-card" tabindex="0">
+        <div class="coffre-thumb">
+          ${thumbs[idx]
+            ? `<img src="${thumbs[idx]}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`
+            : '<div class="coffre-thumb-placeholder">🎴</div>'}
+        </div>
+        <div class="coffre-info">
+          <div class="coffre-name">${escHtml(l.name)}</div>
+          <div class="coffre-date">${new Date(l.createdAt).toLocaleDateString('fr-FR')}</div>
+        </div>
+        <div class="coffre-actions">
+          <button class="btn btn-primary" style="flex:1;" onclick="lmApplyLayout(${idx})">✅ Utiliser</button>
+          <button class="btn" onclick="lmDownloadLayout(${idx})">⬇️</button>
+          <button class="btn btn-danger" onclick="lmDeleteLayout(${idx})">🗑️</button>
+        </div>
       </div>
-      <div class="coffre-info">
-        <div class="coffre-name">${escHtml(l.name)}</div>
-        <div class="coffre-date">${new Date(l.createdAt).toLocaleDateString('fr-FR')}</div>
+    `).join('');
+  }
+
+  // Inline slide 4 : cartes compactes (une colonne, hauteur réduite)
+  // Affichage type "vignette" qui rentre dans la largeur étroite du slide.
+  if (inlineGrid) {
+    inlineGrid.innerHTML = coffre.map((l, idx) => `
+      <div class="lm-inline-card">
+        <div class="lm-inline-thumb">
+          ${thumbs[idx]
+            ? `<img src="${thumbs[idx]}" alt="${escHtml(l.name)}">`
+            : '<div class="lm-inline-thumb-placeholder">🎴</div>'}
+        </div>
+        <div class="lm-inline-body">
+          <div class="lm-inline-name" title="${escHtml(l.name)}">${escHtml(l.name)}</div>
+          <div class="lm-inline-date">${new Date(l.createdAt).toLocaleDateString('fr-FR')}</div>
+          <div class="lm-inline-actions">
+            <button class="btn btn-primary lm-inline-act-use" onclick="lmApplyLayout(${idx})" title="Utiliser ce layout">✅ Utiliser</button>
+            <button class="btn lm-inline-act-icon" onclick="lmDownloadLayout(${idx})" title="Télécharger">⬇️</button>
+            <button class="btn btn-danger lm-inline-act-icon" onclick="lmDeleteLayout(${idx})" title="Supprimer">🗑️</button>
+          </div>
+        </div>
       </div>
-      <div class="coffre-actions">
-        <button class="btn btn-primary" style="flex:1;" onclick="lmApplyLayout(${idx})">✅ Utiliser</button>
-        <button class="btn" onclick="lmDownloadLayout(${idx})">⬇️</button>
-        <button class="btn btn-danger" onclick="lmDeleteLayout(${idx})">🗑️</button>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
 }
 
 // ── ENREGISTREMENT D'UN LAYOUT CUSTOM DANS LAYOUTS/GAMES (sans changer l'état global) ──
@@ -1999,6 +2041,9 @@ async function lmInitCoffreSelector() {
     opt.textContent = l.name;
     og.appendChild(opt);
   }
+  // Rendu inline du slide 4 (remplace l'ancien coffre) — les images IDB
+  // sont maintenant chargées, donc les thumbnails s'afficheront tout de suite.
+  if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
 }
 
 // Download current LM preview at 1400px
