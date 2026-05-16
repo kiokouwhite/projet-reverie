@@ -601,15 +601,16 @@ body::before {
 .panel-right { flex: 1; overflow-y: auto; min-height: 0; }
 
 /* En mode normal Top 8 : on transforme panel-right en flex column dont le
-   canvas-wrap prend tout l'espace vertical dispo (avec aspect-ratio: 1 +
-   max-height: 100%), pour que l'aperçu Top 8 rentre en entier sans qu'on
-   ait à scroller la page. */
-body:not(.top8-no-import) #pageTop8 .panel-right {
+   canvas-wrap prend tout l'espace vertical dispo, pour que l'aperçu rentre
+   en entier sans scroll. EN MODE COLLAPSED on bascule sur la grid 2 cols
+   (bloc .main.left-collapsed plus bas) — le sélecteur ci-dessous exclut
+   donc explicitement le collapsed via le sélecteur parent .main:not.   */
+body:not(.top8-no-import) #pageTop8 .main:not(.left-collapsed) .panel-right {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-#pageTop8 .top8-main-area {
+#pageTop8 .main:not(.left-collapsed) .top8-main-area {
   flex: 1 1 0;
   min-height: 0;
   display: flex;
