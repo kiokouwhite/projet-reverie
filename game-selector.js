@@ -66,12 +66,15 @@
       const sggUrl = _startggBg[id];
       let bg;
       if (sggUrl) {
-        bg = `linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.32)), url("${sggUrl}") center/cover`;
+        // ⚠️ url(...) en SIMPLE QUOTES : le style inline est lui-même
+        // wrappé en double-quotes, donc des " dans url() ferment l'attribut
+        // prématurément et la propriété background n'est jamais appliquée.
+        bg = `linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.32)), url('${sggUrl}') center/cover`;
       } else {
         // Fond intégré ou dégradé pastel basé sur la teinte du jeu
         const localBgUrl = guessLocalBg(id);
         if (localBgUrl) {
-          bg = `linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.28)), url("${localBgUrl}") center/cover`;
+          bg = `linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.28)), url('${localBgUrl}') center/cover`;
         } else {
           bg = makeGradient(theme);
         }
@@ -368,10 +371,11 @@
       const sgg = g.videogameImageUrl || _startggBg[id];
       let bg;
       if (sgg) {
-        bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url("${sgg}") center/cover`;
+        // Single quotes pour url() — voir commentaire dans readGamesFromSelect
+        bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url('${sgg}') center/cover`;
       } else {
         const local = guessLocalBg(id);
-        if (local) bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url("${local}") center/cover`;
+        if (local) bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url('${local}') center/cover`;
         else       bg = makeGradient(theme);
       }
       return {
