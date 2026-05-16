@@ -2085,6 +2085,30 @@ function drawLayoutSlots(ctx, layout, sc) {
       ctx.closePath();
       ctx.clip();
 
+    } else if (type === 'torn') {
+      // Polygone "papier déchiré" — bords irréguliers avec des morsures
+      // pour matcher visuellement les cadres du fond SF6.
+      // Points en coords normalisées (0-1) relatives au slot.
+      const TORN_POLY = [
+        [0.04, 0.02], [0.32, 0.0],  [0.55, 0.04], [0.78, 0.0],  [0.96, 0.03],
+        [1.00, 0.28], [0.97, 0.55], [1.00, 0.80], [0.94, 0.99],
+        [0.72, 0.97], [0.45, 1.00], [0.22, 0.96], [0.04, 1.00],
+        [0.00, 0.72], [0.03, 0.45], [0.00, 0.18],
+      ];
+      const tx0 = (slot.cx - slot.w/2)*sc;
+      const ty0 = (slot.cy - slot.h/2)*sc;
+      const tw  = slot.w*sc;
+      const th  = slot.h*sc;
+      ctx.beginPath();
+      TORN_POLY.forEach(([nx, ny], idx) => {
+        const x = tx0 + nx * tw;
+        const y = ty0 + ny * th;
+        if (idx === 0) ctx.moveTo(x, y);
+        else            ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.clip();
+
     } else if (type === 'diamond') {
       const cx=slot.cx*sc, cy=slot.cy*sc, hw=slot.w/2*sc, hh=slot.h/2*sc;
       ctx.beginPath();

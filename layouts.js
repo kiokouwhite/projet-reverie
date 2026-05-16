@@ -88,7 +88,7 @@ const LAYOUTS = {
     slotType: '2xko',
   },
 
-  // ── STREET FIGHTER 6 — 3 joueurs, formes arrondies ───────────────────────
+  // ── STREET FIGHTER 6 — 3 joueurs, formes "papier déchiré" ────────────────
   sf6: {
     bgFile: 'backgrounds/sf6.jpg',
     playerCount: 3,
@@ -99,7 +99,7 @@ const LAYOUTS = {
       { cx:674,  cy:1080,w:289, h:270, nameY:1235, rankX:534,  rankY:950 },
       { cx:1134, cy:1080,w:289, h:270, nameY:1235, rankX:994,  rankY:950 },
     ],
-    slotType: 'rounded', // rectangle avec coins arrondis
+    slotType: 'torn', // polygone irrégulier pour matcher le cadre du fond
   },
 
   // ── DRAGON BALL FIGHTERZ — Side Game, pas de template ────────────────────
