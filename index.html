@@ -6,7 +6,7 @@
   <title>Projet Reverie — Générateur de résultats</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Anton&family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Oswald:wght@400;600;700&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Squada+One&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Permanent+Marker&family=Exo+2:wght@400;700;800;900&family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;700&family=Black+Han+Sans&family=Montserrat:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Anton&family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Oswald:wght@400;600;700&family=Rajdhani:wght@400;600;700&family=Russo+One&family=Squada+One&family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Permanent+Marker&family=Exo+2:wght@400;700;800;900&family=Teko:wght@400;600;700&family=Chakra+Petch:wght@400;700&family=Black+Han+Sans&family=Montserrat:wght@400;700;800;900&family=Rubik+Spray+Paint&family=Rubik+Wet+Paint&family=Rubik+Glitch&family=Rubik+Beastly&family=Bungee&family=Bungee+Spice&family=Black+Ops+One&family=Bowlby+One&family=Audiowide&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -1184,6 +1184,7 @@
           <div class="title-row"><span>Couleur</span><input type="color" id="t1color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour couleur</span><input type="color" id="t1strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t1strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t1strokew').value=this.value;syncTitle()"></div>
+          <div class="title-row name-color-row"><span>Police</span><select id="t1font" class="title-font-select" onchange="syncTitle()"></select></div>
         </div>
 
         <!-- LIGNE 2 -->
@@ -1196,6 +1197,7 @@
           <div class="title-row"><span>Couleur</span><input type="color" id="t2color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour couleur</span><input type="color" id="t2strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t2strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t2strokew').value=this.value;syncTitle()"></div>
+          <div class="title-row name-color-row"><span>Police</span><select id="t2font" class="title-font-select" onchange="syncTitle()"></select></div>
         </div>
 
         <!-- LIGNE 3 -->
@@ -1208,6 +1210,7 @@
           <div class="title-row"><span>Couleur</span><input type="color" id="t3color" value="#ffffff" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour couleur</span><input type="color" id="t3strokecolor" value="#000000" oninput="syncTitle()" class="color-pick"></div>
           <div class="title-row"><span>Contour épais.</span><input type="range" min="0" max="20" step="0.5" id="t3strokew" value="0" oninput="this.nextElementSibling.value=this.value;syncTitle()"><input type="number" min="0" max="20" step="0.5" value="0" style="width:44px;" oninput="document.getElementById('t3strokew').value=this.value;syncTitle()"></div>
+          <div class="title-row name-color-row"><span>Police</span><select id="t3font" class="title-font-select" onchange="syncTitle()"></select></div>
         </div>
 
         <button class="btn" onclick="manualSaveTitleConfig()" style="width:100%;margin-top:4px;">💾 Sauvegarder les titres</button>

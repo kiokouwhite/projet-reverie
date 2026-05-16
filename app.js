@@ -1836,7 +1836,17 @@ function drawTitles(ctx, sc, overrideName, overrideGame) {
   const tW    = isT8titles ? '400' : (T1.w || '800');
 
   function drawTitleText(cfg, text, maxW) {
-    ctx.font = `${tW} ${Math.round(cfg.s*sc)}px ${tFont}`;
+    // cfg.font (si défini) override la police par défaut. On lit le weight
+    // approprié depuis TITLE_FONTS pour les polices display qui n'ont qu'une
+    // seule graisse (Bungee, Russo One, etc.).
+    let fontStack = tFont;
+    let weight    = tW;
+    if (cfg.font) {
+      const meta = (typeof _fontMeta === 'function') ? _fontMeta(cfg.font) : null;
+      fontStack = `"${cfg.font}", ${tFont}`;
+      if (meta) weight = meta.weight;
+    }
+    ctx.font = `${weight} ${Math.round(cfg.s*sc)}px ${fontStack}`;
     ctx.letterSpacing = `${cfg.l*sc}px`;
     if ((cfg.strokeWidth||0) > 0) {
       ctx.strokeStyle = cfg.strokeColor || '#000000';
@@ -2871,10 +2881,39 @@ function generatePreview() {
 // ── ÉDITEUR DE TITRES ─────────────────────────────────────────────────────────
 
 const TITLE_DEFAULTS = {
-  T1: {x:903, y:95,  s:46, l:3,    color:'#ffffff', strokeColor:'#000000', strokeWidth:0},
-  T2: {x:901, y:165, s:43, l:11.5, color:'#ffffff', strokeColor:'#000000', strokeWidth:0},
-  T3: {x:905, y:229, s:40, l:13,   color:'#ffffff', strokeColor:'#000000', strokeWidth:0},
+  T1: {x:903, y:95,  s:46, l:3,    color:'#ffffff', strokeColor:'#000000', strokeWidth:0, font:''},
+  T2: {x:901, y:165, s:43, l:11.5, color:'#ffffff', strokeColor:'#000000', strokeWidth:0, font:''},
+  T3: {x:905, y:229, s:40, l:13,   color:'#ffffff', strokeColor:'#000000', strokeWidth:0, font:''},
 };
+
+// Polices disponibles pour les titres — toutes chargées via Google Fonts dans
+// index.html. Le label est affiché dans le dropdown, la value est utilisée
+// comme font-family CSS canvas. "" = défaut du jeu (Montserrat, ou Anton
+// pour Tekken 8).
+const TITLE_FONTS = [
+  { value: '',                   label: 'Par défaut',     weight: '800' },
+  { value: 'Montserrat',         label: 'Montserrat',     weight: '800' },
+  { value: 'Anton',              label: 'Anton',          weight: '400' },
+  { value: 'Bebas Neue',         label: 'Bebas Neue',     weight: '400' },
+  { value: 'Oswald',             label: 'Oswald',         weight: '700' },
+  { value: 'Russo One',          label: 'Russo One',      weight: '400' },
+  { value: 'Orbitron',           label: 'Orbitron',       weight: '900' },
+  { value: 'Audiowide',          label: 'Audiowide',      weight: '400' },
+  { value: 'Bungee',             label: 'Bungee',         weight: '400' },
+  { value: 'Bungee Spice',       label: 'Bungee Spice',   weight: '400' },
+  { value: 'Bowlby One',         label: 'Bowlby One',     weight: '400' },
+  { value: 'Black Ops One',      label: 'Black Ops One',  weight: '400' },
+  { value: 'Permanent Marker',   label: 'Permanent Marker', weight: '400' },
+  { value: 'Rubik Spray Paint',  label: 'Spray Paint',    weight: '400' },
+  { value: 'Rubik Wet Paint',    label: 'Wet Paint',      weight: '400' },
+  { value: 'Rubik Glitch',       label: 'Glitch',         weight: '400' },
+  { value: 'Rubik Beastly',      label: 'Beastly',        weight: '400' },
+  { value: 'Press Start 2P',     label: 'Pixel',          weight: '400' },
+  { value: 'Black Han Sans',     label: 'Black Han Sans', weight: '400' },
+];
+function _fontMeta(fontVal) {
+  return TITLE_FONTS.find(f => f.value === fontVal) || TITLE_FONTS[0];
+}
 
 function getTitleConfigs() {
   try { return JSON.parse(localStorage.getItem('top8_title_configs') || '{}'); } catch { return {}; }
@@ -2893,6 +2932,7 @@ function saveTitleConfig() {
     color:       rf(`${p}color`,       T.color       ?? '#ffffff'),
     strokeColor: rf(`${p}strokecolor`, T.strokeColor ?? '#000000'),
     strokeWidth: rf(`${p}strokew`,     T.strokeWidth ?? 0),
+    font:        rf(`${p}font`,        T.font        ?? ''),
   });
   const all = getTitleConfigs();
   all[currentGame] = { T1: readT('t1', CONFIG.T1), T2: readT('t2', CONFIG.T2), T3: readT('t3', CONFIG.T3) };
@@ -2987,6 +3027,21 @@ function initTitleEditor() {
   set('t1strokew', CONFIG.T1.strokeWidth || 0);
   set('t2strokew', CONFIG.T2.strokeWidth || 0);
   set('t3strokew', CONFIG.T3.strokeWidth || 0);
+  // Polices : popule les <select> avec TITLE_FONTS + sélectionne la valeur
+  // sauvée. L'option avec value="" représente "Par défaut" (police native
+  // du jeu : Montserrat ou Anton pour Tekken 8).
+  ['t1','t2','t3'].forEach(t => {
+    const sel = document.getElementById(t + 'font');
+    if (!sel) return;
+    // Re-populate (idempotent) — l'éditeur peut être ouvert plusieurs fois.
+    if (!sel.options.length) {
+      sel.innerHTML = TITLE_FONTS.map(f =>
+        `<option value="${f.value}" style="font-family:${f.value ? `'${f.value}', sans-serif` : 'inherit'}">${f.label}</option>`
+      ).join('');
+    }
+    const T = CONFIG[t.toUpperCase()];
+    sel.value = T.font || '';
+  });
 }
 
 function renderNameEditor() {
@@ -3259,6 +3314,9 @@ function syncTitle() {
     if (scol) CONFIG[t.toUpperCase()].strokeColor = scol.value;
     const sw = document.getElementById(`${t}strokew`);
     if (sw) CONFIG[t.toUpperCase()].strokeWidth = parseFloat(sw.value) || 0;
+    // Police personnalisée (Google Font display/graffiti) — vide = défaut du jeu
+    const fnt = document.getElementById(`${t}font`);
+    if (fnt) CONFIG[t.toUpperCase()].font = fnt.value || '';
   });
   saveTitleConfig();
   _renderAll();
