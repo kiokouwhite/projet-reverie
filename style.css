@@ -613,6 +613,17 @@ body.top8-no-import #pageTop8 .main,
 body.top8-no-import #pageTop8 #topPage {
   justify-content: center;
 }
+/* Le bouton "Masquer panneau gauche" est positionné en absolu par rapport
+   à .main avec left: 444px (= 24px padding + 420px panel + ~mi-gap). Quand
+   la carte est centrée, on recale le bouton juste à droite de la carte
+   centrée : centre de .main (50%) + demi-largeur du panneau (210px) + 8px
+   de respiration, et on le passe par-dessus la carte (z-index 5) pour
+   qu'il ne reste pas tucké derrière. */
+body.top8-no-import #topPage.main .page-collapse-btn,
+body.top8-no-import #topPage .page-collapse-btn {
+  left: calc(50% + 218px);
+  z-index: 5;
+}
 
 /* ── TAROT CAROUSEL ─────────────────────────────────────── */
 .tc-nav {
