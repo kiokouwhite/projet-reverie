@@ -206,7 +206,10 @@
       const yPct   = Math.max(12, Math.min(88, slot.y + jitterY));
       // Tailles variées (320-460px) pour casser l'uniformité.
       const size   = 320 + ((_hashStr(g.name + '_sz') % 140));
-      const delay  = 0.4 + i * 0.10;
+      // Delays alignés sur ceux des filler clouds (0-0.48s) pour que les
+      // cartes-jeux fassent partie de la même vague d'explosion au lieu
+      // d'apparaître séparément ~1s plus tard.
+      const delay  = 0.05 + i * 0.07;
       const color  = g.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length];
       const emoji  = g.emoji || DEFAULT_EMOJIS[i % DEFAULT_EMOJIS.length];
       const sub    = g.sub != null ? g.sub : '';
@@ -236,6 +239,21 @@
     root.classList.add('stage-' + phase);
   }
 
+  // Déclenche l'animation d'entrée sur les cartes-jeux fraîchement ajoutées,
+  // indépendamment de la phase globale (utile quand cloudAnimSetGames est
+  // appelée APRÈS que clouds-in soit terminé — fetch start.gg > 1.3s).
+  function triggerItemsEntering(layer) {
+    if (!layer) return;
+    const items = layer.querySelectorAll('.cloud-item');
+    items.forEach(el => el.classList.add('cloud-item-entering'));
+    // Retire la classe après que toutes les animations soient finies
+    // (max delay ~0.4s + 1.2s d'animation = ~1.6s) pour laisser le bob
+    // de clouds-hold prendre le relais.
+    setTimeout(() => {
+      items.forEach(el => el.classList.remove('cloud-item-entering'));
+    }, 1800);
+  }
+
   // ── API publique ──
   function cloudAnimStart(initialGames) {
     if (_started) return; // déjà en cours
@@ -260,6 +278,12 @@
   function cloudAnimSetGames(games) {
     if (!_started) return;
     renderGameCards(games);
+    // Anime systématiquement l'entrée des nouvelles cartes (peu importe la
+    // phase courante : si elles arrivent en clouds-hold parce que le fetch
+    // a été lent, elles font quand même leur explosion individuelle).
+    const root = document.getElementById('cloudAnimRoot');
+    const layer = root && root.querySelector('.cloud-items-layer');
+    requestAnimationFrame(() => triggerItemsEntering(layer));
   }
 
   function _doEnd() {
@@ -402,7 +426,11 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.cloud-stage.stage-clouds-in .cloud-item {
+.cloud-stage.stage-clouds-in .cloud-item,
+.cloud-stage .cloud-item.cloud-item-entering {
+  /* Anime aussi via .cloud-item-entering (classe transitoire) pour que
+     les cartes ajoutées en cours de clouds-hold (réseau lent) jouent
+     quand même leur explosion d'entrée individuelle. */
   animation: cloudItemIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--delay);
 }
