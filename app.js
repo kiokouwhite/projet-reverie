@@ -714,6 +714,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   await document.fonts.load('800 40px Montserrat');
   await document.fonts.load('900 40px Montserrat'); // Black weight (encore utilisé ailleurs)
   await document.fonts.load('400 40px Anton');
+  // Précharge TOUTES les polices display/graffiti dispo dans le sélecteur de
+  // titres (TITLE_FONTS). Sans ça, canvas ne les utilise pas tant qu'aucun
+  // élément DOM ne les a déclenchées → l'utilisateur voit Montserrat fallback.
+  if (typeof TITLE_FONTS !== 'undefined' && Array.isArray(TITLE_FONTS)) {
+    await Promise.all(TITLE_FONTS
+      .filter(f => f.value)  // skip "Par défaut" (value vide)
+      .map(f => document.fonts.load(`${f.weight} 40px "${f.value}"`).catch(() => null))
+    );
+  }
   await loadCropsJson();
   if (typeof lmInitCoffreSelector === 'function') lmInitCoffreSelector();
   updateGame(true); // initialise currentGame, players, loadTitleConfig, renderSlots, generatePreview
@@ -3377,6 +3386,7 @@ function resetPlayerNameCfg(i) {
 }
 
 function syncTitle() {
+  let fontsToLoad = [];
   ['t1','t2','t3'].forEach(t => {
     ['x','y','s','l'].forEach(prop => {
       const slider = document.getElementById(`${t}${prop}`);
@@ -3392,10 +3402,23 @@ function syncTitle() {
     if (sw) CONFIG[t.toUpperCase()].strokeWidth = parseFloat(sw.value) || 0;
     // Police personnalisée (Google Font display/graffiti) — vide = défaut du jeu
     const fnt = document.getElementById(`${t}font`);
-    if (fnt) CONFIG[t.toUpperCase()].font = fnt.value || '';
+    if (fnt) {
+      CONFIG[t.toUpperCase()].font = fnt.value || '';
+      if (fnt.value && typeof _fontMeta === 'function') {
+        const meta = _fontMeta(fnt.value);
+        fontsToLoad.push(`${meta.weight} 40px "${fnt.value}"`);
+      }
+    }
   });
   saveTitleConfig();
-  _renderAll();
+  // Précharge les polices sélectionnées avant de rendre, sinon le canvas
+  // utilise la fallback Montserrat pour la 1re frame (jusqu'au load du WOFF).
+  if (fontsToLoad.length) {
+    Promise.all(fontsToLoad.map(spec => document.fonts.load(spec).catch(() => null)))
+      .then(() => _renderAll());
+  } else {
+    _renderAll();
+  }
 }
 
 function syncTitleNum(sliderId, numId) {
