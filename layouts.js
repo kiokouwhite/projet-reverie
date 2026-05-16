@@ -50,10 +50,12 @@ const LAYOUTS = {
     playerCount: 3,
     rankLabels: ['1','2','3'],
     rankDisplay: ['1er','2e','3e'],
+    // imgPadTop : décale l'image du perso vers le bas pour ne pas couvrir
+    // les numéros 1/2/3 baked dans le fond (qui dépassent au-dessus des cercles).
     slots: [
-      { cx:929,  cy:627,  r:185, nameY:830,  rankX:929,  rankY:470 },
-      { cx:631,  cy:1162, r:155, nameY:1330, rankX:631,  rankY:1020},
-      { cx:1174, cy:1162, r:150, nameY:1330, rankX:1174, rankY:1020},
+      { cx:929,  cy:627,  r:185, nameY:830,  rankX:929,  rankY:470,  imgPadTop:90 },
+      { cx:631,  cy:1162, r:155, nameY:1330, rankX:631,  rankY:1020, imgPadTop:70 },
+      { cx:1174, cy:1162, r:150, nameY:1330, rankX:1174, rankY:1020, imgPadTop:70 },
     ],
     slotType: 'circle',
     // hideRanks : ne dessine pas les numéros 1/2/3 par-dessus (déjà

@@ -2170,15 +2170,20 @@ function drawLayoutSlots(ctx, layout, sc) {
     // Pour les slots de type 'circle' (GGST), on dérive le bounding box du
     // rayon (slot.r) car ils n'ont pas de w/h défini → sinon NaN et image
     // jamais visible.
+    // slot.imgPadTop : décale l'image vers le BAS de N px (et la rétrécit
+    // d'autant). Utile quand un numéro est baked dans le fond au-dessus du
+    // slot et qu'on ne veut pas que le perso le couvre (cas GGST slot 1).
     if (char) {
       const halfW = (slot.w != null ? slot.w / 2 : (slot.r || 0)) * sc;
       const halfH = (slot.h != null ? slot.h / 2 : (slot.r || 0)) * sc;
+      const padTopPx = (slot.imgPadTop || 0) * sc;
+      const cyShifted = slot.cy*sc + padTopPx / 2;
       drawCharWithCrop(ctx, char, p.costume, {
         pts: [[slot.cx*sc - halfW, slot.cy*sc + halfH],
               [slot.cx*sc + halfW, slot.cy*sc + halfH],
-              [slot.cx*sc + halfW, slot.cy*sc - halfH],
-              [slot.cx*sc - halfW, slot.cy*sc - halfH]],
-        cx: slot.cx*sc, cy: slot.cy*sc, nameY: slot.nameY*sc
+              [slot.cx*sc + halfW, slot.cy*sc - halfH + padTopPx],
+              [slot.cx*sc - halfW, slot.cy*sc - halfH + padTopPx]],
+        cx: slot.cx*sc, cy: cyShifted, nameY: slot.nameY*sc
       }, sc, p.charImgUrl);
     }
 
