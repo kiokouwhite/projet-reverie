@@ -56,6 +56,9 @@ const LAYOUTS = {
       { cx:1174, cy:1162, r:150, nameY:1330, rankX:1174, rankY:1020},
     ],
     slotType: 'circle',
+    // hideRanks : ne dessine pas les numéros 1/2/3 par-dessus (déjà
+    // intégrés dans l'image de fond ggst.jpg).
+    hideRanks: true,
   },
 
   // ── TEKKEN 8 — 3 joueurs, cartes inclinées ───────────────────────────────

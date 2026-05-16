@@ -2155,12 +2155,15 @@ function drawLayoutSlots(ctx, layout, sc) {
 
     ctx.restore();
 
-    // Numéro de placement
-    const numColor = rankColors[i] || '#ffffff';
-    ctx.font = `900 ${Math.round(80*sc)}px Montserrat, sans-serif`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = numColor;
-    ctx.fillText(RANK_LABELS[i], slot.rankX*sc, slot.rankY*sc);
+    // Numéro de placement — sauf si le layout demande explicitement de
+    // ne pas l'afficher (ex. GGST a déjà les numéros baked dans le fond).
+    if (!layout.hideRanks) {
+      const numColor = rankColors[i] || '#ffffff';
+      ctx.font = `900 ${Math.round(80*sc)}px Montserrat, sans-serif`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = numColor;
+      ctx.fillText(RANK_LABELS[i], slot.rankX*sc, slot.rankY*sc);
+    }
 
     // Nom du joueur
     if (p.name) {
