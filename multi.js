@@ -135,13 +135,19 @@ async function importAllEvents() {
           });
         }
         // ── Wire fond start.gg vers le pill game-selector ──
-        // On mappe le nom start.gg vers notre gameId interne (detectGameFromStartGG)
-        // pour chaque jeu trouvé → le pill peut afficher l'image start.gg comme fond.
+        // Trois chemins pour identifier le bon gameId interne :
+        //  1. Jeu built-in (Smash, SF6...) → detectGameFromStartGG()
+        //  2. Layout custom du coffre → findCoffreLayoutForGame() (= layout.id)
+        //  3. Sinon on saute (rien à wirer dans le <select>)
         if (img?.url && typeof gameSelectorSetStartggImage === 'function') {
           const gameName = e.videogame.displayName || e.videogame.name || '';
-          const internalId = (typeof detectGameFromStartGG === 'function')
+          let internalId = (typeof detectGameFromStartGG === 'function')
             ? detectGameFromStartGG(gameName)
             : null;
+          if (!internalId && typeof findCoffreLayoutForGame === 'function') {
+            const customMatch = findCoffreLayoutForGame(gameName || e.name);
+            if (customMatch?.id) internalId = customMatch.id;
+          }
           if (internalId) gameSelectorSetStartggImage(internalId, img.url);
         }
       });
