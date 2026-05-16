@@ -609,15 +609,15 @@ body.top8-no-import #pageTop8 .main,
 body.top8-no-import #pageTop8 #topPage {
   justify-content: center;
 }
-/* Le bouton "Masquer panneau gauche" est positionné en absolu par rapport
-   à .main avec left: 444px (= 24px padding + 420px panel + ~mi-gap). Quand
-   la carte est centrée, on recale le bouton juste à droite de la carte
-   centrée : centre de .main (50%) + demi-largeur du panneau (210px) + 8px
-   de respiration, et on le passe par-dessus la carte (z-index 5) pour
-   qu'il ne reste pas tucké derrière. */
+/* Bouton "Masquer panneau gauche" en mode no-import (carte centrée) :
+   - Le panel-left fait 420px externe MAIS il a padding 20px, donc le
+     contenu visible (.tc-card) est seulement 380px de large.
+   - Demi-largeur visible : 190px à partir du centre.
+   - On colle le bouton juste à droite de ce bord visible : 190 + 8 = 198px.
+   z-index 5 pour qu'il passe par-dessus le panel au lieu de rester tucké. */
 body.top8-no-import #topPage.main .page-collapse-btn,
 body.top8-no-import #topPage .page-collapse-btn {
-  left: calc(50% + 218px);
+  left: calc(50% + 198px);
   z-index: 5;
 }
 
