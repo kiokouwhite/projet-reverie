@@ -642,6 +642,34 @@ function hrTcGo(target) {
 
 function hrTcNavigate(delta) { hrTcGo(_hrTcActive + delta); }
 
+// ── Scroll-to-adjust sur les <input type="range"> ─────────────────────────────
+// Permet d'utiliser la molette pour régler finement un slider :
+//   - scroll up   → +step
+//   - scroll down → −step
+//   - Shift+scroll → ×10 (pour les longs intervalles)
+// Délégation globale au document → marche pour les sliders dynamiques (rendus
+// par renderNameEditor, etc.) sans avoir à re-binder à chaque re-render.
+document.addEventListener('wheel', function(e) {
+  const el = e.target;
+  if (!el || el.tagName !== 'INPUT' || el.type !== 'range') return;
+  if (el.disabled) return;
+  e.preventDefault();
+  const step = parseFloat(el.step) || 1;
+  const mult = e.shiftKey ? 10 : 1;
+  const delta = (e.deltaY < 0 ? 1 : -1) * step * mult;
+  const min = el.min !== '' ? parseFloat(el.min) : -Infinity;
+  const max = el.max !== '' ? parseFloat(el.max) : Infinity;
+  let v = (parseFloat(el.value) || 0) + delta;
+  v = Math.max(min, Math.min(max, v));
+  // Arrondit aux multiples de step pour éviter les valeurs flottantes bizarres
+  if (step >= 1) v = Math.round(v);
+  else            v = Math.round(v / step) * step;
+  el.value = v;
+  // Déclenche 'input' (au lieu de 'change') car la plupart des handlers du
+  // projet écoutent 'input' pour reagir en temps réel.
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}, { passive: false });
+
 document.addEventListener('DOMContentLoaded', async () => {
   _loadNameCfgsFromStorage();
   _loadSlotCfgsFromStorage();
