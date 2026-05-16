@@ -113,6 +113,9 @@
     const out = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
     return '#' + out.map(v => v.toString(16).padStart(2, '0')).join('');
   }
+  // Alias pour mixer 2 couleurs hex (utile pour assombrir/éclaircir : passer
+  // #000 ou #fff comme 2e couleur avec un ratio t).
+  const mixHex = hexLerp;
 
   function smoothstep(x) {
     const c = Math.max(0, Math.min(1, x));
@@ -577,12 +580,16 @@
 
     const bgEl = _multiRoot.querySelector('.gs-pill-bg');
     if (bgEl) {
-      bgEl.style.background = `linear-gradient(180deg, ${tint}f5 0%, ${tint} 100%)`;
+      // Gradient full opacité (plus de tint+f5 qui washait le haut) +
+      // dégrade vers une version légèrement plus sombre en bas pour donner
+      // du volume sans introduire de blanc.
+      const darker = mixHex(tint, '#000000', 0.18);
+      bgEl.style.background = `linear-gradient(180deg, ${tint} 0%, ${darker} 100%)`;
       // Look clean : un fin liseré gris discret + un highlight intérieur
-      // sur le haut. Pas de glow néon, pas d'ombre colorée.
+      // très léger sur le haut (0.18 au lieu de 0.6) pour ne pas blanchir.
       bgEl.style.boxShadow = `
-        0 0 0 1px rgba(0,0,0,0.08),
-        inset 0 1px 0 rgba(255,255,255,0.6)`;
+        0 0 0 1px rgba(0,0,0,0.10),
+        inset 0 1px 0 rgba(255,255,255,0.18)`;
     }
     // Couleur des flèches : dérive de la dominante mais TOUJOURS contraste
     // avec le cercle blanc des arrows (sinon flèche blanche invisible).
