@@ -38,6 +38,75 @@
     return GAME_THEME[gameId] || FALLBACK_THEME;
   }
 
+  // ── Extraction de la couleur dominante d'une image ──
+  // Charge l'image off-screen, downscale en 32×32, fait la moyenne des pixels
+  // non-transparents pour approximer la couleur principale. Cache par URL.
+  // Utilisé pour aligner le "néant" du pill (gradient bg) sur l'esthétique
+  // du fond du jeu, plutôt qu'un tint pastel hardcodé.
+  const _dominantCache = {};
+  const _dominantPending = {};
+  function extractDominantColor(url, cb) {
+    if (!url) { cb(null); return; }
+    if (_dominantCache[url]) { cb(_dominantCache[url]); return; }
+    if (_dominantPending[url]) {
+      _dominantPending[url].push(cb);
+      return;
+    }
+    _dominantPending[url] = [cb];
+    const finish = (hex) => {
+      _dominantCache[url] = hex;
+      const subs = _dominantPending[url] || [];
+      delete _dominantPending[url];
+      subs.forEach(fn => { try { fn(hex); } catch (e) {} });
+    };
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const SIZE = 32;
+        const c = document.createElement('canvas');
+        c.width = SIZE; c.height = SIZE;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, SIZE, SIZE);
+        const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i+3] < 100) continue;          // transparent
+          // Pondère légèrement vers les couleurs saturées (skip les gris fades)
+          const max = Math.max(data[i], data[i+1], data[i+2]);
+          const min = Math.min(data[i], data[i+1], data[i+2]);
+          const sat = max - min;
+          const w = 1 + sat / 64; // 1..5
+          r += data[i]   * w;
+          g += data[i+1] * w;
+          b += data[i+2] * w;
+          n += w;
+        }
+        if (!n) return finish(null);
+        const rh = Math.round(r/n).toString(16).padStart(2,'0');
+        const gh = Math.round(g/n).toString(16).padStart(2,'0');
+        const bh = Math.round(b/n).toString(16).padStart(2,'0');
+        finish('#' + rh + gh + bh);
+      } catch (e) {
+        // CORS ou autre → fallback null, le theme par défaut sera utilisé
+        finish(null);
+      }
+    };
+    img.onerror = () => finish(null);
+    img.src = url;
+  }
+
+  // Luminance d'une couleur hex → ink contrastant (blanc/foncé)
+  function pickInkFor(hex) {
+    if (!hex) return null;
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    // Luminance perçue (formule sRGB linéaire approx)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum < 0.55 ? '#ffffff' : '#1a1a1f';
+  }
+
   function hexLerp(a, b, t) {
     const pa = a.replace('#','').match(/.{2}/g).map(x => parseInt(x, 16));
     const pb = b.replace('#','').match(/.{2}/g).map(x => parseInt(x, 16));
@@ -64,22 +133,35 @@
       const theme = themeFor(id);
       // bg : start.gg si dispo, sinon le PNG/JPG local par défaut
       const sggUrl = _startggBg[id];
-      let bg;
+      let bg, imgUrlForDom = null;
       if (sggUrl) {
         // ⚠️ url(...) en SIMPLE QUOTES : le style inline est lui-même
         // wrappé en double-quotes, donc des " dans url() ferment l'attribut
         // prématurément et la propriété background n'est jamais appliquée.
         bg = `linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.32)), url('${sggUrl}') center/cover`;
+        imgUrlForDom = sggUrl;
       } else {
         // Fond intégré ou dégradé pastel basé sur la teinte du jeu
         const localBgUrl = guessLocalBg(id);
         if (localBgUrl) {
           bg = `linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.28)), url('${localBgUrl}') center/cover`;
+          imgUrlForDom = localBgUrl;
         } else {
           bg = makeGradient(theme);
         }
       }
-      games.push({ id, name: opt.textContent.trim(), tint: theme.tint, ink: theme.ink, bg });
+      // Couleur dominante extraite si déjà cachée, sinon theme par défaut
+      // (l'extraction async re-déclenche un render quand elle revient).
+      const cachedDom = imgUrlForDom ? _dominantCache[imgUrlForDom] : null;
+      const tint = cachedDom || theme.tint;
+      const ink  = cachedDom ? pickInkFor(cachedDom) : theme.ink;
+      if (imgUrlForDom && !cachedDom) {
+        extractDominantColor(imgUrlForDom, () => {
+          // Re-trigger refresh après extraction → le pill prend la vraie couleur
+          if (_root) refresh();
+        });
+      }
+      games.push({ id, name: opt.textContent.trim(), tint, ink, bg });
     });
     return games;
   }
@@ -376,18 +458,28 @@
       // Image start.gg per-graph en priorité, puis _startggBg global,
       // puis bg local, puis dégradé.
       const sgg = g.videogameImageUrl || _startggBg[id];
-      let bg;
+      let bg, imgUrlForDom = null;
       if (sgg) {
-        // Single quotes pour url() — voir commentaire dans readGamesFromSelect
         bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url('${sgg}') center/cover`;
+        imgUrlForDom = sgg;
       } else {
         const local = guessLocalBg(id);
-        if (local) bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url('${local}') center/cover`;
-        else       bg = makeGradient(theme);
+        if (local) {
+          bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url('${local}') center/cover`;
+          imgUrlForDom = local;
+        } else {
+          bg = makeGradient(theme);
+        }
       }
-      return {
-        id, name: g.gameName || id, tint: theme.tint, ink: theme.ink, bg
-      };
+      const cachedDom = imgUrlForDom ? _dominantCache[imgUrlForDom] : null;
+      const tint = cachedDom || theme.tint;
+      const ink  = cachedDom ? pickInkFor(cachedDom) : theme.ink;
+      if (imgUrlForDom && !cachedDom) {
+        extractDominantColor(imgUrlForDom, () => {
+          if (_multiRoot) _multiRender();
+        });
+      }
+      return { id, name: g.gameName || id, tint, ink, bg };
     });
   }
 
@@ -490,8 +582,19 @@
         inset 0 1px 0 rgba(255,255,255,0.7),
         inset 0 -1px 0 ${ink}1a`;
     }
+    // Couleur des flèches : dérive de la dominante mais TOUJOURS contraste
+    // avec le cercle blanc des arrows (sinon flèche blanche invisible).
+    // → si ink est blanc/clair, on prend un version sombre de la dominante.
+    let arrowColor = ink;
+    if (ink === '#ffffff' || (ink && ink.toLowerCase() === '#ffffff')) {
+      // L'ink est blanc parce que le fond est sombre. Pour les arrows on
+      // dérive une version plus foncée de la teinte pour rester lisible
+      // sur le cercle blanc. Approximation : la teinte dominante elle-même
+      // est déjà sombre, on l'utilise direct.
+      arrowColor = tint;
+    }
     _multiRoot.querySelectorAll('.gs-arrow').forEach(a => {
-      a.style.color = ink;
+      a.style.color = arrowColor;
       // Désactive visuellement les flèches quand il n'y a qu'1 graph
       const disabled = N <= 1;
       a.style.opacity = disabled ? '0.35' : '1';
