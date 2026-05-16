@@ -2042,6 +2042,17 @@ canvas { width: 100%; display: block; }
   width: 44px !important;
   min-width: 0;
   box-sizing: border-box;
+  /* Cache la spinner (~15px) pour libérer de la place : sans ça les
+     valeurs à 3 chiffres ou avec décimale (903, 11.5) étaient tronquées
+     en "90" / "11," dans le cadre 44px. L'utilisateur peut toujours
+     taper ou utiliser le slider à côté pour modifier la valeur. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.title-row input[type=number]::-webkit-outer-spin-button,
+.title-row input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* Lignes contenant un color-pick (titres LIGNE 1/2/3 + bloc pseudos) :
