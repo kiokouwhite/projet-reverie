@@ -1877,6 +1877,11 @@ canvas { width: 100%; display: block; }
   background: #f5eeff;
   border-radius: 14px;
   padding: 12px;
+  /* Empêche tout débordement horizontal de l'un des enfants (slot card,
+     input, etc.) de sortir du cadre purple. */
+  overflow: hidden;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .editor-block-title {
@@ -2095,6 +2100,12 @@ canvas { width: 100%; display: block; }
   border-radius: 12px;
   margin-bottom: 8px;
   overflow: hidden;
+  box-sizing: border-box;
+  max-width: 100%;
+  /* Hard cap pour éviter tout débordement à cause d'un input pseudo trop
+     large (placeholder + flex:1 peut pousser la flex-line au-delà du
+     conteneur si min-width:0 n'est pas garanti). */
+  min-width: 0;
 }
 
 .name-player-header {
@@ -2104,6 +2115,17 @@ canvas { width: 100%; display: block; }
   padding: 8px;
   background: linear-gradient(135deg, #fff0fa, #f5eeff);
   border-bottom: 2px dashed var(--border);
+  /* min-width:0 sur le flex container pour autoriser les enfants flex:1
+     à shrink correctement et ne pas déborder. */
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Les inputs dans le header ne doivent jamais déborder même avec un long
+   placeholder ou un texte saisi (input width par défaut ~155px en flex). */
+.name-player-header input[type=text] {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .name-rank-badge {
@@ -2118,6 +2140,8 @@ canvas { width: 100%; display: block; }
 
 .name-player-sliders {
   padding: 8px 12px 6px 10px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* ── ÉDITEUR DE CARTE (Tekken 8 etc.) ───────────────────── */
