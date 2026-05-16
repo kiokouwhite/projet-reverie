@@ -742,11 +742,10 @@
   background-position: center;
   will-change: opacity, transform;
 }
+/* Highlight haut retiré : le dégradé blanc 0→35% créait une zone
+   brillante mal-aimée sur le pill. */
 .gs-pill-highlight {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 50%);
-  pointer-events: none;
+  display: none;
 }
 .gs-text-layer {
   position: absolute;
