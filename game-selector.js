@@ -622,9 +622,8 @@
     const txLayers = _multiRoot.querySelector('.gs-text-layers');
     if (bgLayers) {
       // BG_MAX_OPACITY < 1 → laisse transparaître la couleur de fond du pill
-      // (.gs-pill-bg + glow néon) à travers l'image du jeu, pour un effet
-      // moins opaque demandé par l'utilisateur.
-      const BG_MAX_OPACITY = 0.7;
+      // à travers l'image du jeu, pour un effet "filtre" très subtil.
+      const BG_MAX_OPACITY = 0.4;
       bgLayers.innerHTML = layers.map(l => `
         <div class="gs-bg-layer" style="background:${l.g.bg};opacity:${(l.fade * BG_MAX_OPACITY).toFixed(3)};transform:translate3d(${l.bgTx}%,0,0);"></div>
       `).join('');
