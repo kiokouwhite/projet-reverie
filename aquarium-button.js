@@ -47,12 +47,22 @@
     return { x: nx, y: ny, hitNX, hitNY, hit };
   }
 
+  // Seuils minimums pour considérer qu'on a une vraie taille de rendu finale
+  // — pas une taille intermédiaire pendant une transition page-section.
+  // L'aquarium cible est 240×56, on demande au moins 80% de chaque dimension.
+  const MIN_MOUNT_W = 180;
+  const MIN_MOUNT_H = 40;
+
   // ── Init d'un bouton ─────────────────────────────────────────
   function mountAquariumButton(btn) {
     // Si déjà monté : cleanup avant de re-mount (utile sur resize / revisite onglet)
     if (btn.dataset.aqMounted === '1') {
       if (btn._aqRaf) cancelAnimationFrame(btn._aqRaf);
       if (btn._aqResizeObs) btn._aqResizeObs.disconnect();
+      if (btn._aqRemountTimer) {
+        clearTimeout(btn._aqRemountTimer);
+        btn._aqRemountTimer = null;
+      }
       if (btn._aqVisHandler) {
         document.removeEventListener('visibilitychange', btn._aqVisHandler);
         btn._aqVisHandler = null;
@@ -69,18 +79,28 @@
     const text = btn.dataset.aqText;
     const W = btn.offsetWidth || 260;
     const H = btn.offsetHeight || 64;
-    // Si le bouton n'est pas encore rendu (largeur 0), on diffère le mount
-    // — sinon les positions calculées via getBoundingClientRect sont à zéro
-    // et toutes les lettres se retrouvent empilées au coin top-left.
-    if (W < 20 || H < 20) {
+    // Si le bouton n'est pas encore à sa taille finale (largeur 0, ou
+    // largeur intermédiaire pendant une transition page-section), on diffère
+    // le mount jusqu'à ce que la taille se stabilise. Sans ça, les positions
+    // home des lettres sont calculées sur une largeur trop petite et toutes
+    // les lettres restent empilées au coin top-left une fois le layout
+    // stabilisé sur la vraie largeur.
+    if (W < MIN_MOUNT_W || H < MIN_MOUNT_H) {
       btn.dataset.aqMounted = '';
-      // ResizeObserver pour re-essayer dès que le bouton a une taille réelle
+      // ResizeObserver pour re-essayer dès que la taille est stable
       if (typeof ResizeObserver !== 'undefined') {
+        let stableTimer = null;
         const ro = new ResizeObserver(() => {
-          if (btn.offsetWidth >= 20 && btn.offsetHeight >= 20) {
-            ro.disconnect();
-            mountAquariumButton(btn);
-          }
+          if (stableTimer) clearTimeout(stableTimer);
+          // Attend 120ms sans changement de taille avant de monter, pour
+          // éviter de monter sur une frame intermédiaire de transition.
+          stableTimer = setTimeout(() => {
+            if (btn.offsetWidth >= MIN_MOUNT_W && btn.offsetHeight >= MIN_MOUNT_H) {
+              ro.disconnect();
+              // requestAnimationFrame pour laisser le layout/fonts se poser
+              requestAnimationFrame(() => mountAquariumButton(btn));
+            }
+          }, 120);
         });
         ro.observe(btn);
         btn._aqResizeObs = ro;
@@ -426,14 +446,27 @@
     // sur l'onglet Top 8 après que le layout ait été recalculé, ou window
     // resize). Sans ça, les positions des lettres restent calées sur la
     // taille au moment du mount d'origine et se désynchronisent visuellement.
+    // Debounce : on attend que la taille arrête de bouger avant de re-mount.
+    // Sinon, lors d'un page-switch, on peut re-mount sur une taille
+    // intermédiaire et toutes les positions se calent à la mauvaise échelle
+    // → lettres aplaties dans le coin.
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(entries => {
         for (const e of entries) {
           const nw = Math.round(e.contentRect.width);
           const nh = Math.round(e.contentRect.height);
           if (nw > 0 && nh > 0 && (Math.abs(nw - W) > 4 || Math.abs(nh - H) > 4)) {
-            ro.disconnect();
-            mountAquariumButton(btn);
+            if (btn._aqRemountTimer) clearTimeout(btn._aqRemountTimer);
+            btn._aqRemountTimer = setTimeout(() => {
+              btn._aqRemountTimer = null;
+              const cw = btn.offsetWidth, ch = btn.offsetHeight;
+              // Re-vérification finale : on ne re-mount QUE si la taille
+              // actuelle est valide (sinon on attend la prochaine notification)
+              if (cw >= MIN_MOUNT_W && ch >= MIN_MOUNT_H) {
+                ro.disconnect();
+                requestAnimationFrame(() => mountAquariumButton(btn));
+              }
+            }, 120);
             return;
           }
         }
