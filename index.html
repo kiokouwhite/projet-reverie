@@ -1223,8 +1223,19 @@
           <div class="editor-preview-label">Aperçu en direct</div>
           <div class="editor-bg-quick">
             <input type="file" id="bgFileEditorQuick" accept="image/*" style="display:none" onchange="loadBgEditor(event)">
-            <button class="btn editor-btn-bg" onclick="document.getElementById('bgFileEditorQuick').click()">🖼️ Changer le fond</button>
+            <button class="btn editor-btn-bg" onclick="openBgPicker()">🖼️ Changer le fond</button>
             <span id="editorBgLabel" class="editor-bg-label">Fond par défaut</span>
+          </div>
+          <!-- Modale de sélection de fond : ouverte par openBgPicker(),
+               affiche les fonds intégrés + une tuile "Importer un fond". -->
+          <div id="bgPickerModal" class="bg-picker-modal" style="display:none;" onclick="if(event.target===this)closeBgPicker()">
+            <div class="bg-picker-box">
+              <div class="bg-picker-header">
+                <span>🖼️ Choisir un fond</span>
+                <button class="bg-picker-close" onclick="closeBgPicker()" title="Fermer">✕</button>
+              </div>
+              <div id="bgPickerGrid" class="bg-picker-grid"></div>
+            </div>
           </div>
         </div>
         <div class="editor-canvas-wrap">

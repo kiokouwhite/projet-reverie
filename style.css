@@ -2090,6 +2090,114 @@ canvas { width: 100%; display: block; }
   max-width: 120px;
 }
 
+/* ── Modale picker de fond (dans l'éditeur) ───────────────────────── */
+.bg-picker-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 20, 70, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250; /* au-dessus de la modale éditeur (z-index: 200) */
+  padding: 20px;
+}
+.bg-picker-box {
+  background: linear-gradient(135deg, #fef9ff, #fff5fd);
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  box-shadow: 0 20px 60px rgba(130,80,220,0.3);
+  width: min(720px, 96vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.bg-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 2px dashed var(--border);
+  font-family: 'Fraunces', 'Montserrat', serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--purple-deep);
+}
+.bg-picker-close {
+  width: 30px; height: 30px;
+  border: none;
+  background: #f4f0fa;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.bg-picker-close:hover { background: #e8def5; color: #222; }
+.bg-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 18px;
+  overflow-y: auto;
+}
+.bg-picker-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 14px;
+  transition: transform 0.12s ease;
+}
+.bg-picker-tile:hover { transform: translateY(-2px); }
+.bg-picker-tile:active { transform: translateY(0); }
+.bg-picker-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  box-shadow: 0 6px 18px rgba(120, 90, 180, 0.18);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bg-picker-tile:hover .bg-picker-thumb {
+  border-color: var(--purple);
+  box-shadow: 0 10px 24px rgba(120, 90, 180, 0.32);
+}
+.bg-picker-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple-deep);
+  text-align: center;
+  line-height: 1.2;
+}
+.bg-picker-thumb-import {
+  background: linear-gradient(135deg, #f4eefb 0%, #f9eff5 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-width: 2.5px;
+}
+.bg-picker-import-icon {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--purple);
+  opacity: 0.7;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.bg-picker-tile-import:hover .bg-picker-import-icon {
+  opacity: 1;
+  transform: translateY(-4px);
+}
+
 /* Sélecteur de police pour les titres (T1/T2/T3) dans l'éditeur :
    flex pour prendre la largeur restante après le label "Police". */
 .title-font-select {

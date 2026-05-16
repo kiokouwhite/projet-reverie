@@ -3495,6 +3495,70 @@ function loadBgEditor(event) {
   }
 }
 
+// ── PICKER DE FOND (modale "Choisir un fond") ─────────────────────────────────
+// Liste des fonds intégrés au repo. file = chemin relatif depuis la racine
+// (sera passé à assetUrl() pour le CDN), label = ce que l'utilisateur lit.
+const BUILTIN_BACKGROUNDS = [
+  { file: 'backgrounds/ssbu.jpg',    label: 'Smash Ultimate' },
+  { file: 'backgrounds/sf6.jpg',     label: 'Street Fighter 6' },
+  { file: 'backgrounds/ggst.jpg',    label: 'Guilty Gear -Strive-' },
+  { file: 'backgrounds/tekken8.jpg', label: 'Tekken 8' },
+  { file: 'backgrounds/2xko.jpg',    label: '2XKO' },
+];
+
+function openBgPicker() {
+  const modal = document.getElementById('bgPickerModal');
+  const grid  = document.getElementById('bgPickerGrid');
+  if (!modal || !grid) return;
+  // Construit les tuiles : 1 par fond intégré + la tuile "Importer"
+  const tiles = BUILTIN_BACKGROUNDS.map(bg => {
+    const url = (typeof assetUrl === 'function') ? assetUrl(bg.file) : bg.file;
+    const filename = bg.file.split('/').pop();
+    return `<button class="bg-picker-tile" onclick="applyBuiltinBg('${bg.file.replace(/'/g,"\\'")}', '${filename}')">
+              <div class="bg-picker-thumb" style="background-image:url('${url}');"></div>
+              <div class="bg-picker-name">${bg.label}</div>
+            </button>`;
+  }).join('');
+  const importTile = `
+    <button class="bg-picker-tile bg-picker-tile-import" onclick="closeBgPicker();document.getElementById('bgFileEditorQuick').click();">
+      <div class="bg-picker-thumb bg-picker-thumb-import">
+        <span class="bg-picker-import-icon">⬆</span>
+      </div>
+      <div class="bg-picker-name">Importer un fond</div>
+    </button>`;
+  grid.innerHTML = tiles + importTile;
+  modal.style.display = 'flex';
+}
+
+function closeBgPicker() {
+  const modal = document.getElementById('bgPickerModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function applyBuiltinBg(relPath, filename) {
+  // Charge l'image du fond intégré → l'applique exactement comme un import.
+  const url = (typeof assetUrl === 'function') ? assetUrl(relPath) : relPath;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    if (typeof bgImg !== 'undefined') bgImg = img;
+    // Met à jour les labels comme loadBgEditor
+    const el = document.getElementById('uploadContentEditor');
+    if (el) el.innerHTML = `✅ <strong>${filename}</strong>`;
+    const ql = document.getElementById('editorBgLabel');
+    if (ql) ql.textContent = filename;
+    // Refresh des deux canvas (principal + éditeur)
+    if (typeof generatePreview === 'function') generatePreview();
+    if (typeof renderEditorCanvas === 'function') renderEditorCanvas();
+    closeBgPicker();
+  };
+  img.onerror = () => {
+    alert('Impossible de charger ce fond : ' + filename);
+    closeBgPicker();
+  };
+  img.src = url;
+}
+
 // Compose le nom d'affichage d'un joueur pour les tweets : "TEAM | NAME" si team.
 function formatPlayerForTweet(p) {
   if (!p) return '???';
