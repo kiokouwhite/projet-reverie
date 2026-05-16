@@ -244,6 +244,8 @@
     _root.querySelectorAll('.gs-arrow').forEach(a => a.style.color = ink);
 
     // Layers visibles (jeu courant + voisins proches pour le crossfade)
+    // bgTx = 0 → fondu pur sur les fonds (pas de frontière visible)
+    // textTx > 0 → le texte glisse latéralement pour donner l'illusion du swipe
     const layers = _games.map((g, i) => {
       let d = i - virtual;
       if (d >  N / 2) d -= N;
@@ -251,11 +253,12 @@
       const absD = Math.abs(d);
       if (absD >= 1.2) return null;
       const fade = smoothstep(1 - absD);
-      const motionPct = 55;     // % de glissement
-      const parallaxPx = 14;    // parallaxe du texte
-      const bgTx   = d * motionPct;
+      const textMotion = 60;    // % de glissement du texte seulement
+      const parallaxPx = 14;    // parallaxe additionnel (peak mid-swipe)
+      const bgTx   = 0;         // ← FONDU PUR : pas de translation sur le fond
+      const textTx = d * textMotion;
       const textPx = Math.sin(absD * Math.PI) * parallaxPx * Math.sign(d || 1);
-      return { g, i, fade, bgTx, textTx: d * motionPct, textPx };
+      return { g, i, fade, bgTx, textTx, textPx };
     }).filter(Boolean);
 
     const bgLayers = _root.querySelector('.gs-bg-layers');
@@ -493,6 +496,7 @@
       a.style.cursor  = disabled ? 'not-allowed' : 'pointer';
     });
 
+    // Mode multi : même logique fondu pur sur le fond, swipe sur le texte
     const layers = games.map((g, i) => {
       let d = i - virtual;
       if (d >  N / 2) d -= N;
@@ -500,10 +504,10 @@
       const absD = Math.abs(d);
       if (absD >= 1.2) return null;
       const fade = smoothstep(1 - absD);
-      const motionPct = 55;
+      const textMotion = 60;
       const parallaxPx = 14;
       const textPx = Math.sin(absD * Math.PI) * parallaxPx * Math.sign(d || 1);
-      return { g, i, fade, bgTx: d * motionPct, textTx: d * motionPct, textPx };
+      return { g, i, fade, bgTx: 0, textTx: d * textMotion, textPx };
     }).filter(Boolean);
 
     const bgLayers = _multiRoot.querySelector('.gs-bg-layers');
