@@ -74,11 +74,15 @@ async function importAllEvents() {
 
   try {
     // 1. Récupérer tous les events du tournoi
+    // On demande à la fois numEntrants (champ cached) ET entrants.pageInfo.totalCount
+    // (compte réel via la table entrants). Le second est plus fiable :
+    // numEntrants peut être stale ou ne refléter que les participants en bracket.
     const td = await gqlFetch(apiKey, `
       query($slug:String!) { tournament(slug:$slug) {
         name
         events {
           id slug name numEntrants
+          entrants(query:{perPage:1,page:1}) { pageInfo { totalCount } }
           videogame { name displayName images { url type } }
         }
       }}`, { slug });
@@ -102,9 +106,16 @@ async function importAllEvents() {
         if (!e.videogame) return;
         const vgId = e.videogame.id || e.videogame.name;
         if (!vgId) return;
+        // entrants.pageInfo.totalCount est le compte fiable (interroge la
+        // table). On fallback sur numEntrants seulement si totalCount est
+        // null/0 et numEntrants > 0.
+        const realCount = e.entrants?.pageInfo?.totalCount;
+        const cnt = (realCount != null && realCount > 0)
+          ? realCount
+          : (e.numEntrants || 0);
         const existing = gameMap.get(vgId);
         if (existing) {
-          existing.entrants += (e.numEntrants || 0);
+          existing.entrants += cnt;
         } else {
           const imgs = e.videogame.images || [];
           const img  = imgs.find(i => i.type === 'profile')
@@ -113,7 +124,7 @@ async function importAllEvents() {
           gameMap.set(vgId, {
             name:     e.videogame.displayName || e.videogame.name || e.name,
             imgUrl:   img?.url || null,
-            entrants: e.numEntrants || 0,
+            entrants: cnt,
           });
         }
       });
