@@ -68,6 +68,10 @@ async function importAllEvents() {
   btn.disabled = true; btn.textContent = '⏳';
   showStatus('loading', '⏳ Récupération des events...');
 
+  // ── Animation nuages : enclenchée DÈS le clic, avant la requête réseau ──
+  // (cloud-animation.js définit ces helpers globalement)
+  if (typeof cloudAnimStart === 'function') cloudAnimStart();
+
   try {
     // 1. Récupérer tous les events du tournoi
     const td = await gqlFetch(apiKey, `
@@ -80,7 +84,33 @@ async function importAllEvents() {
       }}`, { slug });
 
     const tournament = td?.data?.tournament;
-    if (!tournament) { showStatus('error', '❌ Tournoi introuvable.'); btn.disabled=false; btn.textContent='🔍 Chercher'; return; }
+    if (!tournament) {
+      showStatus('error', '❌ Tournoi introuvable.');
+      if (typeof cloudAnimCancel === 'function') cloudAnimCancel();
+      btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+    }
+
+    // ── Update des cartes-nuages avec les vrais jeux du tournoi ──
+    if (typeof cloudAnimSetGames === 'function') {
+      const cloudGames = (tournament.events || [])
+        .filter(e => e.videogame)
+        .slice(0, 5)
+        .map(e => {
+          // Privilégie une image carrée si disponible (logo/profile), sinon
+          // n'importe quelle image. Le fallback emoji s'applique sans imgUrl.
+          const imgs = e.videogame?.images || [];
+          const img  = imgs.find(i => i.type === 'profile')
+                    || imgs.find(i => i.type === 'primary')
+                    || imgs[0];
+          return {
+            name:     e.videogame?.displayName || e.videogame?.name || e.name,
+            sub:      e.name && e.name !== (e.videogame?.displayName || '') ? '' : '',
+            entrants: e.numEntrants ? e.numEntrants + ' entrants' : '',
+            imgUrl:   img?.url || null,
+          };
+        });
+      cloudAnimSetGames(cloudGames);
+    }
 
     // Auto-détecte le format Magna depuis le nom du tournoi AVANT le
     // filtrage des events — comme ça si on est en Magna, on peut inclure
@@ -134,11 +164,13 @@ async function importAllEvents() {
 
     if (!events.length && !noLayoutEvents.length) {
       showStatus('error', '❌ Aucun event trouvé dans ce tournoi.');
+      if (typeof cloudAnimCancel === 'function') cloudAnimCancel();
       btn.disabled=false; btn.textContent='🔍 Chercher'; return;
     }
 
     if (!events.length) {
       showStatus('success', `✅ "${tournament.name}" — ${noLayoutEvents.length} jeu(x) sans layout détectés, crée un layout pour les utiliser !`);
+      if (typeof cloudAnimEnd === 'function') cloudAnimEnd();
       btn.disabled=false; btn.textContent='🔍 Chercher'; return;
     }
 
@@ -339,8 +371,12 @@ async function importAllEvents() {
 
     showStatus('success', `✅ ${graphs.length} graph(s) générés pour "${tournament.name}" !`);
 
+    // ── Fin de l'animation : les nuages se dissipent et le preview apparaît ──
+    if (typeof cloudAnimEnd === 'function') cloudAnimEnd();
+
   } catch(err) {
     showStatus('error', '❌ Erreur : ' + err.message);
+    if (typeof cloudAnimCancel === 'function') cloudAnimCancel();
   }
 
   btn.disabled = false; btn.textContent = '🔍 Chercher';
