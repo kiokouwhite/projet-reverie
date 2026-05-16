@@ -3124,33 +3124,39 @@ function renderNameEditor() {
                style="width:54px;font-size:12px;padding:5px 7px;">
         <input type="text" placeholder="Pseudo" value="${escHtml(p.name||'')}"
                oninput="players[${i}].name=this.value;renderSlots();generatePreview();"
-               style="flex:1;font-size:12px;padding:5px 7px;">
-        <input type="color" value="${cfg.color}" class="color-pick"
-               oninput="syncNamePlayer(${i},{color:this.value})" title="Couleur du nom">
+               style="flex:1;min-width:0;font-size:12px;padding:5px 7px;">
       </div>
       <div class="name-player-sliders">
         <div class="title-row">
           <span>Taille</span>
-          <input type="range" min="10" max="110" value="${cfg.size}" style="flex:1"
+          <input type="range" min="10" max="110" value="${cfg.size}" style="min-width:0"
                  oninput="this.nextElementSibling.value=this.value;syncNamePlayer(${i},{size:+this.value})">
-          <input type="number" min="10" max="110" value="${cfg.size}" style="width:52px;"
+          <input type="number" min="10" max="110" value="${cfg.size}"
                  oninput="this.previousElementSibling.value=this.value;syncNamePlayer(${i},{size:+this.value})">
         </div>
         <div class="title-row">
           <span>Décalage X</span>
-          <input type="range" min="-400" max="400" value="${cfg.xOffset}" style="flex:1"
+          <input type="range" min="-400" max="400" value="${cfg.xOffset}" style="min-width:0"
                  oninput="this.nextElementSibling.value=this.value;syncNamePlayer(${i},{xOffset:+this.value})">
-          <input type="number" min="-400" max="400" value="${cfg.xOffset}" style="width:52px;"
+          <input type="number" min="-400" max="400" value="${cfg.xOffset}"
                  oninput="this.previousElementSibling.value=this.value;syncNamePlayer(${i},{xOffset:+this.value})">
         </div>
         <div class="title-row">
           <span>Décalage Y</span>
-          <input type="range" min="-400" max="400" value="${cfg.yOffset}" style="flex:1"
+          <input type="range" min="-400" max="400" value="${cfg.yOffset}" style="min-width:0"
                  oninput="this.nextElementSibling.value=this.value;syncNamePlayer(${i},{yOffset:+this.value})">
-          <input type="number" min="-400" max="400" value="${cfg.yOffset}" style="width:52px;"
+          <input type="number" min="-400" max="400" value="${cfg.yOffset}"
                  oninput="this.previousElementSibling.value=this.value;syncNamePlayer(${i},{yOffset:+this.value})">
         </div>
-        <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-top:2px;"
+        <!-- Couleur du nom : déplacée ici sous les décalages pour libérer
+             le header (qui avait du mal à tenir badge + 2 inputs + color
+             + hex sans déborder). -->
+        <div class="title-row name-color-row">
+          <span>Couleur</span>
+          <input type="color" value="${cfg.color}" class="color-pick"
+                 oninput="syncNamePlayer(${i},{color:this.value})" title="Couleur du nom">
+        </div>
+        <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-top:4px;"
                 onclick="resetPlayerNameCfg(${i})">↩ Reset nom</button>
       </div>
       ${cardControls}

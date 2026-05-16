@@ -1999,12 +1999,18 @@ canvas { width: 100%; display: block; }
 /* ── ÉDITEUR DE TITRES ──────────────────────────────────── */
 .title-row {
   display: grid;
-  /* 4e colonne `auto` pour les unités (%, px) qui sinon passaient à la ligne */
-  grid-template-columns: 55px 1fr 50px auto;
+  /* 55px label + 1fr slider + 44px number + auto unit (% / px).
+     min-width: 0 sur tous les enfants pour permettre au slider de shrink
+     correctement et ne pas pousser le number input hors du cadre. */
+  grid-template-columns: 55px minmax(0, 1fr) 44px auto;
   align-items: center;
   gap: 5px;
   margin-bottom: 6px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
+.title-row > * { min-width: 0; }
 .title-row span {
   font-size: 11px;
   font-weight: 700;
@@ -2033,9 +2039,37 @@ canvas { width: 100%; display: block; }
   padding: 4px 2px;
   border-radius: 8px;
   text-align: center;
-  width: 50px !important;
+  width: 44px !important;
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* Ligne couleur dans un .name-player-sliders : sort de la grille
+   title-row pour utiliser un flex simple (label gauche, color-pick
+   + hex à droite) — visuellement aligné avec les autres rows mais
+   plus aéré. */
+.name-color-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.name-color-row > span {
+  flex: 0 0 55px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.name-color-row .color-pick {
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+}
+/* Si injectColorExtras ajoute une hex-input + bouton pipette à côté
+   du color-pick, ils doivent rester contenus. */
+.name-color-row .hex-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 130px;
 }
 
 /* ── COLOR PICKER ───────────────────────────────────────── */
