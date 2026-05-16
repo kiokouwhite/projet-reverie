@@ -600,6 +600,29 @@ body::before {
 .panel-left { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0; overflow: hidden; min-height: 0; }
 .panel-right { flex: 1; overflow-y: auto; min-height: 0; }
 
+/* En mode normal Top 8 : on transforme panel-right en flex column dont le
+   canvas-wrap prend tout l'espace vertical dispo (avec aspect-ratio: 1 +
+   max-height: 100%), pour que l'aperçu Top 8 rentre en entier sans qu'on
+   ait à scroller la page. */
+body:not(.top8-no-import) #pageTop8 .panel-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#pageTop8 .top8-main-area {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#pageTop8 .top8-main-area .canvas-wrap {
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+}
+
 /* ── État "aucun tournoi importé" sur la page Top 8 ──────
    Quand body.top8-no-import est actif : on cache le panneau droit
    (preview + actions) et on centre le panneau gauche (carte/TV) au
