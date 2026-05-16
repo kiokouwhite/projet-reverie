@@ -1243,8 +1243,69 @@ select {
   overflow: hidden;
   border: 3px solid var(--border);
   box-shadow: 0 6px 30px rgba(100,50,200,0.2);
+  /* Conserve un ratio carré (comme le rendu canvas natif 1400x1400) même
+     quand le canvas est masqué par l'état vide — sinon le wrap se réduit
+     à la hauteur du seul message et ça paraît cassé. */
+  aspect-ratio: 1 / 1;
+  position: relative;
 }
 canvas { width: 100%; display: block; }
+
+/* État vide du preview (aucun tournoi importé) */
+.preview-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(124,92,255,0.18), rgba(232,90,138,0.18)),
+              linear-gradient(135deg, #1a0a2e, #2a1050);
+}
+.preview-empty-icon {
+  font-size: 64px;
+  margin-bottom: 18px;
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 12px rgba(124,92,255,0.5));
+  animation: previewEmptyFloat 3.2s ease-in-out infinite;
+}
+@keyframes previewEmptyFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.preview-empty-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 12px 0;
+  background: linear-gradient(135deg, #c4b5fd, #f5d4e8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.preview-empty-text {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.55;
+  max-width: 440px;
+  margin: 0 0 14px 0;
+  color: rgba(255,255,255,0.85);
+}
+.preview-empty-text strong {
+  color: #fff;
+  font-weight: 800;
+}
+.preview-empty-hint {
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(255,255,255,0.55);
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.5;
+}
+.preview-empty-hint strong { color: rgba(255,255,255,0.8); font-weight: 700; }
 
 /* ── PREVIEW ACTIONS ────────────────────────────────────── */
 .preview-actions {

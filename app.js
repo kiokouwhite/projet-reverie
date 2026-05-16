@@ -2743,7 +2743,34 @@ function drawMagnaTitle(ctx, width, height, sc) {
   ctx.restore();
 }
 
+// État vide : on cache le canvas et on montre un message guidant
+// l'utilisateur vers l'import start.gg tant qu'aucune donnée n'a été
+// importée. Évite d'afficher le template Lorem Ipsum par défaut.
+function _previewHasAnyData() {
+  // Réutilise la même heuristique que _tcHasAnyImport() : au moins un
+  // joueur nommé, ou au moins un graph dans le mode multi.
+  if (typeof _tcHasAnyImport === 'function') return _tcHasAnyImport();
+  const hasPlayer = (typeof players !== 'undefined' && Array.isArray(players)
+                     && players.some(p => p && p.name));
+  const hasGraph  = (typeof graphs !== 'undefined' && Array.isArray(graphs) && graphs.length > 0);
+  return hasPlayer || hasGraph;
+}
+
+function _togglePreviewEmptyState() {
+  const empty  = document.getElementById('previewEmptyState');
+  const canvas = document.getElementById('previewCanvas');
+  if (!empty || !canvas) return false;
+  const isEmpty = !_previewHasAnyData();
+  empty.style.display  = isEmpty ? 'flex' : 'none';
+  canvas.style.display = isEmpty ? 'none' : '';
+  return isEmpty;
+}
+
 function generatePreview() {
+  // Avant tout : si aucun tournoi importé, on affiche l'état vide et on
+  // saute le rendu canvas (sinon on verrait le template Lorem Ipsum par défaut).
+  if (_togglePreviewEmptyState()) return;
+
   // Précharger les murals puis dessiner
   const toLoad = [];
   players.forEach(p => {

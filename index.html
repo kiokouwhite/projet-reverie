@@ -247,6 +247,14 @@
       <div class="top8-main-area">
         <div class="canvas-wrap">
           <canvas id="previewCanvas"></canvas>
+          <!-- État vide : affiché tant qu'aucun tournoi n'est importé.
+               JS toggle dans generatePreview() / renderEmptyState(). -->
+          <div id="previewEmptyState" class="preview-empty-state" style="display:none;">
+            <div class="preview-empty-icon">🎮</div>
+            <h2 class="preview-empty-title">Aucun tournoi importé</h2>
+            <p class="preview-empty-text">Colle un lien <strong>start.gg</strong> dans le panneau <strong>Import</strong> à gauche pour charger automatiquement les joueurs, les personnages et générer ton aperçu Top 8.</p>
+            <p class="preview-empty-hint">Tu peux aussi remplir manuellement les joueurs dans l'onglet <strong>Joueurs &amp; Personnages</strong> (icône 👥).</p>
+          </div>
         </div>
       </div>
 
