@@ -460,12 +460,14 @@
       const sgg = g.videogameImageUrl || _startggBg[id];
       let bg, imgUrlForDom = null;
       if (sgg) {
-        bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url('${sgg}') center/cover`;
+        // Overlay très léger juste pour aider le contraste texte blanc
+        // sans assombrir le visuel du jeu (overlay 0.10 max au lieu de 0.42).
+        bg = `linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.18)), url('${sgg}') center/cover`;
         imgUrlForDom = sgg;
       } else {
         const local = guessLocalBg(id);
         if (local) {
-          bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url('${local}') center/cover`;
+          bg = `linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.16)), url('${local}') center/cover`;
           imgUrlForDom = local;
         } else {
           bg = makeGradient(theme);
@@ -576,15 +578,15 @@
     const bgEl = _multiRoot.querySelector('.gs-pill-bg');
     if (bgEl) {
       bgEl.style.background = `linear-gradient(180deg, ${tint}f5 0%, ${tint} 100%)`;
-      // Effet néon : 3 couches de glow externes (proche / mid / large) basées
-      // sur la teinte dominante. + un bord coloré 1px + inner highlight blanc.
+      // Effet néon (3 couches de glow externes) + liseré coloré. On a retiré
+      // l'inset -1px noir qui assombrissait le bas du pill, et on a poussé
+      // le highlight intérieur du haut pour rendre l'ensemble plus lumineux.
       bgEl.style.boxShadow = `
         0 0 0 1.5px ${tint}cc,
         0 0 8px ${tint}aa,
         0 0 18px ${tint}88,
         0 0 36px ${tint}55,
-        inset 0 1px 0 rgba(255,255,255,0.55),
-        inset 0 -1px 0 ${ink}33`;
+        inset 0 1px 0 rgba(255,255,255,0.8)`;
     }
     // Couleur des flèches : dérive de la dominante mais TOUJOURS contraste
     // avec le cercle blanc des arrows (sinon flèche blanche invisible).
