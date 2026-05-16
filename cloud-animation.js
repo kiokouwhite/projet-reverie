@@ -77,38 +77,71 @@
 
   // ── Mur de nuages dense (couvre tout le viewport) ──
   // x/y : position du centre du nuage en % du viewport
-  // w   : taille du SVG en px (varie de 220 à 780 pour briser la régularité)
+  // w   : taille du SVG en px (varie de 220 à 820 pour briser la régularité)
   // d   : délai d'apparition en secondes (échelonné pour un effet d'explosion)
   // s   : index de forme (0..3) — 4 silhouettes différentes (cf. CLOUD_SHAPES)
-  // Les nuages les plus gros et nombreux sont autour des bords/coins pour
-  // garantir la couverture, mais on intercale des petits puffs au centre
-  // pour casser la régularité visuelle.
+  // ~35 nuages : couverture totale du viewport sans laisser apparaître le
+  // fond, avec un mix dense de tailles et de formes pour éviter la régularité.
   const FILLER_CLOUDS = [
-    // Coins/bords : gros nuages standard ou wide
-    { x: 8,   y: -2,  w: 720, d: 0.00, s: 0 },
-    { x: 92,  y: 0,   w: 680, d: 0.05, s: 2 },
-    { x: 5,   y: 100, w: 740, d: 0.10, s: 0 },
-    { x: 95,  y: 102, w: 700, d: 0.08, s: 2 },
-    // Hauts / bas : forme wide pour bien remplir l'horizon
-    { x: 50,  y: -6,  w: 780, d: 0.12, s: 2 },
-    { x: 50,  y: 104, w: 760, d: 0.14, s: 2 },
-    // Bandes médianes (gauche / droite) : nuages tall
-    { x: -5,  y: 35,  w: 580, d: 0.18, s: 1 },
-    { x: 105, y: 38,  w: 560, d: 0.20, s: 1 },
-    { x: -8,  y: 70,  w: 540, d: 0.16, s: 1 },
-    { x: 108, y: 72,  w: 600, d: 0.22, s: 1 },
-    // Centre-bas / centre-haut : tailles moyennes-grandes, formes variées
-    { x: 28,  y: 28,  w: 480, d: 0.26, s: 3 },
-    { x: 72,  y: 24,  w: 520, d: 0.28, s: 0 },
-    { x: 32,  y: 72,  w: 500, d: 0.30, s: 3 },
-    { x: 68,  y: 76,  w: 540, d: 0.32, s: 0 },
-    // Petits puffs au centre pour casser la régularité
-    { x: 50,  y: 50,  w: 320, d: 0.36, s: 3 },
-    { x: 22,  y: 52,  w: 280, d: 0.34, s: 3 },
-    { x: 78,  y: 48,  w: 260, d: 0.34, s: 3 },
-    { x: 42,  y: 38,  w: 220, d: 0.40, s: 3 },
-    { x: 60,  y: 62,  w: 240, d: 0.42, s: 3 },
+    // ── Ceinture extérieure (déborde du viewport pour couvrir les bords)
+    { x: -5,  y: -8,  w: 760, d: 0.00, s: 0 },
+    { x: 30,  y: -10, w: 820, d: 0.04, s: 2 },
+    { x: 60,  y: -8,  w: 800, d: 0.06, s: 2 },
+    { x: 105, y: -5,  w: 760, d: 0.08, s: 0 },
+    { x: -8,  y: 102, w: 780, d: 0.10, s: 0 },
+    { x: 30,  y: 105, w: 820, d: 0.12, s: 2 },
+    { x: 65,  y: 103, w: 800, d: 0.14, s: 2 },
+    { x: 108, y: 100, w: 760, d: 0.16, s: 0 },
+    // ── Médianes latérales : grands nuages tall pour murer les côtés
+    { x: -10, y: 25,  w: 620, d: 0.18, s: 1 },
+    { x: 110, y: 28,  w: 600, d: 0.20, s: 1 },
+    { x: -10, y: 55,  w: 640, d: 0.22, s: 1 },
+    { x: 110, y: 58,  w: 620, d: 0.24, s: 1 },
+    { x: -8,  y: 85,  w: 580, d: 0.26, s: 1 },
+    { x: 108, y: 88,  w: 600, d: 0.28, s: 1 },
+    // ── Bandes intermédiaires (couvrent les zones entre les bords et le centre)
+    { x: 18,  y: 18,  w: 540, d: 0.20, s: 0 },
+    { x: 50,  y: 14,  w: 560, d: 0.22, s: 3 },
+    { x: 82,  y: 18,  w: 540, d: 0.24, s: 0 },
+    { x: 15,  y: 40,  w: 480, d: 0.26, s: 3 },
+    { x: 85,  y: 42,  w: 500, d: 0.28, s: 3 },
+    { x: 18,  y: 65,  w: 520, d: 0.30, s: 0 },
+    { x: 82,  y: 68,  w: 540, d: 0.32, s: 0 },
+    { x: 18,  y: 88,  w: 480, d: 0.34, s: 3 },
+    { x: 50,  y: 92,  w: 560, d: 0.36, s: 2 },
+    { x: 82,  y: 88,  w: 500, d: 0.38, s: 3 },
+    // ── Zone centrale : couches successives pour empêcher toute transparence
+    { x: 35,  y: 35,  w: 460, d: 0.30, s: 0 },
+    { x: 65,  y: 38,  w: 480, d: 0.32, s: 3 },
+    { x: 50,  y: 50,  w: 520, d: 0.40, s: 0 },
+    { x: 30,  y: 60,  w: 440, d: 0.36, s: 3 },
+    { x: 70,  y: 62,  w: 460, d: 0.38, s: 0 },
+    { x: 45,  y: 72,  w: 420, d: 0.42, s: 3 },
+    // ── Petits puffs aléatoires pour combler les rares trous résiduels
+    { x: 25,  y: 8,   w: 280, d: 0.44, s: 3 },
+    { x: 75,  y: 6,   w: 300, d: 0.44, s: 3 },
+    { x: 8,   y: 50,  w: 260, d: 0.46, s: 3 },
+    { x: 92,  y: 50,  w: 280, d: 0.46, s: 3 },
+    { x: 60,  y: 82,  w: 320, d: 0.48, s: 3 },
   ];
+
+  // ── Slots pseudo-aléatoires pour les cartes-jeux ──
+  // Au lieu d'aligner les jeux sur un arc horizontal central, on les
+  // disperse sur tout l'écran (avec marge des bords) selon des positions
+  // choisies à la main qui paraissent "naturelles" / non-rectangulaires.
+  // L'ordre est aussi réordonné par hash du nom du jeu pour que deux
+  // imports différents donnent des dispositions différentes.
+  const GAME_SLOTS = [
+    { x: 22, y: 30 }, { x: 78, y: 22 }, { x: 50, y: 50 },
+    { x: 15, y: 68 }, { x: 82, y: 72 }, { x: 50, y: 18 },
+    { x: 30, y: 80 }, { x: 70, y: 45 }, { x: 42, y: 38 },
+    { x: 62, y: 68 },
+  ];
+  function _hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
 
   // ── Création (lazy) du DOM de l'animation ──
   function ensureRoot() {
@@ -158,12 +191,21 @@
     if (!layer) return;
     if (!games || !games.length) { layer.innerHTML = ''; return; }
     const total = games.length;
+    // Disposition pseudo-aléatoire : on choisit un slot différent pour
+    // chaque jeu en partant d'un offset basé sur le hash des noms (donc
+    // stable d'un re-render à l'autre pour le même tournoi, mais varié
+    // entre deux tournois différents).
+    const slotOffset = _hashStr(games.map(g => g.name || '').join('|')) % GAME_SLOTS.length;
     layer.innerHTML = games.map((g, i) => {
-      const t      = total > 1 ? i / (total - 1) : 0.5;
-      const xPct   = 12 + t * 76;
-      const arc    = Math.sin(t * Math.PI) * 14;
-      const yPct   = 48 - arc;
-      const size   = 360 + Math.sin(t * Math.PI) * 100;
+      const slot   = GAME_SLOTS[(slotOffset + i) % GAME_SLOTS.length];
+      // Léger jitter déterministe (±4%) pour casser l'alignement parfait
+      // des slots prédéfinis sans risquer de chevauchement.
+      const jitterX = ((_hashStr(g.name + '_x') % 80) - 40) / 10; // ±4%
+      const jitterY = ((_hashStr(g.name + '_y') % 80) - 40) / 10;
+      const xPct   = Math.max(10, Math.min(90, slot.x + jitterX));
+      const yPct   = Math.max(12, Math.min(88, slot.y + jitterY));
+      // Tailles variées (320-460px) pour casser l'uniformité.
+      const size   = 320 + ((_hashStr(g.name + '_sz') % 140));
       const delay  = 0.4 + i * 0.10;
       const color  = g.color || DEFAULT_COLORS[i % DEFAULT_COLORS.length];
       const emoji  = g.emoji || DEFAULT_EMOJIS[i % DEFAULT_EMOJIS.length];
@@ -172,7 +214,8 @@
       const iconInner = g.imgUrl
         ? `<img src="${escHtml(g.imgUrl)}" alt="" loading="lazy" />`
         : `<span>${escHtml(emoji)}</span>`;
-      // Vecteur depuis le centre vers la position finale (en vw/vh).
+      // Vecteur depuis la position finale vers le centre (50%, 50%) en vw/vh
+      // → utilisé par l'animation pour partir du centre et y revenir.
       const dx = -(xPct - 50);
       const dy = -(yPct - 50);
       return `
