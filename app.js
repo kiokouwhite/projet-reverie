@@ -3764,24 +3764,92 @@ function postToTwitter() {
   });
 }
 
-function postToInstagram() {
-  // Copier le texte
-  const textEl = document.getElementById('tweetText');
-  if (textEl && textEl.value) {
-    textEl.select();
-    textEl.setSelectionRange(0, 99999);
-    try { document.execCommand('copy'); } catch(e) {}
+async function postToInstagram() {
+  // Récupère la config bot (clés localStorage partagées avec Discord/Tournament Watch)
+  const botUrl = (localStorage.getItem('dc_bot_url') || localStorage.getItem('hr_bot_url') || '').trim().replace(/\/+$/, '');
+  const secret = (localStorage.getItem('dc_bot_secret') || localStorage.getItem('hr_bot_secret') || '').trim();
+  if (!botUrl || !secret) {
+    alert('⚠️ Le QR Instagram nécessite que le bot soit configuré.\nOnglet Configuration → URL du bot + Secret.');
+    return;
   }
+  // Extrait le PNG du canvas de preview
+  const preview = document.getElementById('previewCanvas');
+  if (!preview || !preview.width) {
+    alert('Aucun aperçu disponible. Génère d\'abord le Top 8.');
+    return;
+  }
+  const text = (document.getElementById('tweetText') || {}).value || '';
+  const name = (document.getElementById('tournamentName') || {}).value || 'tournoi';
+  const filename = 'top8_' + (typeof currentGame !== 'undefined' ? currentGame + '_' : '') + name.replace(/\s/g, '_') + '.png';
+  let pngBase64;
+  try {
+    pngBase64 = preview.toDataURL('image/png');
+  } catch (e) {
+    alert('Impossible de lire l\'aperçu : ' + e.message);
+    return;
+  }
+  // Affiche la modale en état "chargement" pendant l'upload
+  showInstaQRModal({ loading: true });
+  try {
+    const r = await fetch(`${botUrl}/insta-share/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-secret': secret },
+      body: JSON.stringify({ pngBase64, text, filename }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.url) throw new Error('Réponse invalide du serveur');
+    showInstaQRModal({ url: data.url });
+  } catch (e) {
+    closeInstaQRModal();
+    alert('Erreur d\'upload : ' + e.message);
+  }
+}
 
-  // Télécharger l'image
-  const ok = triggerDownload();
-  if (ok) {
-    const hint = document.getElementById('instaHint');
-    if (hint) {
-      hint.style.display = 'block';
-      setTimeout(function() { hint.style.display = 'none'; }, 10000);
-    }
+// Modale QR code pour scanner avec le téléphone
+function showInstaQRModal(opts) {
+  opts = opts || {};
+  let modal = document.getElementById('instaQRModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'instaQRModal';
+    modal.className = 'insta-qr-modal';
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeInstaQRModal();
+    });
+    document.body.appendChild(modal);
   }
+  if (opts.loading) {
+    modal.innerHTML = `
+      <div class="insta-qr-box">
+        <div class="insta-qr-spinner"></div>
+        <div class="insta-qr-loading">Upload de l'image…</div>
+      </div>`;
+    modal.style.display = 'flex';
+    return;
+  }
+  if (opts.url) {
+    // QR code via api.qrserver.com (gratuit, fiable, pas de dépendance JS)
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=10&data=' + encodeURIComponent(opts.url);
+    modal.innerHTML = `
+      <div class="insta-qr-box">
+        <button type="button" class="insta-qr-close" onclick="closeInstaQRModal()" title="Fermer">✕</button>
+        <h2 class="insta-qr-title">📷 Scanne avec ton téléphone</h2>
+        <p class="insta-qr-sub">Ouvre l'appareil photo de ton téléphone et vise le QR code ci-dessous.</p>
+        <div class="insta-qr-imgwrap"><img src="${qrSrc}" alt="QR code" class="insta-qr-img"></div>
+        <p class="insta-qr-hint">Sur la page qui s'ouvre, appuie sur <strong>Partager → Instagram</strong>.</p>
+        <div class="insta-qr-url-row">
+          <input type="text" class="insta-qr-url" value="${opts.url}" readonly onclick="this.select()">
+          <button type="button" class="insta-qr-copy" onclick="navigator.clipboard.writeText('${opts.url}').then(()=>{this.textContent='✓'; setTimeout(()=>this.textContent='📋',1500);})">📋</button>
+        </div>
+        <p class="insta-qr-expire">⏱️ Lien valide 30 minutes.</p>
+      </div>`;
+    modal.style.display = 'flex';
+  }
+}
+function closeInstaQRModal() {
+  const modal = document.getElementById('instaQRModal');
+  if (modal) modal.style.display = 'none';
 }
 // ── EYEDROPPER (pipette écran) ────────────────────────────────────────────────
 function openEyeDropper(inputEl) {

@@ -1275,6 +1275,161 @@ app.get('/chat/history', (req, res) => {
   res.json({ ok: true, messages: _chatMessages.slice(-limit) });
 });
 
+// ── PARTAGE INSTAGRAM (QR code → téléphone) ─────────────────────────────────
+// L'app web upload un PNG + texte → on retourne une URL avec token court.
+// L'utilisateur scanne le QR code généré côté app → le téléphone ouvre une
+// page HTML mobile-friendly avec navigator.share() pour pousser dans
+// Instagram via la feuille de partage native iOS/Android.
+const _instaShares = new Map(); // token → { png:Buffer, text, filename, createdAt }
+const INSTA_SHARE_TTL = 30 * 60 * 1000; // 30 minutes
+// Nettoyage périodique
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, share] of _instaShares) {
+    if (now - share.createdAt > INSTA_SHARE_TTL) _instaShares.delete(token);
+  }
+}, 5 * 60 * 1000);
+
+function instaRandomToken() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+
+app.post('/insta-share/upload', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const pngBase64 = String(req.body?.pngBase64 || '');
+  const text      = String(req.body?.text     || '');
+  const filename  = String(req.body?.filename || 'top8.png');
+  if (!pngBase64) {
+    res.status(400).json({ ok: false, error: 'pngBase64 requis' });
+    return;
+  }
+  let png;
+  try {
+    png = Buffer.from(pngBase64.replace(/^data:image\/png;base64,/, ''), 'base64');
+  } catch (e) {
+    res.status(400).json({ ok: false, error: 'PNG invalide' });
+    return;
+  }
+  const token = instaRandomToken();
+  _instaShares.set(token, { png, text, filename, createdAt: Date.now() });
+  const base = `${req.protocol}://${req.get('host')}`;
+  res.json({ ok: true, token, url: `${base}/insta-share/${token}` });
+});
+
+// Page mobile : visualisation + bouton Partager (Web Share API → Instagram)
+app.get('/insta-share/:token', (req, res) => {
+  const share = _instaShares.get(req.params.token);
+  if (!share) {
+    res.status(404).type('html').send(`
+      <!doctype html><meta charset="utf-8"><title>Lien expiré</title>
+      <style>body{font-family:system-ui;padding:40px;text-align:center;color:#333;}</style>
+      <h2>⏱️ Lien expiré ou introuvable</h2>
+      <p>Les partages ne sont conservés que 30 minutes. Retourne sur l'app pour générer un nouveau QR code.</p>
+    `);
+    return;
+  }
+  const imgUrl = `/insta-share/${req.params.token}/image`;
+  const escapedText = share.text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  res.type('html').send(`<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Partager sur Instagram</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:linear-gradient(135deg,#fdf4ff 0%,#fff5e6 100%);min-height:100vh;color:#222;}
+  h1{font-size:18px;margin:0 0 16px 0;text-align:center;}
+  .card{background:#fff;border-radius:18px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.08);
+        max-width:480px;margin:0 auto 16px auto;}
+  .img-wrap{display:flex;justify-content:center;background:#f6f3f0;border-radius:12px;overflow:hidden;}
+  .img-wrap img{max-width:100%;height:auto;display:block;}
+  .text-area{width:100%;min-height:120px;margin-top:12px;padding:10px 12px;border-radius:10px;
+             border:1px solid #ddd;font-family:inherit;font-size:14px;resize:vertical;background:#fafafa;}
+  .actions{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+  .btn{display:block;width:100%;padding:14px 18px;border:none;border-radius:999px;
+       font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;text-align:center;
+       transition:transform 0.1s,filter 0.15s;}
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;}
+  .btn-secondary{background:#f0f0f0;color:#222;}
+  .btn:hover{filter:brightness(1.05);}
+  .hint{font-size:12px;color:#666;text-align:center;margin-top:6px;}
+  .ok{color:#2e7d32;font-weight:700;}
+</style>
+</head>
+<body>
+  <h1>📷 Partager sur Instagram</h1>
+  <div class="card">
+    <div class="img-wrap"><img src="${imgUrl}" alt="Top 8"></div>
+    <textarea class="text-area" id="txt" readonly>${escapedText}</textarea>
+    <div class="actions">
+      <button class="btn btn-primary" id="shareBtn">Partager → Instagram</button>
+      <button class="btn btn-secondary" id="copyBtn">📋 Copier le texte</button>
+      <a class="btn btn-secondary" href="${imgUrl}" download="${share.filename}">⬇ Télécharger l'image</a>
+    </div>
+    <p class="hint" id="hint">Sur iPhone/Android, le bouton "Partager" ouvre la feuille de partage avec Instagram.</p>
+  </div>
+
+<script>
+const shareBtn = document.getElementById('shareBtn');
+const copyBtn  = document.getElementById('copyBtn');
+const txt      = document.getElementById('txt');
+const hint     = document.getElementById('hint');
+
+async function doShare() {
+  try {
+    const r = await fetch('${imgUrl}');
+    const blob = await r.blob();
+    const file = new File([blob], '${share.filename}', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        text: txt.value || '',
+      });
+      hint.innerHTML = '<span class="ok">✅ Partage ouvert ! Choisis Instagram dans la liste.</span>';
+    } else {
+      hint.innerHTML = '⚠️ Ce navigateur ne supporte pas le partage natif. Télécharge l\\'image et le texte ci-dessous.';
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      hint.innerHTML = '❌ Erreur : ' + e.message;
+    }
+  }
+}
+
+async function doCopy() {
+  try {
+    txt.removeAttribute('readonly');
+    txt.select();
+    document.execCommand('copy');
+    txt.setAttribute('readonly', '');
+    if (navigator.clipboard) await navigator.clipboard.writeText(txt.value);
+    hint.innerHTML = '<span class="ok">✅ Texte copié ! Colle-le dans Instagram (long-press → Coller).</span>';
+  } catch (e) {
+    hint.innerHTML = '❌ Copie impossible : ' + e.message;
+  }
+}
+
+shareBtn.addEventListener('click', doShare);
+copyBtn.addEventListener('click', doCopy);
+</script>
+</body>
+</html>`);
+});
+
+// Binaire de l'image (référencé par la page mobile)
+app.get('/insta-share/:token/image', (req, res) => {
+  const share = _instaShares.get(req.params.token);
+  if (!share) { res.status(404).send('Not found'); return; }
+  res.set('Content-Type', 'image/png');
+  res.set('Content-Disposition', `inline; filename="${share.filename.replace(/"/g, '')}"`);
+  res.send(share.png);
+});
+
 // ── DÉMARRAGE SERVEUR ─────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
