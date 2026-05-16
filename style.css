@@ -604,6 +604,16 @@ body::before {
 .panel-left { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0; overflow: hidden; min-height: 0; }
 .panel-right { flex: 1; overflow-y: auto; min-height: 0; }
 
+/* ── État "aucun tournoi importé" sur la page Top 8 ──────
+   Quand body.top8-no-import est actif : on cache le panneau droit
+   (preview + actions) et on centre le panneau gauche (carte/TV) au
+   milieu de l'écran pour focaliser sur l'import. */
+body.top8-no-import #pageTop8 .panel-right { display: none !important; }
+body.top8-no-import #pageTop8 .main,
+body.top8-no-import #pageTop8 #topPage {
+  justify-content: center;
+}
+
 /* ── TAROT CAROUSEL ─────────────────────────────────────── */
 .tc-nav {
   display: flex;

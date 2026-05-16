@@ -2763,6 +2763,10 @@ function _togglePreviewEmptyState() {
   const isEmpty = !_previewHasAnyData();
   empty.style.display  = isEmpty ? 'flex' : 'none';
   canvas.style.display = isEmpty ? 'none' : '';
+  // Quand rien n'est importé : on cache complètement le panneau droit
+  // (preview + actions) et on centre le panneau gauche (carte/TV) à l'écran.
+  // Toggle d'une classe sur <body> que le CSS écoute pour ces deux comportements.
+  document.body.classList.toggle('top8-no-import', isEmpty);
   return isEmpty;
 }
 

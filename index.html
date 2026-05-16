@@ -2079,6 +2079,10 @@ function switchTab(tab) {
   const tabConfigEl = document.getElementById('tabConfig');
   if (tabConfigEl) tabConfigEl.classList.toggle('nav-tab-active', tab === 'config');
   // Init pages on first open
+  if (tab === 'top8' && typeof _togglePreviewEmptyState === 'function') {
+    // Resync de l'état vide/centré quand on revient sur Top 8
+    _togglePreviewEmptyState();
+  }
   if (tab === 'discord'  && typeof dcInit  === 'function') dcInit();
   if (tab === 'horaires' && typeof hrInit  === 'function') hrInit();
   if (tab === 'startgg'  && typeof sggInit === 'function') sggInit();
