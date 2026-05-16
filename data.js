@@ -444,7 +444,12 @@ const GAMES = {
       {id:"jacko",name:"Jack-O",icon:"🎃"},{id:"happy",name:"Happy Chaos",icon:"🎩"},
       {id:"baiken",name:"Baiken",icon:"🌸"},{id:"testament",name:"Testament",icon:"💀"},
       {id:"bridget",name:"Bridget",icon:"🪀"},{id:"sin",name:"Sin Kiske",icon:"🍖"},
-      {id:"bedman",name:"Bedman?",icon:"🛏️"},{id:"asuka",name:"Asuka R♯",icon:"📖"}
+      {id:"bedman",name:"Bedman?",icon:"🛏️"},{id:"asuka",name:"Asuka R♯",icon:"📖"},
+      // Persos ajoutés pour matcher STARTGG_TO_ID (sinon find() retourne
+      // undefined et la modale d'édition affiche "Aucun personnage").
+      {id:"dizzy",name:"Dizzy",icon:"🪽"},{id:"elphelt",name:"Elphelt",icon:"💒"},
+      {id:"aba",name:"A.B.A",icon:"🔑"},{id:"johnny",name:"Johnny",icon:"🎩"},
+      {id:"venom",name:"Venom",icon:"🎱"}
     ]
   }
 };

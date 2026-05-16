@@ -1321,8 +1321,13 @@ function renderSlots() {
   const slotCount = getSlotCountToShow();
   players.slice(0, slotCount).forEach((p, i) => {
     const is2xko = currentGame === '2xko';
-    const char  = p.charId  ? GAMES[currentGame].chars.find(c=>c.id===p.charId)  : null;
-    const char2 = (is2xko && p.charId2) ? GAMES[currentGame].chars.find(c=>c.id===p.charId2) : null;
+    let char  = p.charId  ? GAMES[currentGame].chars.find(c=>c.id===p.charId)  : null;
+    let char2 = (is2xko && p.charId2) ? GAMES[currentGame].chars.find(c=>c.id===p.charId2) : null;
+    // Fallback synthétique : si charId est défini mais pas listé dans
+    // GAMES[currentGame].chars (perso pas encore ajouté à la liste interne),
+    // on synthétise une entrée minimale → affiche au moins le nom + icon ?
+    if (!char && p.charId) char = { id: p.charId, name: p.charId, icon: '🎮' };
+    if (!char2 && p.charId2 && is2xko) char2 = { id: p.charId2, name: p.charId2, icon: '🎮' };
     const base  = char  ? ICON_BASENAME[char.id]  : null;
     const base2 = char2 ? ICON_BASENAME[char2.id] : null;
     const stockUrl  = base  ? getStockIconUrl(char.id,  p.costume)  : null;
