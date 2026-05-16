@@ -1305,7 +1305,8 @@ function lmCloseCelebration() {
   // et on bascule sur le slide 4 (Layouts Custom) si possible.
   if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
   if (typeof tcGo === 'function') {
-    try { tcGo(4); } catch(e) {}
+    // Slide Layouts Custom = index 3 (anciennement 4 avant retrait de "Fond")
+    try { tcGo(3); } catch(e) {}
   }
 }
 

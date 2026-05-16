@@ -140,12 +140,13 @@ let currentCharSlot = 1; // 1 = perso principal, 2 = perso secondaire (2XKO)
 })();
 
 // ── TAROT CAROUSEL ────────────────────────────────────────────────────────────
+// Slide "Fond" retirée (le fond est éditable via l'éditeur / le layout
+// custom). Renumérotation : Joueurs passe en III, Layouts en IV.
 const TC_PANELS = [
   { label: 'Import',   roman: 'I',   accent: '#7c5cff', emoji: '🟢', name: 'Import start.gg',       icon: 'import' },
   { label: 'Réglages', roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Paramètres',            icon: 'settings' },
-  { label: 'Fond',     roman: 'III', accent: '#e85a8a', emoji: '🖼️', name: 'Fond',                  icon: 'background' },
-  { label: 'Joueurs',  roman: 'IV',  accent: '#46d18f', emoji: '👥', name: 'Joueurs & Personnages', icon: 'players' },
-  { label: 'Layouts',  roman: 'V',   accent: '#9a7aff', emoji: '🎨', name: 'Layouts Custom',        icon: 'layouts' },
+  { label: 'Joueurs',  roman: 'III', accent: '#46d18f', emoji: '👥', name: 'Joueurs & Personnages', icon: 'players' },
+  { label: 'Layouts',  roman: 'IV',  accent: '#9a7aff', emoji: '🎨', name: 'Layouts Custom',        icon: 'layouts' },
 ];
 
 let _tcActive = 0;

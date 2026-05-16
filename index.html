@@ -164,22 +164,25 @@
               </div>
             </div>
 
-            <!-- Slide 2 : Fond -->
-            <div class="left-slide" id="leftSlide2">
-              <div class="upload-zone" onclick="document.getElementById('bgFile').click()">
-                <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="loadBg(event)">
-                <div id="uploadContent">Clique pour charger ton image de fond<br><span style="font-size:11px;opacity:0.6;">Interchangeable à chaque tournoi</span></div>
+            <!-- Slide Fond retiré : le fond est éditable via l'éditeur de
+                 layout / le coffre custom. Les éléments DOM (bgFile, etc.)
+                 sont conservés cachés ci-dessous pour que loadBg() et les
+                 changements de fond automatiques continuent de fonctionner. -->
+            <div style="display:none;" aria-hidden="true">
+              <div class="upload-zone">
+                <input type="file" id="bgFile" accept="image/*" onchange="loadBg(event)">
+                <div id="uploadContent"></div>
               </div>
             </div>
 
-            <!-- Slide 3 : Joueurs & Personnages -->
-            <div class="left-slide" id="leftSlide3">
+            <!-- Slide 2 : Joueurs & Personnages (anciennement slide 3) -->
+            <div class="left-slide" id="leftSlide2">
               <div class="slots-grid" id="slotsGrid"></div>
             </div>
 
-            <!-- Slide 4 : Layouts Custom (anciennement "coffre", remplacé par
-                 une liste inline directement dans la télé). -->
-            <div class="left-slide" id="leftSlide4">
+            <!-- Slide 3 : Layouts Custom (anciennement slide 4, et avant ça
+                 "coffre", remplacé par une liste inline dans la télé). -->
+            <div class="left-slide" id="leftSlide3">
               <div class="lm-inline-layouts-wrap">
                 <button class="btn btn-primary lm-inline-new-btn" onclick="openLayoutMaker()">✨ Nouveau layout</button>
                 <div id="lmInlineLayoutsGrid" class="lm-inline-layouts-grid"></div>
