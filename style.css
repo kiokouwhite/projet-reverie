@@ -4178,6 +4178,28 @@ canvas { width: 100%; display: block; }
 }
 .main.left-collapsed .panel-right > div:first-child {
   grid-area: topbar;
+  /* En collapsed : le header haut ne montre QUE le pill multiNav
+     (centré dans la cell). Les 3 boutons (Éditer / Rafraîchir /
+     Télécharger) sont cachés ici et reapparaissent dans la sidebar
+     droite via .top8-side-quick-actions. */
+  justify-content: center;
+}
+.main.left-collapsed .panel-right > div:first-child .btn-editor,
+.main.left-collapsed .panel-right > div:first-child .btn-secondary,
+.main.left-collapsed .panel-right > div:first-child .btn-primary {
+  display: none;
+}
+
+/* Duplicata des quick-actions dans la sidebar : caché par défaut,
+   visible UNIQUEMENT en mode collapsed (où il prend le relais des
+   boutons cachés en topbar). */
+.top8-side-quick-actions { display: none; }
+.main.left-collapsed .top8-side-quick-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 6px;
 }
 
 /* Zone principale (canvas) : centrée, contrainte à la taille du cell de grid */
