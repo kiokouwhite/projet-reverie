@@ -4168,8 +4168,10 @@ canvas { width: 100%; display: block; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: auto 1fr;
+  /* topbar (pill game-selector) uniquement au-dessus de la colonne canvas
+     à gauche. La sidebar de droite (boutons) s'étend sur les 2 rangées. */
   grid-template-areas:
-    "topbar topbar"
+    "topbar side"
     "main   side";
   gap: 12px 24px;
   align-items: stretch;
@@ -4179,11 +4181,12 @@ canvas { width: 100%; display: block; }
 }
 .main.left-collapsed .panel-right > div:first-child {
   grid-area: topbar;
-  /* En collapsed : le header haut ne montre QUE le pill multiNav
-     (centré dans la cell). Les 3 boutons (Éditer / Rafraîchir /
-     Télécharger) sont cachés ici et reapparaissent dans la sidebar
-     droite via .top8-side-quick-actions. */
+  /* Pill centré au-dessus du canvas (la cell de gauche). On override
+     le margin-left:auto du #multiNav qui le poussait à droite par défaut. */
   justify-content: center;
+}
+.main.left-collapsed .panel-right #multiNav {
+  margin-left: 0;
 }
 .main.left-collapsed .panel-right > div:first-child .btn-editor,
 .main.left-collapsed .panel-right > div:first-child .btn-secondary,
@@ -4233,7 +4236,9 @@ canvas { width: 100%; display: block; }
   display: block;
 }
 
-/* Sidebar : centrée verticalement ET horizontalement, scrolle si débordement */
+/* Sidebar : centrée verticalement ET horizontalement, scrolle si débordement.
+   Span sur les 2 rangées de la grid (topbar + main) → la sidebar prend
+   toute la hauteur du panneau droit, le pill ne survole que le canvas. */
 .main.left-collapsed .top8-side-area {
   grid-area: side;
   min-height: 0;
