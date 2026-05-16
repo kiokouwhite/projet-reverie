@@ -1877,11 +1877,18 @@ canvas { width: 100%; display: block; }
   background: #f5eeff;
   border-radius: 14px;
   padding: 12px;
-  /* Empêche tout débordement horizontal de l'un des enfants (slot card,
-     input, etc.) de sortir du cadre purple. */
-  overflow: hidden;
+  /* overflow-x: hidden seulement (et pas overflow: hidden tout court),
+     pour clipper les débordements horizontaux SANS clipper verticalement
+     le contenu — sinon les blocs raccourcis par flex-shrink: 1 du parent
+     column se font couper en hauteur (cas du panel PSEUDOS qui devient
+     une seule ligne au lieu d'afficher 3 joueurs). */
+  overflow-x: hidden;
+  overflow-y: visible;
   box-sizing: border-box;
   min-width: 0;
+  /* flex-shrink: 0 pour ne pas se faire écraser par le parent column ;
+     le défilement se fait au niveau de .editor-controls (overflow-y: auto). */
+  flex-shrink: 0;
 }
 
 .editor-block-title {
