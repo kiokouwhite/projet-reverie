@@ -1391,6 +1391,7 @@ async function lmRenderCoffreGrid() {
         </div>
         <div class="coffre-actions">
           <button class="btn btn-primary" style="flex:1;" onclick="lmApplyLayout(${idx})">✅ Utiliser</button>
+          <button class="btn" onclick="closeCoffre();lmOpenForEdit('${escHtml(l.id)}')" title="Modifier">✏️</button>
           <button class="btn" onclick="lmDownloadLayout(${idx})">⬇️</button>
           <button class="btn btn-danger" onclick="lmDeleteLayout(${idx})">🗑️</button>
         </div>
@@ -1412,7 +1413,8 @@ async function lmRenderCoffreGrid() {
           <div class="lm-inline-name" title="${escHtml(l.name)}">${escHtml(l.name)}</div>
           <div class="lm-inline-date">${new Date(l.createdAt).toLocaleDateString('fr-FR')}</div>
           <div class="lm-inline-actions">
-            <button class="btn btn-primary lm-inline-act-use" onclick="lmApplyLayout(${idx})" title="Utiliser ce layout">✅ Utiliser</button>
+            <button class="btn btn-primary lm-inline-act-use" onclick="lmApplyLayout(${idx})" title="Utiliser ce layout">✅</button>
+            <button class="btn lm-inline-act-icon" onclick="lmOpenForEdit('${escHtml(l.id)}')" title="Modifier">✏️</button>
             <button class="btn lm-inline-act-icon" onclick="lmDownloadLayout(${idx})" title="Télécharger">⬇️</button>
             <button class="btn btn-danger lm-inline-act-icon" onclick="lmDeleteLayout(${idx})" title="Supprimer">🗑️</button>
           </div>
