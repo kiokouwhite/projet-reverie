@@ -2044,32 +2044,39 @@ canvas { width: 100%; display: block; }
   box-sizing: border-box;
 }
 
-/* Ligne couleur dans un .name-player-sliders : sort de la grille
-   title-row pour utiliser un flex simple (label gauche, color-pick
-   + hex à droite) — visuellement aligné avec les autres rows mais
-   plus aéré. */
+/* Lignes contenant un color-pick (titres LIGNE 1/2/3 + bloc pseudos) :
+   le hex-input injecté par injectColorExtras fait 68px et débordait
+   du 3e col de 44px du grid title-row. On passe en flex pour que tout
+   s'aligne proprement à droite sans déborder.
+   :has() est supporté Chromium 105+ / Firefox 121+ / Safari 15.4+
+   — fallback gracieux : sans :has(), c'est le comportement grid actuel
+   qui s'applique (un peu d'overflow mais fonctionnel). */
+.title-row:has(input[type=color]),
 .name-color-row {
   display: flex !important;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
+.title-row:has(input[type=color]) > span,
 .name-color-row > span {
   flex: 0 0 55px;
   font-size: 11px;
   font-weight: 700;
   color: var(--text-soft);
 }
+.title-row:has(input[type=color]) .color-pick,
 .name-color-row .color-pick {
   width: 28px; height: 28px;
   flex-shrink: 0;
 }
-/* Si injectColorExtras ajoute une hex-input + bouton pipette à côté
-   du color-pick, ils doivent rester contenus. */
+/* hex-input (injecté par injectColorExtras) doit shrink pour rester
+   dans la carte plutôt que pousser le reste hors du cadre. */
+.title-row:has(input[type=color]) .hex-input,
 .name-color-row .hex-input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 130px;
+  max-width: 120px;
 }
 
 /* ── COLOR PICKER ───────────────────────────────────────── */
