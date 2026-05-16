@@ -287,7 +287,9 @@
 }
 .cloud-stage.stage-clouds-in   .cloud-veil { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 .cloud-stage.stage-clouds-hold .cloud-veil { opacity: 1; transform: translate3d(0, 0, 0) scale(1); animation: cloudVeilBob 6s ease-in-out infinite alternate; }
-.cloud-stage.stage-clouds-out  .cloud-veil { opacity: 0; transform: translate3d(0, -60px, 0) scale(1.1); transition-duration: 1.2s; }
+/* Sortie : le veil se rétracte vers le centre en même temps que les nuages
+   sont aspirés (effet "trou noir" cohérent). */
+.cloud-stage.stage-clouds-out  .cloud-veil { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); transform-origin: center center; transition-duration: 1.2s; }
 @keyframes cloudVeilBob {
   from { transform: translate3d(0, -4px, 0) scale(1); }
   to   { transform: translate3d(0, 6px, 0)  scale(1.01); }
@@ -317,12 +319,15 @@
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-out .cloud-filler-item {
-  animation: cloudFillerOut 1.3s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  /* Easing "in" doux (lent au début, accélère vers la fin) → effet
+     d'aspiration : le nuage hésite un instant puis fonce vers le centre. */
+  animation: cloudFillerOut 1.3s cubic-bezier(0.55, 0, 0.4, 1) forwards;
   animation-delay: var(--delay);
 }
 /* Animations purement transform+opacity → 100% GPU. Le départ se fait
    depuis le centre de l'écran, les nuages s'éparpillent vers leurs
-   positions finales (effet "explosion douce"). */
+   positions finales (effet "explosion douce"), puis sont aspirés au
+   centre pour disparaître (sortie en miroir de l'entrée). */
 @keyframes cloudFillerIn {
   0%   { transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.2); opacity: 0; }
   60%  { opacity: 1; }
@@ -333,8 +338,9 @@
   to   { transform: translate3d(-50%, -50%, 0) translateY(6px)  scale(1.015); }
 }
 @keyframes cloudFillerOut {
-  0%   { transform: translate3d(-50%, -50%, 0) translateY(0)      scale(1);   opacity: 1; }
-  100% { transform: translate3d(-50%, -50%, 0) translateY(-140px) scale(1.4); opacity: 0; }
+  0%   { transform: translate3d(-50%, -50%, 0) scale(1); opacity: 1; }
+  40%  { opacity: 1; }
+  100% { transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.12); opacity: 0; }
 }
 
 .cloud-stage .cloud-items-layer { position: absolute; inset: 0; z-index: 3; }
@@ -359,7 +365,7 @@
   animation-delay: var(--delay);
 }
 .cloud-stage.stage-clouds-out .cloud-item {
-  animation: cloudItemOut 1.2s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  animation: cloudItemOut 1.2s cubic-bezier(0.55, 0, 0.4, 1) forwards;
   animation-delay: var(--delay);
 }
 @keyframes cloudItemIn {
@@ -372,8 +378,9 @@
   to   { transform: translate3d(-50%, -50%, 0) translateY(8px)  scale(1.02); }
 }
 @keyframes cloudItemOut {
-  0%   { transform: translate3d(-50%, -50%, 0) translateY(0)      scale(1);   opacity: 1; }
-  100% { transform: translate3d(-50%, -50%, 0) translateY(-160px) scale(1.5); opacity: 0; }
+  0%   { transform: translate3d(-50%, -50%, 0) scale(1); opacity: 1; }
+  40%  { opacity: 1; }
+  100% { transform: translate3d(calc(-50% + var(--dx, 0vw)), calc(-50% + var(--dy, 0vh)), 0) scale(0.15); opacity: 0; }
 }
 
 /* Drop-shadow très léger et plus haut pour garder la lisibilité sans
