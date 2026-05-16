@@ -201,7 +201,7 @@
       // Boost saturation x2.2 : la moyenne pondérée des pixels donne une
       // couleur souvent terne, on la rend plus vibrante pour le fond du pill.
       const cachedDom = imgUrlForDom ? _dominantCache[imgUrlForDom] : null;
-      const tint = cachedDom ? saturateHex(cachedDom, 2.2) : theme.tint;
+      const tint = cachedDom ? saturateHex(cachedDom, 3.5) : theme.tint;
       const ink  = cachedDom ? pickInkFor(cachedDom) : theme.ink;
       if (imgUrlForDom && !cachedDom) {
         extractDominantColor(imgUrlForDom, () => {
@@ -522,7 +522,7 @@
         }
       }
       const cachedDom = imgUrlForDom ? _dominantCache[imgUrlForDom] : null;
-      const tint = cachedDom ? saturateHex(cachedDom, 2.2) : theme.tint;
+      const tint = cachedDom ? saturateHex(cachedDom, 3.5) : theme.tint;
       const ink  = cachedDom ? pickInkFor(cachedDom) : theme.ink;
       if (imgUrlForDom && !cachedDom) {
         extractDominantColor(imgUrlForDom, () => {
