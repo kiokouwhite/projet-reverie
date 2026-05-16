@@ -2169,17 +2169,60 @@ function drawLayoutSlots(ctx, layout, sc) {
     if (p.name) {
       const nc2 = getPlayerNameCfg(i);
       const displayName = (p.team ? `${p.team} | ${p.name}` : p.name).toUpperCase();
-      ctx.textBaseline='alphabetic'; ctx.textAlign='center';
-      ctx.font=`300 ${Math.round(nc2.size*sc)}px Montserrat, sans-serif`;
-      ctx.letterSpacing=`${7*sc}px`;
+      ctx.font=`700 ${Math.round(nc2.size*sc)}px Montserrat, sans-serif`;
       ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=6*sc;
       ctx.shadowOffsetX=1*sc; ctx.shadowOffsetY=1*sc;
       ctx.fillStyle = nc2.color || '#ffffff';
-      ctx.fillText(displayName, (slot.cx+nc2.xOffset)*sc, (slot.nameY+nc2.yOffset)*sc);
-      ctx.letterSpacing='0px';
+      // ── Texte courbé autour du cercle (ex. GGST) ──
+      if (layout.curvedNames && layout.slotType === 'circle' && slot.r) {
+        // Le centre de l'arc est en haut-droite (-π/4 = ~1h30).
+        // Radius = bord du cercle + un petit offset pour respirer.
+        const radius = (slot.r + 22 + (nc2.yOffset || 0)) * sc;
+        const cxPx   = (slot.cx + (nc2.xOffset || 0)) * sc;
+        const cyPx   = slot.cy * sc;
+        drawCurvedText(ctx, displayName, cxPx, cyPx, radius, -Math.PI / 4);
+      } else {
+        ctx.textBaseline='alphabetic'; ctx.textAlign='center';
+        ctx.letterSpacing=`${7*sc}px`;
+        ctx.fillText(displayName, (slot.cx+nc2.xOffset)*sc, (slot.nameY+nc2.yOffset)*sc);
+        ctx.letterSpacing='0px';
+      }
       ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
     }
   });
+}
+
+// Dessine un texte courbé le long d'un arc de cercle.
+// centerAngle = angle du milieu du texte (en radians, repère canvas : 0 = droite,
+// -π/2 = haut, π/2 = bas). Mesure la largeur de chaque char pour répartir
+// proportionnellement → le texte garde son spacing naturel sur la courbe.
+function drawCurvedText(ctx, text, cx, cy, radius, centerAngle) {
+  if (!text) return;
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign    = 'center';
+  ctx.letterSpacing = '2px';
+  // Mesure les largeurs angulaires (charWidth / radius)
+  const chars = Array.from(text);
+  const angWidths = chars.map(ch => Math.max(8, ctx.measureText(ch).width) / radius);
+  const totalAng  = angWidths.reduce((a, b) => a + b, 0);
+  // Démarre à gauche du centre, avance dans le sens horaire
+  let angle = centerAngle - totalAng / 2;
+  for (let i = 0; i < chars.length; i++) {
+    const a = angWidths[i];
+    const charAngle = angle + a / 2;
+    const x = cx + Math.cos(charAngle) * radius;
+    const y = cy + Math.sin(charAngle) * radius;
+    ctx.save();
+    ctx.translate(x, y);
+    // Rotation : le char doit être perpendiculaire à la tangente du cercle
+    // → angle + π/2 (le baseline du texte suit la tangente)
+    ctx.rotate(charAngle + Math.PI / 2);
+    ctx.fillText(chars[i], 0, 0);
+    ctx.restore();
+    angle += a;
+  }
+  ctx.restore();
 }
 function renderCanvas(canvas, size) {
   const ctx = canvas.getContext('2d');

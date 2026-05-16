@@ -59,6 +59,9 @@ const LAYOUTS = {
     // hideRanks : ne dessine pas les numéros 1/2/3 par-dessus (déjà
     // intégrés dans l'image de fond ggst.jpg).
     hideRanks: true,
+    // curvedNames : le pseudo suit l'arc du cercle (en haut-droite à -π/4)
+    // au lieu d'être en ligne droite sous le cercle. Look magazine/badge.
+    curvedNames: true,
   },
 
   // ── TEKKEN 8 — 3 joueurs, cartes inclinées ───────────────────────────────
