@@ -98,11 +98,9 @@
               <div style="display:none;">
                 <input type="password" id="apiKey" autocomplete="off" oninput="saveApiKey()">
               </div>
-              <label class="field-label" style="margin-top:0;">Lien du tournoi</label>
-              <div style="display:flex;gap:6px;margin-bottom:8px;">
-                <input type="text" id="startggUrl" placeholder="https://start.gg/tournament/..." style="flex:1;">
-                <button class="btn" onclick="importAllEvents()" id="loadEventsBtn" style="white-space:nowrap;">🔍 Chercher</button>
-              </div>
+              <label class="field-label" style="margin-top:0;text-align:center;display:block;">Lien du tournoi</label>
+              <input type="text" id="startggUrl" placeholder="https://start.gg/tournament/..." style="width:100%;margin-bottom:8px;">
+              <button class="btn" onclick="importAllEvents()" id="loadEventsBtn" style="width:100%;margin-bottom:8px;">🔍 Chercher</button>
               <div id="eventSelectorWrap" style="display:none;margin-bottom:8px;">
                 <label class="field-label">Sélectionne l'événement</label>
                 <select id="eventSelect" style="width:100%;margin-bottom:8px;" onchange="onEventSelected()">
