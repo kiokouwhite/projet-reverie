@@ -718,6 +718,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (typeof lmInitCoffreSelector === 'function') lmInitCoffreSelector();
   updateGame(true); // initialise currentGame, players, loadTitleConfig, renderSlots, generatePreview
   initEyeDroppers();
+  // Pill sélecteur de jeu : monte après que les layouts custom soient
+  // chargés dans le <select> (lmInitCoffreSelector les ajoute).
+  if (typeof gameSelectorInit === 'function') gameSelectorInit();
 
   // ── Barre de navigation : masquer en scroll down, réafficher en scroll up ──
   initHeaderScroll();
@@ -1077,6 +1080,12 @@ function updateGame(skipBgReload) {
     renderNameEditor();
   }
   renderSlots();
+  // Sync du pill game-selector : updateGame peut être appelée après un
+  // sel.value = X (lmApplyLayout, multi-graph nav) qui ne dispatch pas
+  // 'change' nativement → le pill ne se mettrait pas à jour sans ça.
+  if (typeof gameSelectorSyncToGameSelect === 'function') {
+    gameSelectorSyncToGameSelect();
+  }
 }
 
 function updateUploadLabel(file) {

@@ -144,7 +144,11 @@
                    garde le selecteur visible mais sa logique ne s'applique pas
                    au rendu Magna. -->
               <label class="field-label">Jeu</label>
-              <select id="gameSelect" onchange="updateGame()" style="width:100%;margin-bottom:8px;">
+              <!-- Sélecteur visuel : pill avec flèches et fond du jeu -->
+              <div id="gameSelectorPill" style="margin-bottom:8px;"></div>
+              <!-- Le <select> reste dans le DOM (caché) : il est la source de
+                   vérité pour les autres modules (updateGame() écoute change). -->
+              <select id="gameSelect" onchange="updateGame()" style="display:none;">
                 <optgroup label="🎮 Avec layout">
                   <option value="ssbu">Super Smash Bros. Ultimate</option>
                   <option value="ggst">Guilty Gear -Strive-</option>
@@ -2248,6 +2252,7 @@ function liquidSwitchTab(tab) {
 </div>
 
 <script src="cloud-animation.js"></script>
+<script src="game-selector.js"></script>
 <script src="layouts.js"></script>
 <script src="multi.js"></script>
 <script src="data.js"></script>

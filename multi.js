@@ -121,18 +121,28 @@ async function importAllEvents() {
         const real = e.entrants?.pageInfo?.total || 0;
         const cnt = Math.max(num, real);
         const existing = gameMap.get(vgId);
+        const imgs = e.videogame.images || [];
+        const img  = imgs.find(i => i.type === 'profile')
+                  || imgs.find(i => i.type === 'primary')
+                  || imgs[0];
         if (existing) {
           existing.entrants += cnt;
         } else {
-          const imgs = e.videogame.images || [];
-          const img  = imgs.find(i => i.type === 'profile')
-                    || imgs.find(i => i.type === 'primary')
-                    || imgs[0];
           gameMap.set(vgId, {
             name:     e.videogame.displayName || e.videogame.name || e.name,
             imgUrl:   img?.url || null,
             entrants: cnt,
           });
+        }
+        // ── Wire fond start.gg vers le pill game-selector ──
+        // On mappe le nom start.gg vers notre gameId interne (detectGameFromStartGG)
+        // pour chaque jeu trouvé → le pill peut afficher l'image start.gg comme fond.
+        if (img?.url && typeof gameSelectorSetStartggImage === 'function') {
+          const gameName = e.videogame.displayName || e.videogame.name || '';
+          const internalId = (typeof detectGameFromStartGG === 'function')
+            ? detectGameFromStartGG(gameName)
+            : null;
+          if (internalId) gameSelectorSetStartggImage(internalId, img.url);
         }
       });
       const cloudGames = Array.from(gameMap.values())
@@ -502,6 +512,8 @@ function renderMultiPreview() {
   // Mettre à jour le sélecteur de jeu
   const gameSelect = document.getElementById('gameSelect');
   if (gameSelect) gameSelect.value = graph.game;
+  // Sync visuel du pill game-selector (sel.value = ... ne dispatch pas 'change')
+  if (typeof gameSelectorSyncToGameSelect === 'function') gameSelectorSyncToGameSelect();
 
   // Mettre à jour le nom du tournoi
   const nameEl = document.getElementById('tournamentName');
