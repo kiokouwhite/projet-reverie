@@ -6349,6 +6349,24 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 .dlx-br-state { font-size: 9px; }
 .dlx-br-state.live   { color: #ff8da3; }
 .dlx-br-state.called { color: #f6c66b; }
+/* Bouton "Lancer le match" sur une carte du bracket (haut-droite) */
+.dlx-br-go-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border: none;
+  background: linear-gradient(135deg, #4caf50, #2e9e5b);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1;
+  z-index: 3;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+}
+.dlx-br-go-btn:hover { filter: brightness(1.1); }
 .dlx-br-slot {
   flex: 1;
   display: flex;

@@ -3466,10 +3466,12 @@ async function dlxSggMarkInProgress(setId) {
     const vars = { setId };
     if (typeof sggQuery === 'function') await sggQuery(DLX_SGG_START_MUTATION, vars);
     else                                 await dlxSggRawQuery(DLX_SGG_START_MUTATION, vars);
-    await dlxSggFetch(); // synchronise depuis start.gg
+    // Re-synchronise panneau Matchs ET bracket pour que l'état "En cours"
+    // apparaisse partout.
+    await dlxSggFetch();
+    if (typeof dlxBracketFetch === 'function') dlxBracketFetch();
   } catch (e) {
     alert('Erreur lors du lancement du match : ' + e.message);
-    // Rollback visuel si échec
     if (set) { dlxSggFetch(); }
   }
 }
@@ -3699,6 +3701,7 @@ function dlxBracketMakeCard(s, setById) {
     id: s.id,
     x: 0, y: 0,
     p1: p1Name, p2: p2Name,
+    p1Id: p1Id || null, p2Id: p2Id || null,
     s1, s2,
     winnerSlot,
     round: s.round,
@@ -4106,12 +4109,21 @@ function dlxBracketRender() {
       `draggable="true"
        ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(c.id)}')"
        ondragend="dlxSggSetDragEnd(event)"`;
+    // Bouton "Lancer le match" : visible si état ≠ en cours / terminé,
+    // et si les 2 joueurs sont déterminés.
+    const canLaunch = !isDone && c.state !== 2 && c.p1Id && c.p2Id;
+    const goBtn = canLaunch
+      ? `<button class="dlx-br-go-btn"
+          onclick="event.stopPropagation(); dlxSggMarkInProgress('${dlxSggEsc(c.id)}')"
+          title="Lancer le match (start.gg)">🚀</button>`
+      : '';
     return `<div class="dlx-br-card${isDone ? ' completed' : ''}"
        style="left:${c.x}px;top:${c.y}px;width:${layout.CARD_W}px;height:${layout.CARD_H}px;"
        ${dragAttrs}
        onclick="dlxBracketCardClick('${dlxSggEsc(c.id)}')"
        title="${dlxSggEsc(c.fullRoundText || '')} · clic : reporter · glisser : placer sur un setup">
       <div class="dlx-br-id">${dlxSggEsc(c.identifier || '')}${stateBadge}</div>
+      ${goBtn}
       <div class="dlx-br-slot${c.winnerSlot === 0 ? ' winner' : ''}">
         <span class="dlx-br-name">${dlxSggEsc(c.p1)}</span>
         <span class="dlx-br-score">${c.s1 == null ? '' : dlxSggEsc(c.s1)}</span>
