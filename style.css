@@ -5628,9 +5628,8 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   align-items: center;
   gap: 4px;
 }
-.dlx-sgg-go-btn {
+.dlx-sgg-go-btn, .dlx-sgg-stop-btn {
   border: none;
-  background: linear-gradient(135deg, #4caf50, #2e9e5b);
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -5639,7 +5638,9 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   cursor: pointer;
   line-height: 1;
 }
-.dlx-sgg-go-btn:hover { filter: brightness(1.1); }
+.dlx-sgg-go-btn   { background: linear-gradient(135deg, #4caf50, #2e9e5b); }
+.dlx-sgg-stop-btn { background: linear-gradient(135deg, #e85a8a, #c0223f); }
+.dlx-sgg-go-btn:hover, .dlx-sgg-stop-btn:hover { filter: brightness(1.1); }
 .dlx-sgg-set-round {
   font-size: 10px;
   font-weight: 700;
@@ -6349,13 +6350,12 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 .dlx-br-state { font-size: 9px; }
 .dlx-br-state.live   { color: #ff8da3; }
 .dlx-br-state.called { color: #f6c66b; }
-/* Bouton "Lancer le match" sur une carte du bracket (haut-droite) */
-.dlx-br-go-btn {
+/* Boutons "Lancer" 🚀 et "Stop" 🛑 sur une carte du bracket (haut-droite) */
+.dlx-br-go-btn, .dlx-br-stop-btn {
   position: absolute;
   top: 4px;
   right: 4px;
   border: none;
-  background: linear-gradient(135deg, #4caf50, #2e9e5b);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -6366,7 +6366,9 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   z-index: 3;
   box-shadow: 0 1px 4px rgba(0,0,0,0.18);
 }
-.dlx-br-go-btn:hover { filter: brightness(1.1); }
+.dlx-br-go-btn   { background: linear-gradient(135deg, #4caf50, #2e9e5b); }
+.dlx-br-stop-btn { background: linear-gradient(135deg, #e85a8a, #c0223f); }
+.dlx-br-go-btn:hover, .dlx-br-stop-btn:hover { filter: brightness(1.1); }
 .dlx-br-slot {
   flex: 1;
   display: flex;

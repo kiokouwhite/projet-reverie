@@ -2767,6 +2767,7 @@ function dlxSggRenderPanel() {
     const assignedEl = dlxFindElementByMatchSetId(s.id);
     const assignedCls = assignedEl ? ' dlx-sgg-set-assigned' : '';
     const canLaunch = s.state !== 2 && !!s.p1Id && !!s.p2Id;
+    const canStop   = s.state === 2;
     return `<div class="dlx-sgg-set dlx-sgg-set-${st.cls}${assignedCls}"
       draggable="true" data-set-id="${dlxSggEsc(s.id)}"
       ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(s.id)}')"
@@ -2779,6 +2780,9 @@ function dlxSggRenderPanel() {
           ${canLaunch ? `<button class="dlx-sgg-go-btn"
             onclick="event.stopPropagation(); dlxSggMarkInProgress('${dlxSggEsc(s.id)}')"
             title="Marquer le match comme lancé (start.gg)">🚀</button>` : ''}
+          ${canStop ? `<button class="dlx-sgg-stop-btn"
+            onclick="event.stopPropagation(); dlxSggResetSet('${dlxSggEsc(s.id)}')"
+            title="Stopper le match et réinitialiser les scores">🛑</button>` : ''}
           <span class="dlx-sgg-set-state dlx-sgg-set-state-${st.cls}">${st.label}</span>
         </span>
       </div>
@@ -3476,6 +3480,35 @@ async function dlxSggMarkInProgress(setId) {
   }
 }
 
+// Réinitialise un set ("stop") : state 2 → 1, scores effacés. Mutation
+// resetSet de start.gg. Sert quand on a lancé un match par erreur ou
+// qu'on veut interrompre.
+const DLX_SGG_RESET_MUTATION = `
+  mutation DlxResetSet($setId: ID!) {
+    resetSet(setId: $setId) { id state }
+  }`;
+async function dlxSggResetSet(setId) {
+  if (!dlxSggGetToken()) {
+    alert('⚠️ Clé API start.gg manquante (onglet Configuration).');
+    return;
+  }
+  const ok = confirm('Stopper ce match ?\n\nLes scores et personnages saisis seront effacés ; le match retourne à « À venir ».');
+  if (!ok) return;
+  // Update visuelle immédiate
+  const set = dlxSgg.sets.find(s => String(s.id) === String(setId));
+  if (set) { set.state = 1; dlxSggRenderPanel(); }
+  try {
+    const vars = { setId };
+    if (typeof sggQuery === 'function') await sggQuery(DLX_SGG_RESET_MUTATION, vars);
+    else                                 await dlxSggRawQuery(DLX_SGG_RESET_MUTATION, vars);
+    await dlxSggFetch();
+    if (typeof dlxBracketFetch === 'function') dlxBracketFetch();
+  } catch (e) {
+    alert('Erreur lors du stop du match : ' + e.message);
+    if (set) dlxSggFetch();
+  }
+}
+
 const DLX_SGG_REPORT_MUTATION = `
   mutation DlxReportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
     reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData) {
@@ -4109,13 +4142,17 @@ function dlxBracketRender() {
       `draggable="true"
        ondragstart="dlxSggSetDragStart(event,'${dlxSggEsc(c.id)}')"
        ondragend="dlxSggSetDragEnd(event)"`;
-    // Bouton "Lancer le match" : visible si état ≠ en cours / terminé,
-    // et si les 2 joueurs sont déterminés.
+    // Boutons "Lancer" 🚀 et "Stop" 🛑 — mutuellement exclusifs selon l'état.
     const canLaunch = !isDone && c.state !== 2 && c.p1Id && c.p2Id;
+    const canStop   = c.state === 2;
     const goBtn = canLaunch
       ? `<button class="dlx-br-go-btn"
           onclick="event.stopPropagation(); dlxSggMarkInProgress('${dlxSggEsc(c.id)}')"
           title="Lancer le match (start.gg)">🚀</button>`
+      : canStop
+      ? `<button class="dlx-br-stop-btn"
+          onclick="event.stopPropagation(); dlxSggResetSet('${dlxSggEsc(c.id)}')"
+          title="Stopper le match (reset)">🛑</button>`
       : '';
     return `<div class="dlx-br-card${isDone ? ' completed' : ''}"
        style="left:${c.x}px;top:${c.y}px;width:${layout.CARD_W}px;height:${layout.CARD_H}px;"
