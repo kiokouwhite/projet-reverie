@@ -706,6 +706,67 @@
   window.gameSelectorMultiInit    = gameSelectorMultiInit;
   window.gameSelectorMultiRefresh = gameSelectorMultiRefresh;
 
+  // ─────────────────────────────────────────────────────────────────────
+  // BADGE STATIQUE — pill style (mêmes couleurs/fond/texte) SANS flèches.
+  // Utilisé pour l'header de la modale d'édition pour avoir une cohérence
+  // visuelle avec le pill multi-graph.
+  // ─────────────────────────────────────────────────────────────────────
+  function gameSelectorRenderStaticBadge(host, gameId, gameName) {
+    if (!host) return;
+    const theme = themeFor(gameId);
+    const sgg   = _startggBg[gameId];
+    let bg, imgUrlForDom = null;
+    if (sgg) {
+      bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url('${sgg}') center/cover`;
+      imgUrlForDom = sgg;
+    } else {
+      const local = guessLocalBg(gameId);
+      if (local) {
+        bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url('${local}') center/cover`;
+        imgUrlForDom = local;
+      } else {
+        bg = makeGradient(theme);
+      }
+    }
+    const cachedDom = imgUrlForDom ? _dominantCache[imgUrlForDom] : null;
+    const tint = cachedDom ? saturateHex(cachedDom, 3.5) : theme.tint;
+    const ink  = cachedDom ? pickInkFor(cachedDom) : theme.ink;
+    if (imgUrlForDom && !cachedDom) {
+      extractDominantColor(imgUrlForDom, () => {
+        // Re-render après extraction (le badge prend la vraie dominante)
+        gameSelectorRenderStaticBadge(host, gameId, gameName);
+      });
+    }
+    const darker = mixHex(tint, '#000000', 0.18);
+    // Le pill static a la même structure que le multi pill mais sans
+    // arrows ni clip absolu sur les arrows → utilise les classes existantes
+    // .gs-pill-* qui ont déjà tout le styling propre.
+    host.innerHTML = `
+      <div class="gs-pill-wrap gs-pill-static">
+        <div class="gs-pill-bg"></div>
+        <div class="gs-pill-clip">
+          <div class="gs-bg-layers">
+            <div class="gs-bg-layer" style="background:${bg};opacity:0.4;"></div>
+          </div>
+          <div class="gs-text-layers">
+            <div class="gs-text-layer">
+              <span class="gs-text" style="color:#fff;text-shadow:0 1px 0 rgba(0,0,0,0.4),0 0 8px rgba(0,0,0,0.6);">
+                <span class="gs-text-name">${escHtml(gameName || gameId)}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const bgEl = host.querySelector('.gs-pill-bg');
+    if (bgEl) {
+      bgEl.style.background = `linear-gradient(180deg, ${tint} 0%, ${darker} 100%)`;
+      bgEl.style.boxShadow = `
+        0 0 0 1px rgba(0,0,0,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.18)`;
+    }
+  }
+  window.gameSelectorRenderStaticBadge = gameSelectorRenderStaticBadge;
+
   // ── CSS injecté ──
   const css = `
 .gs-pill-wrap {

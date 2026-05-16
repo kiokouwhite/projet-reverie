@@ -1828,14 +1828,29 @@ canvas { width: 100%; display: block; }
 }
 
 .editor-game-badge {
-  background: linear-gradient(135deg, var(--lavender), var(--purple));
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 20px;
-  letter-spacing: 0.06em;
+  /* Conteneur pour le pill stylé (rendu par gameSelectorRenderStaticBadge).
+     Remplace l'ancien style "petit chip" simple → maintenant un mini-pill
+     avec le fond du jeu, dominante extraite, etc. */
+  display: inline-block;
+}
+/* Variante "static" du pill : pas de flèches → le clip prend toute la
+   largeur, le pill est compact (hauteur réduite) et le texte uppercase. */
+.gs-pill-static {
+  width: auto !important;
+  min-width: 140px;
+  max-width: 260px;
+  height: 30px !important;
+}
+.gs-pill-static .gs-pill-clip {
+  left: 2px !important;
+  right: 2px !important;
+}
+.gs-pill-static .gs-text {
+  font-size: 11px !important;
+  font-weight: 800 !important;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 14px !important;
 }
 
 .editor-modal-body {

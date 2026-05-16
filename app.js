@@ -3046,9 +3046,16 @@ function openEditorModal() {
 
   const modal = document.getElementById('editorModal');
   modal.style.display = 'flex';
-  // Badge jeu
+  // Badge jeu : pill stylé identique au multi-graph (sans flèches)
   const badge = document.getElementById('editorGameBadge');
-  if (badge) badge.textContent = GAME_LABELS[currentGame] || currentGame;
+  const gameLabel = GAME_LABELS[currentGame] || currentGame;
+  if (badge) {
+    if (typeof gameSelectorRenderStaticBadge === 'function') {
+      gameSelectorRenderStaticBadge(badge, currentGame, gameLabel);
+    } else {
+      badge.textContent = gameLabel;
+    }
+  }
   loadTitleConfig(); // rafraîchit CONFIG depuis localStorage avant d'afficher les sliders
   initTitleEditor();
   loadNameConfig();
