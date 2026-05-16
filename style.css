@@ -1503,22 +1503,17 @@ canvas { width: 100%; display: block; }
   font-family: inherit;
   transform: translateZ(0);
   transition: box-shadow 320ms ease;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.06),
-    0 10px 20px rgba(0, 0, 0, 0.35),
-    0 3px 8px rgba(0, 0, 0, 0.28);
+  /* Aucune ombre portée (juste un fin liseré blanc pour adoucir le bord). */
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
   outline: none;
 }
 .btn-aquarium.is-hover {
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.10),
-    0 18px 34px rgba(0, 0, 0, 0.55),
-    0 6px 14px rgba(0, 0, 0, 0.45);
+  /* Hover : juste un liseré blanc un peu plus marqué, pas d'ombre portée. */
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.14);
 }
 .btn-aquarium:focus-visible {
-  box-shadow:
-    0 0 0 3px rgba(255,255,255,0.35),
-    0 14px 28px rgba(0, 0, 0, 0.45);
+  /* Focus accessibilité : ring blanc visible, toujours pas d'ombre portée. */
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.35);
 }
 .btn-aquarium .aq-water {
   position: absolute; inset: 0;
