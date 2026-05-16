@@ -3112,21 +3112,35 @@ function initTitleEditor() {
   set('t1strokew', CONFIG.T1.strokeWidth || 0);
   set('t2strokew', CONFIG.T2.strokeWidth || 0);
   set('t3strokew', CONFIG.T3.strokeWidth || 0);
-  // Polices : popule les <select> avec TITLE_FONTS + sélectionne la valeur
-  // sauvée. L'option avec value="" représente "Par défaut" (police native
-  // du jeu : Montserrat ou Anton pour Tekken 8).
-  ['t1','t2','t3'].forEach(t => {
-    const sel = document.getElementById(t + 'font');
-    if (!sel) return;
-    // Re-populate (idempotent) — l'éditeur peut être ouvert plusieurs fois.
-    if (!sel.options.length) {
-      sel.innerHTML = TITLE_FONTS.map(f =>
+  // Police globale : un seul <select id="tGlobalFont"> qui s'applique à
+  // T1/T2/T3 en une fois. On lit la valeur courante de T1.font (les trois
+  // doivent être synchronisés dans la pratique).
+  const gFontSel = document.getElementById('tGlobalFont');
+  if (gFontSel) {
+    if (!gFontSel.options.length) {
+      gFontSel.innerHTML = TITLE_FONTS.map(f =>
         `<option value="${f.value}" style="font-family:${f.value ? `'${f.value}', sans-serif` : 'inherit'}">${f.label}</option>`
       ).join('');
     }
-    const T = CONFIG[t.toUpperCase()];
-    sel.value = T.font || '';
-  });
+    gFontSel.value = CONFIG.T1.font || '';
+  }
+}
+
+// Applique une police choisie aux 3 titres en une fois. Charge le WOFF
+// au passage pour que le canvas l'utilise sans flash de fallback.
+function syncTitleGlobalFont(value) {
+  CONFIG.T1.font = value || '';
+  CONFIG.T2.font = value || '';
+  CONFIG.T3.font = value || '';
+  saveTitleConfig();
+  if (value && typeof _fontMeta === 'function') {
+    const meta = _fontMeta(value);
+    document.fonts.load(`${meta.weight} 40px "${value}"`)
+      .catch(() => null)
+      .then(() => _renderAll());
+  } else {
+    _renderAll();
+  }
 }
 
 function renderNameEditor() {
@@ -3386,7 +3400,9 @@ function resetPlayerNameCfg(i) {
 }
 
 function syncTitle() {
-  let fontsToLoad = [];
+  // La police globale est gérée à part par syncTitleGlobalFont() (un seul
+  // <select id="tGlobalFont"> partagé T1/T2/T3) — ici on lit juste les
+  // autres champs (position, taille, couleurs, contour) par ligne.
   ['t1','t2','t3'].forEach(t => {
     ['x','y','s','l'].forEach(prop => {
       const slider = document.getElementById(`${t}${prop}`);
@@ -3400,25 +3416,9 @@ function syncTitle() {
     if (scol) CONFIG[t.toUpperCase()].strokeColor = scol.value;
     const sw = document.getElementById(`${t}strokew`);
     if (sw) CONFIG[t.toUpperCase()].strokeWidth = parseFloat(sw.value) || 0;
-    // Police personnalisée (Google Font display/graffiti) — vide = défaut du jeu
-    const fnt = document.getElementById(`${t}font`);
-    if (fnt) {
-      CONFIG[t.toUpperCase()].font = fnt.value || '';
-      if (fnt.value && typeof _fontMeta === 'function') {
-        const meta = _fontMeta(fnt.value);
-        fontsToLoad.push(`${meta.weight} 40px "${fnt.value}"`);
-      }
-    }
   });
   saveTitleConfig();
-  // Précharge les polices sélectionnées avant de rendre, sinon le canvas
-  // utilise la fallback Montserrat pour la 1re frame (jusqu'au load du WOFF).
-  if (fontsToLoad.length) {
-    Promise.all(fontsToLoad.map(spec => document.fonts.load(spec).catch(() => null)))
-      .then(() => _renderAll());
-  } else {
-    _renderAll();
-  }
+  _renderAll();
 }
 
 function syncTitleNum(sliderId, numId) {
