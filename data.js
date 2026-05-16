@@ -319,8 +319,17 @@ const GAMES = {
       {id:"cammy",name:"Cammy",icon:"🎯"},{id:"blanka",name:"Blanka",icon:"⚡"},
       {id:"honda",name:"E. Honda",icon:"🏯"},{id:"akuma",name:"Akuma",icon:"👹"},
       {id:"rashid",name:"Rashid",icon:"🌪️"},{id:"ed",name:"Ed",icon:"🥊"},
-      {id:"aki",name:"A.K.I.",icon:"🐍"},{id:"terry",name:"Terry",icon:"🗽"},
-      {id:"mai",name:"Mai",icon:"🌸"},{id:"elena",name:"Elena",icon:"💃"}
+      {id:"aki",name:"A.K.I.",icon:"🐍"},
+      // ⚠️ Terry SF6 utilise l'id "terry_sf6" (pas "terry") pour éviter la
+      // collision avec Terry de SSBU dans STARTGG_TO_ID.
+      {id:"terry_sf6",name:"Terry",icon:"🗽"},
+      {id:"mai",name:"Mai",icon:"🌸"},{id:"elena",name:"Elena",icon:"💃"},
+      // Persos ajoutés ici pour que le mapping start.gg → GAMES.chars les
+      // trouve. Si le mural local manque dans le repo, le fallback start.gg
+      // (p.charImgUrl) prend le relais.
+      {id:"luke",name:"Luke",icon:"🥊"},{id:"sagat",name:"Sagat",icon:"👁️"},
+      {id:"alex",name:"Alex",icon:"🥋"},
+      {id:"bison",name:"M. Bison",icon:"🦇"},{id:"ingrid",name:"Ingrid",icon:"✨"}
     ]
   },
   tekken8: {

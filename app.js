@@ -1860,7 +1860,12 @@ function drawLayoutSlots(ctx, layout, sc) {
 
   layout.slots.forEach((slot, i) => {
     const p = players[i] || {name:'', team:'', charId:null, costume:1};
-    const char = p.charId ? GAMES[currentGame]?.chars?.find(c=>c.id===p.charId) : null;
+    let char = p.charId ? GAMES[currentGame]?.chars?.find(c=>c.id===p.charId) : null;
+    // Char inconnu de notre liste interne mais on a un charId + image start.gg
+    // → on synthétise un char minimal pour permettre le rendu via fallback.
+    if (!char && p.charId && p.charImgUrl) {
+      char = { id: p.charId, name: p.charId, icon: '🎮' };
+    }
     const type = layout.slotType;
 
     ctx.save();
