@@ -233,14 +233,15 @@
         <button class="btn btn-editor" onclick="openEditorModal()">
           <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="display:inline-block;vertical-align:middle;margin-right:6px;filter:drop-shadow(0 1px 1px rgba(255,255,255,0.5))"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>Éditer
         </button>
+        <!-- Navigation entre graphes importés : remplacé par le pill
+             game-selector quand graphs.length > 1. Les éléments cachés
+             id="prevBtn"/"nextBtn"/"graphCounter" sont conservés au cas
+             où d'autres modules les référencent. -->
         <div id="multiNav" style="display:none;align-items:center;gap:4px;">
-          <button class="btn btn-nav" id="prevBtn" onclick="prevGraph()">
-            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <span id="graphCounter"></span>
-          <button class="btn btn-nav" id="nextBtn" onclick="nextGraph()">
-            <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
-          </button>
+          <div id="gameSelectorMultiPill" style="display:flex;"></div>
+          <button class="btn btn-nav" id="prevBtn" onclick="prevGraph()" style="display:none;"></button>
+          <span id="graphCounter" style="display:none;"></span>
+          <button class="btn btn-nav" id="nextBtn" onclick="nextGraph()" style="display:none;"></button>
         </div>
       </div>
       <!-- Wrappers pour mode collapsed (Top 8 image à gauche, message+boutons

@@ -1638,40 +1638,17 @@ canvas { width: 100%; display: block; }
 }
 
 /* ── MULTI-GRAPH NAV ─────────────────────────────────────── */
+/* #multiNav contient maintenant le pill game-selector (mode multi).
+   On laisse juste le margin-left auto + flex pour le placement, le pill
+   gère son propre look (gradient + shadow + glow) interne. */
 #multiNav {
   margin-left: auto;
-  min-width: 0;        /* autorise le rétrécissement dans le flex parent */
+  min-width: 0;
   flex-shrink: 1;
   display: flex;
   align-items: center;
   gap: 4px;
-  border-radius: 50px;
-  padding: 5px 6px;
-  /* --nav-color et --nav-accent mis à jour par JS selon le jeu */
-  --nav-color: 180, 160, 255;
-  --nav-accent: #a77acc;
-  background: linear-gradient(135deg,
-    rgba(var(--nav-color), 0.22) 0%,
-    rgba(var(--nav-color), 0.50) 100%);
-  box-shadow:
-    0 4px 14px rgba(var(--nav-color), 0.30),
-    0 2px 0px rgba(255,255,255,0.55) inset,
-    0 -2px 0px rgba(0,0,0,0.07) inset;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.45s ease, box-shadow 0.45s ease;
 }
-#multiNav::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 48%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0));
-  border-radius: 50px 50px 0 0;
-  pointer-events: none;
-  z-index: 0;
-}
-#multiNav > * { position: relative; z-index: 1; }
 
 /* Flèche : bulle blanche avec chevron coloré */
 .btn-nav {

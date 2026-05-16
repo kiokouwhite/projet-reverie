@@ -721,6 +721,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Pill sélecteur de jeu : monte après que les layouts custom soient
   // chargés dans le <select> (lmInitCoffreSelector les ajoute).
   if (typeof gameSelectorInit === 'function') gameSelectorInit();
+  // Pill multi-graph : remplace le bouton prev/next/counter dans #multiNav
+  // (caché tant que graphs.length <= 1, montré par showMultiNav).
+  if (typeof gameSelectorMultiInit === 'function') gameSelectorMultiInit();
 
   // ── Barre de navigation : masquer en scroll down, réafficher en scroll up ──
   initHeaderScroll();

@@ -384,6 +384,16 @@ async function importAllEvents() {
       _completed++;
       showStatus('loading', `⏳ Events importés ${_completed}/${events.length}...`);
 
+      // Capture l'image du videogame start.gg pour servir de fond au pill
+      // game-selector en mode multi (fallback : image du coffre custom).
+      const _imgs = ev.videogame?.images || [];
+      const _vgImg = _imgs.find(i => i.type === 'profile')
+                  || _imgs.find(i => i.type === 'primary')
+                  || _imgs[0];
+      const videogameImageUrl = _vgImg?.url
+        || ev._customLayout?.gameImgDataUrl
+        || ev._customLayout?.gameImgUrl
+        || null;
       return {
         eventSlug:  ev.slug,
         eventName:  ev.name,
@@ -392,6 +402,7 @@ async function importAllEvents() {
         players:    evPlayers,
         tournamentName: tournament.name,
         isCustomLayout: isCustom,
+        videogameImageUrl,
       };
     };
 
@@ -520,6 +531,8 @@ function renderMultiPreview() {
   if (gameSelect) gameSelect.value = graph.game;
   // Sync visuel du pill game-selector (sel.value = ... ne dispatch pas 'change')
   if (typeof gameSelectorSyncToGameSelect === 'function') gameSelectorSyncToGameSelect();
+  // Sync du pill multi (mode navigation entre graphes importés)
+  if (typeof gameSelectorMultiRefresh === 'function') gameSelectorMultiRefresh();
 
   // Mettre à jour le nom du tournoi
   const nameEl = document.getElementById('tournamentName');
@@ -645,6 +658,11 @@ async function addCustomLayoutGraph(layout) {
 function showMultiNav(show) {
   const nav = document.getElementById('multiNav');
   if (nav) nav.style.display = show ? 'flex' : 'none';
+  // Refresh du pill multi-graph en même temps : la liste graphs[] peut
+  // avoir changé et l'image start.gg de certains jeux vient d'être captée.
+  if (show && typeof gameSelectorMultiRefresh === 'function') {
+    gameSelectorMultiRefresh();
+  }
 }
 
 function updateMultiTweet() {

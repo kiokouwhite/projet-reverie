@@ -331,6 +331,183 @@
   window.gameSelectorSyncToGameSelect  = syncToGameSelect;
   window.gameSelectorSetStartggImage   = setStartggImage;
 
+  // ─────────────────────────────────────────────────────────────────────
+  // MODE "MULTI" — instance pour la navigation entre graphes importés
+  // (remplace #prevBtn / #graphCounter / #nextBtn dans #multiNav).
+  // Source de vérité : window.graphs[] (rempli par multi.js#importAllEvents)
+  // Navigation : prevGraph()/nextGraph()/currentGraphIdx exposés par multi.js
+  // ─────────────────────────────────────────────────────────────────────
+  let _multiRoot = null;
+  let _multiAnimating = false;
+  let _multiRafId = null;
+  let _multiOffset = 0;
+
+  function _multiCancel() {
+    if (_multiRafId != null) { cancelAnimationFrame(_multiRafId); _multiRafId = null; }
+    _multiAnimating = false;
+  }
+
+  function _multiCurrentGames() {
+    const graphs = window.graphs || [];
+    return graphs.map(g => {
+      const id   = g.game;
+      const theme = themeFor(id);
+      // Image start.gg per-graph en priorité, puis _startggBg global,
+      // puis bg local, puis dégradé.
+      const sgg = g.videogameImageUrl || _startggBg[id];
+      let bg;
+      if (sgg) {
+        bg = `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.42)), url("${sgg}") center/cover`;
+      } else {
+        const local = guessLocalBg(id);
+        if (local) bg = `linear-gradient(180deg, rgba(0,0,0,0.14), rgba(0,0,0,0.34)), url("${local}") center/cover`;
+        else       bg = makeGradient(theme);
+      }
+      return {
+        id, name: g.gameName || id, tint: theme.tint, ink: theme.ink, bg
+      };
+    });
+  }
+
+  function _multiAnimateTo(targetDelta, onDone) {
+    _multiCancel();
+    _multiAnimating = true;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min((now - start) / ANIM_MS, 1);
+      _multiOffset = targetDelta * easeOutCubic(t);
+      _multiRender();
+      if (t < 1) {
+        _multiRafId = requestAnimationFrame(tick);
+      } else {
+        _multiRafId = null;
+        _multiAnimating = false;
+        onDone && onDone();
+      }
+    };
+    _multiRafId = requestAnimationFrame(tick);
+  }
+
+  function _multiGo(delta) {
+    if (_multiAnimating) return;
+    const games = _multiCurrentGames();
+    if (!games.length) return;
+    _multiAnimateTo(delta, () => {
+      _multiOffset = 0;
+      // Délègue à la nav existante (prevGraph/nextGraph appellent
+      // renderMultiPreview qui re-render le canvas + appelle
+      // gameSelectorMultiRefresh)
+      if (delta < 0 && typeof window.prevGraph === 'function') window.prevGraph();
+      if (delta > 0 && typeof window.nextGraph === 'function') window.nextGraph();
+    });
+  }
+
+  function _multiMount(container) {
+    container.innerHTML = `
+      <div class="gs-pill-wrap gs-pill-multi">
+        <div class="gs-pill-bg"></div>
+        <div class="gs-pill-clip">
+          <div class="gs-bg-layers"></div>
+          <div class="gs-pill-highlight"></div>
+          <div class="gs-text-layers"></div>
+        </div>
+        <button type="button" class="gs-arrow gs-arrow-left"  aria-label="Graph précédent">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><polyline points="14,7 8,12 14,17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="gs-arrow-ripple"></span>
+        </button>
+        <button type="button" class="gs-arrow gs-arrow-right" aria-label="Graph suivant">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><polyline points="10,7 16,12 10,17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="gs-arrow-ripple"></span>
+        </button>
+      </div>`;
+    _multiRoot = container.querySelector('.gs-pill-wrap');
+    const leftBtn  = container.querySelector('.gs-arrow-left');
+    const rightBtn = container.querySelector('.gs-arrow-right');
+    const rippleL = leftBtn.querySelector('.gs-arrow-ripple');
+    const rippleR = rightBtn.querySelector('.gs-arrow-ripple');
+    const ripple = (el) => {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = 'gsRipple 480ms ease-out';
+    };
+    leftBtn.addEventListener('click', () => { ripple(rippleL); _multiGo(-1); });
+    rightBtn.addEventListener('click', () => { ripple(rippleR); _multiGo(+1); });
+  }
+
+  function _multiRender() {
+    if (!_multiRoot) return;
+    const games = _multiCurrentGames();
+    const N = games.length;
+    if (!N) { _multiRoot.style.visibility = 'hidden'; return; }
+    _multiRoot.style.visibility = '';
+    const idx = (typeof window.currentGraphIdx === 'number') ? window.currentGraphIdx : 0;
+    const virtual = idx + _multiOffset;
+    const i0 = Math.floor(virtual);
+    const i1 = Math.ceil(virtual);
+    const tFrac = virtual - i0;
+    const wrap = (i) => ((i % N) + N) % N;
+    const g0 = games[wrap(i0)];
+    const g1 = games[wrap(i1)];
+    const tint = hexLerp(g0.tint, g1.tint, tFrac);
+    const ink  = hexLerp(g0.ink,  g1.ink,  tFrac);
+
+    const bgEl = _multiRoot.querySelector('.gs-pill-bg');
+    if (bgEl) {
+      bgEl.style.background = `linear-gradient(180deg, ${tint}f5 0%, ${tint} 100%)`;
+      bgEl.style.boxShadow = `
+        0 1px 2px rgba(0,0,0,0.04),
+        0 8px 24px ${ink}22,
+        inset 0 1px 0 rgba(255,255,255,0.7),
+        inset 0 -1px 0 ${ink}1a`;
+    }
+    _multiRoot.querySelectorAll('.gs-arrow').forEach(a => a.style.color = ink);
+
+    const layers = games.map((g, i) => {
+      let d = i - virtual;
+      if (d >  N / 2) d -= N;
+      if (d < -N / 2) d += N;
+      const absD = Math.abs(d);
+      if (absD >= 1.2) return null;
+      const fade = smoothstep(1 - absD);
+      const motionPct = 55;
+      const parallaxPx = 14;
+      const textPx = Math.sin(absD * Math.PI) * parallaxPx * Math.sign(d || 1);
+      return { g, i, fade, bgTx: d * motionPct, textTx: d * motionPct, textPx };
+    }).filter(Boolean);
+
+    const bgLayers = _multiRoot.querySelector('.gs-bg-layers');
+    const txLayers = _multiRoot.querySelector('.gs-text-layers');
+    if (bgLayers) {
+      bgLayers.innerHTML = layers.map(l => `
+        <div class="gs-bg-layer" style="background:${l.g.bg};opacity:${l.fade};transform:translate3d(${l.bgTx}%,0,0);"></div>
+      `).join('');
+    }
+    if (txLayers) {
+      txLayers.innerHTML = layers.map(l => `
+        <div class="gs-text-layer" style="opacity:${l.fade};transform:translate3d(calc(${l.textTx}% + ${l.textPx}px),0,0);">
+          <span class="gs-text" style="color:#fff;text-shadow:0 1px 0 rgba(0,0,0,0.4),0 0 8px rgba(0,0,0,0.6);">
+            <span class="gs-text-count" style="opacity:0.85;">${l.i + 1} / ${N}</span>
+            <span class="gs-text-sep" style="opacity:0.6;">—</span>
+            <span class="gs-text-name">${escHtml(l.g.name)}</span>
+          </span>
+        </div>
+      `).join('');
+    }
+  }
+
+  function gameSelectorMultiInit() {
+    const host = document.getElementById('gameSelectorMultiPill');
+    if (!host) return;
+    _multiMount(host);
+    _multiRender();
+  }
+  function gameSelectorMultiRefresh() {
+    _multiOffset = 0;
+    _multiRender();
+  }
+  window.gameSelectorMultiInit    = gameSelectorMultiInit;
+  window.gameSelectorMultiRefresh = gameSelectorMultiRefresh;
+
   // ── CSS injecté ──
   const css = `
 .gs-pill-wrap {
