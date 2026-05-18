@@ -383,7 +383,7 @@ function nextLeftPanel() { tcGo(_tcActive + 1); }
 //      dcTcMainCard, dcTcIncoming, dcTcInContent, dcSlide{0-3}
 
 const DC_TC_PANELS = [
-  { label: 'URL',      roman: 'I',   accent: '#7c5cff', emoji: '🔗', name: 'URL start.gg', icon: 'url' },
+  { label: 'Import',   roman: 'I',   accent: '#7c5cff', emoji: '🟢', name: 'Import start.gg', icon: 'import' },
   { label: 'Réglages', roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Réglages',     icon: 'quill' },
   { label: 'Horaires', roman: 'III', accent: '#e85a8a', emoji: '🕐', name: 'Horaires',     icon: 'clock' },
   { label: 'Bot',      roman: 'IV',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',  icon: 'bot' },
@@ -658,7 +658,12 @@ document.addEventListener('wheel', function(e) {
   if (el.disabled) return;
   // Sécurité : ignorer si pas focus → on ne touche pas aux sliders pendant
   // un scroll de page. Le user doit cliquer sur le slider d'abord.
-  if (document.activeElement !== el) return;
+  // EXCEPTION : dans le Layout Maker, on bypass ce check pour permettre
+  // scroll-to-adjust directement sans cliquer (UX "précision rapide").
+  // Le user peut toujours scroller la colonne via les zones entre sliders.
+  if (document.activeElement !== el) {
+    if (!el.closest('#lmModal')) return;
+  }
   e.preventDefault();
   const step = parseFloat(el.step) || 1;
   const mult = e.shiftKey ? 10 : 1;
@@ -704,6 +709,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const defaultLayout = LAYOUTS[_initGame] || LAYOUTS['ssbu'];
   if (defaultLayout?.bgFile) {
     const img = new Image();
+    img.crossOrigin = 'anonymous'; // évite canvas tainted → toDataURL() pour Insta
     img.onload = () => { bgImg = img; updateUploadLabel(defaultLayout.bgFile); generatePreview(); };
     img.onerror = () => { bgImg = null; };
     img.src = defaultLayout.bgFile;
@@ -1077,6 +1083,7 @@ function updateGame(skipBgReload) {
   if (!skipBgReload && !(typeof graphs !== 'undefined' && graphs.length > 0)) {
     if (layout?.bgFile) {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => { bgImg = img; updateUploadLabel(layout.bgFile); generatePreview(); };
       img.onerror = () => { bgImg = null; generatePreview(); };
       img.src = layout.bgFile;
@@ -1507,6 +1514,7 @@ function resetBg() {
   if (layout?.bgFile) {
     // Recharger le fond par défaut du jeu
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => { bgImg = img; updateUploadLabel(layout.bgFile); generatePreview(); };
     img.onerror = () => { bgImg = null; generatePreview(); };
     img.src = layout.bgFile;
@@ -1684,6 +1692,7 @@ function onEventSelected() {
     const layout = LAYOUTS[detected];
     if (layout?.bgFile) {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => { bgImg = img; updateUploadLabel(layout.bgFile); };
       img.onerror = () => { bgImg = null; };
       img.src = layout.bgFile;
@@ -1928,21 +1937,42 @@ function drawLayoutSlots(ctx, layout, sc) {
       const by = (slot.cy - slot.r) * sc;
       const bw = slot.r * 2 * sc;
       const bh = slot.r * 2 * sc;
+      // Convertit en coords pixel + préserve le flag rounded pour les
+      // coins arrondis. Utilise drawMaskPolygonPath (de crop.js) si dispo,
+      // sinon fallback à un polygone classique.
+      const pixPts = _customMask.map(p => ({
+        x: bx + p.x * bw,
+        y: by + p.y * bh,
+        rounded: !!p.rounded,
+      }));
       ctx.beginPath();
-      _customMask.forEach((p, idx) => {
-        const x = bx + p.x * bw;
-        const y = by + p.y * bh;
-        if (idx === 0) ctx.moveTo(x, y);
-        else            ctx.lineTo(x, y);
-      });
-      ctx.closePath();
+      if (typeof drawMaskPolygonPath === 'function') {
+        // Rayon par défaut : 15% du diamètre du slot
+        drawMaskPolygonPath(ctx, pixPts, slot.r * sc * 0.30);
+      } else {
+        pixPts.forEach((p, idx) => {
+          if (idx === 0) ctx.moveTo(p.x, p.y);
+          else            ctx.lineTo(p.x, p.y);
+        });
+        ctx.closePath();
+      }
       ctx.clip();
     } else if (type === 'circle') {
       ctx.beginPath();
       ctx.arc(slot.cx*sc, slot.cy*sc, slot.r*sc, 0, Math.PI*2);
       ctx.clip();
+    }
 
-    } else if (type === 'tekken8') {
+    // Fond de slot (peint à l'intérieur du clip) — utile pour les jeux dont
+    // le bg a des zones colorées (ex. GGST : cercles blancs baked) qui
+    // transparaîtraient à travers les zones transparentes des PNG persos.
+    // Configurable par layout via `slotBgColor` (ex. '#000').
+    if ((type === 'circle') && layout.slotBgColor) {
+      ctx.fillStyle = layout.slotBgColor;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+
+    if (type === 'tekken8') {
       const sc2 = getSlotCfg(i); // config éditable (cx, cy, w, h, skewTop, fillColor, strokeColor, strokeWidth)
       const tx  = (sc2.cx - sc2.w/2)*sc;
       const ty  = (sc2.cy - sc2.h/2)*sc;
@@ -2970,6 +3000,7 @@ function generatePreview() {
       if(imgCache[key]?._loaded) { resolve(); return; }
       if(!imgCache[key]) imgCache[key] = {_loaded:false, _img:null};
       const img = new Image();
+      img.crossOrigin = 'anonymous'; // canvas CORS-clean (Insta toDataURL)
       img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId, p.costume);
@@ -2979,6 +3010,7 @@ function generatePreview() {
       if(imgCache[key2]?._loaded) { resolve(); return; }
       if(!imgCache[key2]) imgCache[key2] = {_loaded:false, _img:null};
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload  = () => { imgCache[key2]._loaded=true; imgCache[key2]._img=img; resolve(); };
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId2, p.costume2||1);
@@ -3178,6 +3210,7 @@ function initTitleEditor() {
       ).join('');
     }
     gFontSel.value = CONFIG.T1.font || '';
+    enhanceFontSelectVisuals(gFontSel);
   }
   // Police globale des pseudos (réutilise la même liste TITLE_FONTS)
   const pFontSel = document.getElementById('pseudoGlobalFont');
@@ -3188,7 +3221,108 @@ function initTitleEditor() {
       ).join('');
     }
     pFontSel.value = (typeof getPlayerGlobalFont === 'function') ? getPlayerGlobalFont() : '';
+    enhanceFontSelectVisuals(pFontSel);
   }
+}
+
+// Remplace un <select> natif par un dropdown custom où chaque option est
+// rendue avec sa propre font-family (les <option> HTML natifs ignorent
+// font-family sur Chrome/Edge/Windows car ce sont des widgets OS).
+// Le <select> reste dans le DOM pour gérer value/onchange — le custom
+// dropdown ne fait que copier visuellement et synchroniser.
+function enhanceFontSelectVisuals(selectEl){
+  if (selectEl._fontDropdown) {
+    // Déjà enhanced — juste re-sync le label avec la value courante
+    selectEl._fontDropdown._update();
+    return;
+  }
+  // Précharge les fonts pour qu'elles soient prêtes à l'affichage du menu
+  if (typeof TITLE_FONTS !== 'undefined' && document.fonts) {
+    TITLE_FONTS.forEach(f => {
+      if (f.value) document.fonts.load(`${f.weight || '400'} 14px "${f.value}"`).catch(()=>{});
+    });
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'font-dd-wrap';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'font-dd-btn';
+  btn.innerHTML = '<span class="font-dd-label"></span><span class="font-dd-arrow">▾</span>';
+  const menu = document.createElement('div');
+  menu.className = 'font-dd-menu';
+
+  function buildMenu(){
+    menu.innerHTML = '';
+    Array.from(selectEl.options).forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'font-dd-item';
+      item.dataset.value = opt.value;
+      item.textContent = opt.textContent;
+      if (opt.value) item.style.fontFamily = `'${opt.value}', sans-serif`;
+      if (opt.value === selectEl.value) item.classList.add('selected');
+      item.addEventListener('click', () => {
+        selectEl.value = opt.value;
+        // Déclenche onchange inline ET les listeners
+        selectEl.dispatchEvent(new Event('change', {bubbles:true}));
+        if (typeof selectEl.onchange === 'function') {
+          selectEl.onchange.call(selectEl, new Event('change'));
+        }
+        update();
+        closeMenu();
+      });
+      menu.appendChild(item);
+    });
+  }
+  function update(){
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const lab = btn.querySelector('.font-dd-label');
+    if (opt) {
+      lab.textContent = opt.textContent;
+      lab.style.fontFamily = opt.value ? `'${opt.value}', sans-serif` : '';
+    }
+  }
+  function openMenu(){
+    buildMenu();
+    // Position en fixed pour échapper aux scroll containers (.editor-controls
+    // a overflow-y:auto qui clipperait un menu absolute).
+    const r = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.left = r.left + 'px';
+    menu.style.width = r.width + 'px';
+    menu.style.top = (r.bottom + 4) + 'px';
+    menu.style.bottom = 'auto';
+    menu.classList.add('open');
+    // Si le menu déborde en bas du viewport, on le bascule au-dessus
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.bottom > window.innerHeight - 10) {
+      menu.style.top = 'auto';
+      menu.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+    }
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  }
+  function closeMenu(){
+    menu.classList.remove('open');
+    document.removeEventListener('click', onDocClick, true);
+  }
+  function onDocClick(e){ if (!wrap.contains(e.target)) closeMenu(); }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (menu.classList.contains('open')) closeMenu();
+    else openMenu();
+  });
+
+  // Place le wrap juste avant le select, cache le select original dedans
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  wrap.appendChild(btn);
+  wrap.appendChild(menu);
+  wrap.appendChild(selectEl);
+  selectEl.style.display = 'none';
+
+  update();
+  selectEl._fontDropdown = wrap;
+  wrap._update = update;
 }
 
 // Applique une police choisie aux 3 titres en une fois. Charge le WOFF
@@ -4438,6 +4572,7 @@ function preloadMurals(gameId, playersList) {
       if (imgCache[key]?._loaded) { resolve(); return; }
       if (!imgCache[key]) imgCache[key] = {_loaded:false, _img:null};
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId, p.costume, gameId);
@@ -4461,6 +4596,7 @@ function preloadMurals(gameId, playersList) {
       if (imgCache[key2]?._loaded) { resolve(); return; }
       if (!imgCache[key2]) imgCache[key2] = {_loaded:false, _img:null};
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload  = () => { imgCache[key2]._loaded=true; imgCache[key2]._img=img; resolve(); };
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId2, p.costume2||1, gameId);
@@ -4674,6 +4810,7 @@ function downloadImage() {
     if(imgCache[key]?._loaded){resolve();return;}
     if(!imgCache[key]) imgCache[key]={_loaded:false,_img:null};
     const img=new Image();
+    img.crossOrigin = 'anonymous';
     img.onload=()=>{imgCache[key]._loaded=true;imgCache[key]._img=img;resolve();};
     img.onerror=()=>resolve();
     img.src=getMuralArtUrl(p.charId,p.costume,currentGame);

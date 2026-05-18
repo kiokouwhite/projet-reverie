@@ -764,6 +764,19 @@
         0 0 0 1px rgba(0,0,0,0.08),
         inset 0 1px 0 rgba(255,255,255,0.18)`;
     }
+    // Ajuste la largeur du pill au texte réel. Le clip est en position
+    // absolute → ne contribue pas à la largeur du wrap, donc le wrap
+    // reste à sa width par défaut (PILL_WIDTH) et le texte long est
+    // tronqué par overflow:hidden. On mesure le span et on adapte.
+    const nameEl = host.querySelector('.gs-text-name');
+    const wrapEl = host.querySelector('.gs-pill-wrap');
+    if (nameEl && wrapEl) {
+      requestAnimationFrame(() => {
+        const w = nameEl.getBoundingClientRect().width;
+        // 36 = padding latéral du .gs-text (14*2) + marge du clip (2*2) + ~4 buffer
+        wrapEl.style.width = Math.max(140, Math.ceil(w + 36)) + 'px';
+      });
+    }
   }
   window.gameSelectorRenderStaticBadge = gameSelectorRenderStaticBadge;
 

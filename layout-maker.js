@@ -280,7 +280,26 @@ LM_DEFAULT_OVERLAY.src = 'overlay-default.png';
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function openLayoutMaker(gameName, gameImgUrl) {
   LM.gameName = gameName || 'Mon Jeu';
+  // Reset complet du state pour garantir un démarrage propre sur step 1,
+  // même si on a fermé le LM en plein milieu d'une transition (auquel
+  // cas _isTransitioning resterait stuck à true et bloquerait lmGoTo).
   LM.step = 1;
+  LM.maxStep = 1;
+  LM._isTransitioning = false;
+  // Installe (une fois) un capteur de dernière position de clic — utilisé
+  // par la transition "Onde" pour partir du point où l'utilisateur a cliqué
+  // (chiffre, bouton Suivant/Précédent…).
+  if (!LM._clickHookInstalled) {
+    document.addEventListener('pointerdown', e => {
+      LM._lastClick = { x: e.clientX, y: e.clientY };
+    }, true);
+    LM._clickHookInstalled = true;
+  }
+  // Installe (une fois) le système pan/zoom sur la preview canvas.
+  if (!LM._panZoomInstalled) {
+    lmInstallPreviewPanZoom();
+    LM._panZoomInstalled = true;
+  }
   const input = document.getElementById('lmGameNameInput');
   if (input) input.value = LM.gameName;
   // Charger l'image du jeu depuis start.gg si URL fournie
@@ -293,6 +312,140 @@ function openLayoutMaker(gameName, gameImgUrl) {
   lmGoTo(1);
   document.getElementById('lmModal').style.display = 'flex';
   lmRenderPreview();
+  // Préchauffage : on force plusieurs re-renders consécutifs sur les
+  // prochaines frames pour s'assurer que le canvas est COMPLÈTEMENT
+  // dessiné avant la 1ère transition (sinon flash noir au premier clic
+  // car certaines images du LM se chargent encore en async).
+  requestAnimationFrame(() => {
+    lmRenderPreview();
+    requestAnimationFrame(() => lmRenderPreview());
+  });
+  setTimeout(lmRenderPreview, 200);
+  setTimeout(lmRenderPreview, 600);
+}
+
+// ── PAN/ZOOM SUR LA PREVIEW CANVAS ─────────────────────────────────────────
+// Permet de zoomer/dézoomer (wheel) et déplacer (drag) la preview pour
+// inspecter les détails. Le transform CSS s'applique au canvas, le bitmap
+// n'est PAS re-rendu (pas de perte de qualité, mais pas de re-render à
+// haute résolution non plus — le scale CSS bave un peu en grand zoom).
+function lmInstallPreviewPanZoom(){
+  const wrap = document.querySelector('.lm-canvas-wrap');
+  const canvas = document.getElementById('lmPreviewCanvas');
+  if (!wrap || !canvas) {
+    console.warn('[lm-panzoom] wrap or canvas not found, retrying in 200ms');
+    setTimeout(lmInstallPreviewPanZoom, 200);
+    return;
+  }
+  // Idempotent : si déjà installé sur cet élément, on ne re-attache pas
+  if (wrap._panZoomReady) return;
+  wrap._panZoomReady = true;
+  console.log('[lm-panzoom] installé');
+
+  // État
+  let zoom = 1;
+  let panX = 0, panY = 0;
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 5;
+
+  // Indicateur de zoom (cliquer dessus pour reset)
+  const indicator = document.createElement('div');
+  indicator.className = 'lm-canvas-zoom-indicator';
+  indicator.textContent = '100%';
+  indicator.title = 'Cliquer pour réinitialiser le zoom';
+  indicator.addEventListener('click', e => { e.stopPropagation(); reset(); });
+  wrap.appendChild(indicator);
+
+  function applyTransform(){
+    canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    indicator.textContent = Math.round(zoom * 100) + '%';
+    indicator.classList.toggle('lm-zoom-visible', zoom > 1.01 || Math.abs(panX) > 1 || Math.abs(panY) > 1);
+  }
+
+  function reset(){
+    zoom = 1; panX = 0; panY = 0;
+    applyTransform();
+  }
+
+  // Clamp pan pour éviter de partir trop loin (l'image doit rester
+  // partiellement visible dans le wrap).
+  function clampPan(){
+    const wr = wrap.getBoundingClientRect();
+    const cr = canvas.getBoundingClientRect(); // déjà transformée
+    // Marge de tolérance : on autorise jusqu'à 60% du canvas hors-écran
+    const maxOff = 0.7;
+    const maxX = cr.width * maxOff;
+    const maxY = cr.height * maxOff;
+    panX = Math.max(wr.width - cr.width + (wr.width - cr.width < 0 ? 0 : 0) - maxX, Math.min(maxX, panX));
+    panY = Math.max(wr.height - cr.height + (wr.height - cr.height < 0 ? 0 : 0) - maxY, Math.min(maxY, panY));
+  }
+
+  // ── WHEEL ZOOM ────────────────────────────────────────────────────────
+  wrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Position de la souris dans le wrap
+    const r = wrap.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    // Zoom factor (proportionnel au scroll)
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
+    // Zoom centré sur le pointeur : on ajuste le pan pour que le point
+    // sous la souris reste fixe après le zoom.
+    const scaleChange = newZoom / zoom;
+    panX = mx - (mx - panX) * scaleChange;
+    panY = my - (my - panY) * scaleChange;
+    zoom = newZoom;
+    // Si zoom 1, reset pan pour recadrer parfaitement
+    if (zoom <= MIN_ZOOM + 0.001) { panX = 0; panY = 0; }
+    applyTransform();
+  }, { passive: false });
+
+  // ── DRAG PAN ──────────────────────────────────────────────────────────
+  let dragging = false;
+  let startX = 0, startY = 0, startPanX = 0, startPanY = 0;
+
+  wrap.addEventListener('pointerdown', e => {
+    // Ignore clicks sur l'indicateur (pour qu'il reste cliquable)
+    if (e.target === indicator) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPanX = panX; startPanY = panY;
+    wrap.classList.add('lm-canvas-panning');
+    wrap.setPointerCapture(e.pointerId);
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    panX = startPanX + (e.clientX - startX);
+    panY = startPanY + (e.clientY - startY);
+    applyTransform();
+  });
+  function endDrag(e){
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove('lm-canvas-panning');
+    try { wrap.releasePointerCapture(e.pointerId); } catch{}
+  }
+  wrap.addEventListener('pointerup', endDrag);
+  wrap.addEventListener('pointercancel', endDrag);
+  wrap.addEventListener('pointerleave', endDrag);
+
+  // ── DOUBLE-CLICK = RESET ──────────────────────────────────────────────
+  wrap.addEventListener('dblclick', e => {
+    if (e.target === indicator) return;
+    reset();
+  });
+
+  // Expose reset pour permettre un reset programmatique (ex: changement step)
+  window.lmResetPreviewZoom = reset;
+}
+
+// Install au boot pour ne pas dépendre de l'ouverture du LM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', lmInstallPreviewPanZoom);
+} else {
+  lmInstallPreviewPanZoom();
 }
 
 function closeLayoutMaker() {
@@ -300,10 +453,57 @@ function closeLayoutMaker() {
   // Réinitialiser le mode édition si on ferme sans sauvegarder
   LM._editIdx = undefined;
   LM._editId  = undefined;
+  // Reset guard de transition au cas où on aurait fermé en plein milieu
+  // d'une transition — sinon la prochaine ouverture serait bloquée.
+  LM._isTransitioning = false;
+}
+
+// Vérifie qu'un snapshot full-body n'est pas corrompu (canvas tout noir
+// ou tout transparent → image broken/non chargée). On sample quelques
+// pixels d'un <img> du snapshot (qui remplace le canvas via toDataURL).
+// Si toutes les valeurs sont 0 (noir/transparent), on rejette.
+function _validateBodySnap(snap) {
+  if (!snap) return false;
+  const img = snap.querySelector('img');
+  if (!img || !img.src || !img.src.startsWith('data:')) return true; // pas de canvas → OK
+  // Quick check : data URL de canvas vide PNG ~commencement très court
+  // (genre 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...') et
+  // se termine vite. Un PNG noir 500x500 fait > 500 chars.
+  // Heuristique : si la data URL fait moins de 200 chars → suspect (canvas
+  // 1x1 ou vide). Accepte tout le reste.
+  return img.src.length > 200;
 }
 
 function lmGoTo(step) {
-  LM.step = Math.max(1, Math.min(9, step));
+  // Garde-fou : ignore les clics si une transition est déjà en cours.
+  // Évite les races (stages empilés, visibility:hidden restoré pendant
+  // une 2e tx, etc.) — même logique que le proto Claude Design.
+  if (LM._isTransitioning) return;
+
+  const prevStep = LM.step;
+  const targetStep = Math.max(1, Math.min(9, step));
+
+  // Snapshot du panel sortant AVANT de toucher au DOM, pour le passer
+  // à la transition oniriques (cf. lm-transitions.js). On ne joue la
+  // transition que si on change réellement d'étape (pas à l'ouverture).
+  // IMPORTANT : on utilise l'INDEX DOM (i+1 === step) et non l'attribut
+  // data-step, car le HTML a des data-step buggés (doublon "2" sur les
+  // panels FOND et POLICE → décalage de tous les suivants). L'index DOM
+  // est la source de vérité — c'est lui qui est utilisé par classList.toggle.
+  const allPanels   = document.querySelectorAll('.lm-step-panel');
+  const fromPanel   = (prevStep && prevStep !== targetStep)
+    ? allPanels[prevStep - 1]
+    : null;
+  const toPanel     = allPanels[targetStep - 1];
+  // Host de transition = parent direct des panels (.lm-controls). C'est
+  // l'approche du proto Claude Design : stage compact ancré sur la bbox
+  // du panel, où snapshots ET effets décoratifs s'inscrivent dans la
+  // même zone. Étendre le stage au viewport casse l'alignement des
+  // effets calés sur le centre du stage (Iris, Onde, Liquide, etc.).
+  const panelHost   = fromPanel?.parentElement || toPanel?.parentElement;
+  const playTx      = !!(fromPanel && toPanel && typeof window.lmPlayTransition === 'function');
+
+  LM.step = targetStep;
   // Mémoriser le step max atteint pour garder visibles les étapes déjà visitées
   LM.maxStep = Math.max(LM.maxStep || 1, LM.step);
 
@@ -314,8 +514,31 @@ function lmGoTo(step) {
     dot.classList.toggle('lm-dot-done',   stepIdx !== LM.step && stepIdx <= LM.maxStep);
   });
 
+  // Snapshot du panel sortant AVANT qu'il ne perde sa classe active
+  // (le clone garde son contenu DOM tel quel ; lmPlayTransition force
+  // display:block dessus pour le réafficher en overlay).
+  const fromSnap = playTx ? fromPanel.cloneNode(true) : null;
+
+  // Masque IMMÉDIATEMENT tous les panels pour éviter le flash où le
+  // nouveau panel apparaît brièvement (entre le toggle de class et
+  // l'append du stage par lmPlayTransition). lmPlayTransition les
+  // restaurera à la fin via son cleanup setTimeout.
+  if (playTx) {
+    allPanels.forEach(p => { p.style.visibility = 'hidden'; });
+  }
+
+  // Transitions "bloc unifié" — snapshot du modal-body entier (panel
+  // + preview canvas inline-é via toDataURL) pour swipe/fade-blur
+  // synchrone des deux colonnes.
+  //   1=Rêverie (fade-blur), 2=Aurore (swipe →), 4=Bulles (swipe ↑),
+  //   6=Iris (fade-blur "éclosion"), 8=Pli (rotation 3D)
+  const FULL_BODY_TX_STEPS = new Set([1, 2, 4, 6, 8]);
+  const useFullBody = playTx && FULL_BODY_TX_STEPS.has(targetStep);
+  const fromBodySnap = (useFullBody && typeof lmSnapshotModalBody === 'function')
+    ? lmSnapshotModalBody() : null;
+
   // Panels
-  document.querySelectorAll('.lm-step-panel').forEach((el, i) => {
+  allPanels.forEach((el, i) => {
     const active = i + 1 === LM.step;
     el.classList.toggle('lm-step-active', active);
   });
@@ -346,12 +569,11 @@ function lmGoTo(step) {
     next.classList.toggle('lm-btn-finish', LM.step === 9);
   }
 
-  // Mini dots in footer
-  document.querySelectorAll('.lm-mini-dot').forEach((dot, i) => {
-    dot.classList.toggle('lm-mini-active', i + 1 === LM.step);
-  });
+  // (Mini dots in footer retirés — redondants avec les icônes du header)
 
-  // Step inits
+  // Step inits — IMPORTANT : doivent tourner AVANT le snapshot du toPanel
+  // par lmPlayTransition, sinon le clone serait vide (sliders non set,
+  // grilles de polices non rendues, etc.).
   if (LM.step === 1) lmInitGameImg();
   if (LM.step === 2) lmInitBgStep();
   if (LM.step === 3) lmInitFonts();
@@ -361,6 +583,82 @@ function lmGoTo(step) {
   if (LM.step === 7) lmInitNames();
   if (LM.step === 8) lmInitRanks();
   if (LM.step === 9) lmFinalStep();
+
+  // Maintenant que le toPanel est peuplé, on lance la transition oniriques.
+  // Le fromSnap a été cloné plus haut (avant le retrait de lm-step-active).
+  if (playTx) {
+    let origin = null;
+    if (LM._lastClick) {
+      const r = toPanel.getBoundingClientRect();
+      origin = {
+        x: Math.max(2, Math.min(98, ((LM._lastClick.x - r.left) / r.width) * 100)),
+        y: Math.max(2, Math.min(98, ((LM._lastClick.y - r.top)  / r.height) * 100)),
+      };
+    }
+    // Chaque step a SA transition (1=Rêverie … 9=Onde). L'index dans
+    // LM_TRANSITIONS suit l'ordre des steps. Override possible via
+    // LM.transitionId (force une transition spécifique partout).
+    const txId = (window.LM_TRANSITIONS && window.LM_TRANSITIONS[targetStep - 1]?.id) || null;
+
+    // Pour Aurore/Bulles/Rêverie (full-body), on snapshote aussi le
+    // modal-body APRÈS le switch. Validation rigoureuse pour éviter le
+    // clignotement noir intermittent : on vérifie que le snapshot du
+    // canvas n'est pas vide (couleur dominante noire = canvas non rendu).
+    // Si le check fail, on fallback au mode panel-only (pas de full-body
+    // swipe mais pas de flash noir non plus).
+    let fullBodySnaps = null;
+    if (useFullBody && fromBodySnap && typeof lmSnapshotModalBody === 'function') {
+      if (typeof lmRenderPreview === 'function') lmRenderPreview();
+      const toBodySnap = lmSnapshotModalBody();
+      // Sanity check : si le snapshot du canvas est tout noir/vide (rendu
+      // asynchrone pas terminé), on n'utilise pas le full-body — sinon
+      // flash noir visible pendant l'anim. On vérifie aussi fromBodySnap.
+      const fromOk = _validateBodySnap(fromBodySnap);
+      const toOk   = _validateBodySnap(toBodySnap);
+      if (toBodySnap && fromOk && toOk) fullBodySnaps = [fromBodySnap, toBodySnap];
+    }
+
+    // Reset bulletproof : try/catch pour les throws sync de lmPlayTransition,
+    // .finally pour la Promise, ET un timeout safety net (3s) au cas où
+    // tout fail. Sinon un guard stuck bloque toutes les nav suivantes.
+    LM._isTransitioning = true;
+    const _safetyReset = setTimeout(() => { LM._isTransitioning = false; }, 3000);
+    try {
+      const _p = window.lmPlayTransition(panelHost, fromPanel, toPanel, {
+        origin, fromSnap, id: txId, fullBodySnaps,
+        // Cleanup pré-restore :
+        // 1) Force re-render du canvas pour éviter un flash noir
+        // 2) Re-déclenche l'animation fade-in CSS sur le panel actif
+        //    pour qu'elle joue APRÈS la transition (visible) plutôt que
+        //    pendant (cachée par visibility:hidden). Démarre d'opacity .5
+        //    (pas 0) pour un fade subtil sans saut brutal après le
+        //    snapshot qui finit à opacity 1.
+        onBeforeRestore: () => {
+          if (typeof lmRenderPreview === 'function') lmRenderPreview();
+          const activePanel = document.querySelector('.lm-step-panel.lm-step-active');
+          if (activePanel) {
+            // Hack force-reflow pour relancer l'animation CSS
+            activePanel.style.animation = 'none';
+            void activePanel.offsetWidth;
+            activePanel.style.animation = '';
+          }
+        },
+      });
+      if (_p && typeof _p.finally === 'function') {
+        _p.finally(() => {
+          clearTimeout(_safetyReset);
+          LM._isTransitioning = false;
+        });
+      } else {
+        clearTimeout(_safetyReset);
+        LM._isTransitioning = false;
+      }
+    } catch (e) {
+      console.error('[lm] transition failed:', e);
+      clearTimeout(_safetyReset);
+      LM._isTransitioning = false;
+    }
+  }
 
   lmRenderPreview();
 }
@@ -1016,6 +1314,13 @@ function lmFinalStep() {
   // Prefill name (en mode édition, le nom est déjà rempli par lmOpenForEdit)
   const inp = document.getElementById('lmLayoutNameInput');
   if (inp && !inp.value) inp.value = LM.gameName;
+  // Adapte le label du bouton sauvegarder selon le mode (création vs édition)
+  const saveBtn = document.getElementById('lmFinalSaveBtn');
+  if (saveBtn) {
+    saveBtn.textContent = LM._editId
+      ? '💾 Mettre à jour le layout'
+      : '🎉 Sauvegarder dans le coffre';
+  }
 }
 
 // ── ÉDITION D'UN LAYOUT EXISTANT ─────────────────────────────────────────────
@@ -1147,8 +1452,14 @@ async function lmOpenForEdit(layoutId) {
   const gameNameInput = document.getElementById('lmGameNameInput');
   if (gameNameInput) gameNameInput.value = LM.gameName;
 
-  // Ouvrir directement à l'étape finale
-  lmGoTo(9);
+  // Démarrer systématiquement sur l'étape 1 (cohérence UX avec
+  // openLayoutMaker — le user peut ensuite naviguer vers step 9 via
+  // les dots ou Suivant si édition rapide). On reset aussi _isTransitioning
+  // au cas où on aurait fermé en plein milieu d'une transition précédente.
+  LM.step = 1;
+  LM.maxStep = 9; // mode édition : tous les steps déjà visités
+  LM._isTransitioning = false;
+  lmGoTo(1);
   document.getElementById('lmModal').style.display = 'flex';
   lmRenderPreview();
 }

@@ -16,14 +16,22 @@ function cfgInit() {
   const startgg = localStorage.getItem('top8_startgg_key') || '';
   const url     = localStorage.getItem('dc_bot_url')    || localStorage.getItem('hr_bot_url')    || '';
   const secret  = localStorage.getItem('dc_bot_secret') || localStorage.getItem('hr_bot_secret') || '';
+  const logCh   = localStorage.getItem('dc_log_channel_id') || '';
 
   const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   setV('cfgStartggKey', startgg);
   setV('cfgBotUrl',     url);
   setV('cfgBotSecret',  secret);
+  setV('dcLogChannelId', logCh);
 
   // Pré-remplir aussi les inputs des autres onglets si vides
   cfgPropagateToInputs(startgg, url, secret);
+
+  // Restaure le label du picker du log channel
+  if (logCh && typeof renderDcChannelPickerBtn === 'function') {
+    const wrap = document.getElementById('dcLogChannelPickerWrap');
+    if (wrap) wrap.innerHTML = renderDcChannelPickerBtn(logCh, 'dcLogChannelId', 'dcLogChannelPickerWrap');
+  }
 }
 
 // Sauvegarde toutes les valeurs en localStorage et propage aux inputs
@@ -32,6 +40,7 @@ function cfgSaveAll() {
   const startgg = (document.getElementById('cfgStartggKey')?.value || '').trim();
   const url     = (document.getElementById('cfgBotUrl')?.value     || '').trim().replace(/\/$/, '');
   const secret  = (document.getElementById('cfgBotSecret')?.value  || '').trim();
+  const logCh   = (document.getElementById('dcLogChannelId')?.value || '').trim();
 
   // Persister dans toutes les clés legacy attendues par chaque module
   cfgWriteOrRemove('top8_startgg_key', startgg);
@@ -39,6 +48,7 @@ function cfgSaveAll() {
   cfgWriteOrRemove('hr_bot_url',       url);
   cfgWriteOrRemove('dc_bot_secret',    secret);
   cfgWriteOrRemove('hr_bot_secret',    secret);
+  cfgWriteOrRemove('dc_log_channel_id', logCh);
 
   // Propager aux inputs DOM des autres onglets s'ils existent
   cfgPropagateToInputs(startgg, url, secret);

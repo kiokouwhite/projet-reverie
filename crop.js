@@ -388,7 +388,7 @@ function loadSlotMaskPolygon(slotIdx) {
   try {
     const sc = (typeof _slotCfgsMem !== 'undefined') && _slotCfgsMem[currentGame]?.slots?.[slotIdx];
     if (sc?.maskPolygon && Array.isArray(sc.maskPolygon) && sc.maskPolygon.length >= 3) {
-      return sc.maskPolygon.map(p => ({ x: p.x, y: p.y }));
+      return sc.maskPolygon.map(p => ({ x: p.x, y: p.y, rounded: !!p.rounded }));
     }
   } catch (e) {}
   return null;
@@ -402,7 +402,11 @@ function saveSlotMaskPolygon(slotIdx, polygon) {
     _slotCfgsMem[currentGame].slots.push(null);
   }
   const existing = _slotCfgsMem[currentGame].slots[slotIdx] || {};
-  existing.maskPolygon = polygon.map(p => ({ x: +p.x.toFixed(4), y: +p.y.toFixed(4) }));
+  existing.maskPolygon = polygon.map(p => {
+    const o = { x: +p.x.toFixed(4), y: +p.y.toFixed(4) };
+    if (p.rounded) o.rounded = true;
+    return o;
+  });
   _slotCfgsMem[currentGame].slots[slotIdx] = existing;
   if (typeof _saveSlotCfgsToStorage === 'function') _saveSlotCfgsToStorage();
 }
@@ -434,7 +438,7 @@ function switchCropMode(mode) {
   // Met à jour le hint en haut
   const hint = document.getElementById('cropHint');
   if (hint) hint.textContent = mode === 'mask'
-    ? 'Clic sur le bord pour ajouter un point · Glisse un point pour le bouger · Clic droit pour supprimer'
+    ? 'Clic bord = ajouter · Glisse = bouger · Clic droit = supprimer · Double-clic = arrondir · Molette = zoom'
     : "Glisse l'image pour repositionner · Ajuste le zoom";
   // Re-bind les events souris selon le mode
   _bindCropCanvasEvents();
@@ -478,6 +482,36 @@ function resetMaskPolygon() {
   _renderCropOrMask();
 }
 
+// Fonction utilitaire exposée — dessine un chemin de polygone avec coins
+// arrondis pour les points qui ont `p.rounded === true`. Utilisée par
+// l'éditeur de masque ET par le rendu final dans app.js.
+// pts : tableau de points en COORDS PIXEL CANVAS (déjà multipliés par taille).
+// defaultR : rayon par défaut pour les coins arrondis (capé par la moitié
+// des segments adjacents pour éviter les overlaps).
+function drawMaskPolygonPath(ctx, pts, defaultR) {
+  if (!pts || pts.length < 3) return;
+  // Commence au milieu du segment 0→1 (évite les soucis de moveTo sur
+  // un coin arrondi qui aurait besoin d'arcTo en partant d'avant le sommet)
+  const startX = (pts[0].x + pts[1].x) / 2;
+  const startY = (pts[0].y + pts[1].y) / 2;
+  ctx.moveTo(startX, startY);
+  for (let i = 1; i <= pts.length; i++) {
+    const curr = pts[i % pts.length];
+    const next = pts[(i+1) % pts.length];
+    if (curr.rounded) {
+      const prev = pts[(i-1+pts.length) % pts.length];
+      const dPrev = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+      const dNext = Math.hypot(curr.x - next.x, curr.y - next.y);
+      const r = Math.min(defaultR, dPrev/2.2, dNext/2.2);
+      ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
+    } else {
+      ctx.lineTo(curr.x, curr.y);
+    }
+  }
+  ctx.closePath();
+}
+window.drawMaskPolygonPath = drawMaskPolygonPath;
+
 function renderMaskEditor(canvas) {
   const SIZE = 280;
   canvas.width = SIZE; canvas.height = SIZE;
@@ -508,42 +542,53 @@ function renderMaskEditor(canvas) {
   // Dessine le polygone courant
   const poly = cropAdjust.maskPolygon;
   if (!poly || !poly.length) return;
-  const drawPts = poly.map(p => ({ x: p.x * SIZE, y: p.y * SIZE }));
+  const drawPts = poly.map(p => ({ x: p.x * SIZE, y: p.y * SIZE, rounded: !!p.rounded }));
+  // Rayon par défaut des coins arrondis : 15% de la taille canvas
+  const cornerR = SIZE * 0.15;
 
   // Zone clippée (à l'intérieur du polygone) : effet voile sombre AUTOUR
   ctx.save();
   ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
   ctx.beginPath();
   ctx.rect(0, 0, SIZE, SIZE);
-  ctx.moveTo(drawPts[0].x, drawPts[0].y);
-  for (let i = drawPts.length - 1; i >= 1; i--) ctx.lineTo(drawPts[i].x, drawPts[i].y);
-  ctx.closePath();
+  // Sub-path inverse pour evenodd (utilise le path arrondi)
+  drawMaskPolygonPath(ctx, drawPts.slice().reverse(), cornerR);
   ctx.fill('evenodd');
   ctx.restore();
 
-  // Trait du polygone
+  // Trait du polygone (avec coins arrondis)
   ctx.save();
   ctx.strokeStyle = 'rgba(168, 132, 240, 0.95)';
   ctx.lineWidth = 2;
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3;
   ctx.beginPath();
-  ctx.moveTo(drawPts[0].x, drawPts[0].y);
-  for (let i = 1; i < drawPts.length; i++) ctx.lineTo(drawPts[i].x, drawPts[i].y);
-  ctx.closePath();
+  drawMaskPolygonPath(ctx, drawPts, cornerR);
   ctx.stroke();
   ctx.restore();
 
-  // Points draggables (cercles blancs avec contour violet)
+  // Points draggables — losange pour les points "arrondis", cercle blanc
+  // pour les points "anguleux" (visuel pour distinguer les deux modes)
   drawPts.forEach((p, i) => {
     ctx.save();
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#7c5cff';
-    ctx.lineWidth = 2;
     ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    if (p.rounded) {
+      // Pastille jaune dorée = coin arrondi
+      ctx.fillStyle = '#ffd86b';
+      ctx.strokeStyle = '#c98900';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#7c5cff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
   });
 }
@@ -595,9 +640,58 @@ function _bindCropCanvasEvents() {
   // Reset tout
   canvas.onmousedown = canvas.onmousemove = canvas.onmouseup = canvas.onmouseleave = null;
   canvas.oncontextmenu = null;
+  canvas.ondblclick = null;
+  // Cleanup ancien wheel listener (idempotent)
+  if (canvas._maskWheelListener) {
+    canvas.removeEventListener('wheel', canvas._maskWheelListener);
+    canvas._maskWheelListener = null;
+  }
+  // Reset zoom CSS au switch de mode
+  canvas.style.transform = '';
+  canvas.style.transformOrigin = '0 0';
+
   if (cropAdjust.mode === 'mask') {
     canvas.style.cursor = 'crosshair';
     canvas.oncontextmenu = (e) => { e.preventDefault(); return false; };
+
+    // ── ZOOM AU SCROLL ────────────────────────────────────────────────
+    // Zoom CSS du canvas. Les clicks/drags continuent à fonctionner car
+    // on calcule les coords via canvas.width / rect.width qui prend en
+    // compte le scale CSS automatiquement.
+    let _maskZoom = 1;
+    const wheelFn = (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      _maskZoom = Math.max(1, Math.min(5, _maskZoom * factor));
+      if (_maskZoom <= 1.01) {
+        canvas.style.transform = '';
+        _maskZoom = 1;
+      } else {
+        // Zoom centré sur le pointeur
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) / rect.width;   // 0-1
+        const my = (e.clientY - rect.top)  / rect.height;
+        canvas.style.transformOrigin = `${mx * 100}% ${my * 100}%`;
+        canvas.style.transform = `scale(${_maskZoom})`;
+      }
+    };
+    canvas.addEventListener('wheel', wheelFn, { passive: false });
+    canvas._maskWheelListener = wheelFn;
+
+    // ── DOUBLE-CLICK : toggle "rounded" sur un point ──────────────────
+    canvas.ondblclick = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width / rect.width;
+      const sy = canvas.height / rect.height;
+      const px = (e.clientX - rect.left) * sx;
+      const py = (e.clientY - rect.top)  * sy;
+      const idx = _findClosestPointIdx(px, py, 14);
+      if (idx >= 0) {
+        const p = cropAdjust.maskPolygon[idx];
+        p.rounded = !p.rounded;
+        renderMaskEditor(canvas);
+      }
+    };
     canvas.onmousedown = (e) => {
       const rect = canvas.getBoundingClientRect();
       const sx = canvas.width / rect.width;

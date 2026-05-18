@@ -144,11 +144,12 @@
                    garde le selecteur visible mais sa logique ne s'applique pas
                    au rendu Magna. -->
               <label class="field-label">Jeu</label>
-              <!-- Sélecteur visuel : pill avec flèches et fond du jeu -->
-              <div id="gameSelectorPill" style="margin-bottom:8px;"></div>
-              <!-- Le <select> reste dans le DOM (caché) : il est la source de
-                   vérité pour les autres modules (updateGame() écoute change). -->
-              <select id="gameSelect" onchange="updateGame()" style="display:none;">
+              <!-- Sélecteur visuel pill : caché (le user préfère le dropdown
+                   natif classique ci-dessous). Conservé en display:none au
+                   cas où un autre module y fait référence. -->
+              <div id="gameSelectorPill" style="display:none;"></div>
+              <!-- Dropdown natif classique — source de vérité pour updateGame() -->
+              <select id="gameSelect" onchange="updateGame()" style="width:100%;margin-bottom:8px;">
                 <optgroup label="🎮 Avec layout">
                   <option value="ssbu">Super Smash Bros. Ultimate</option>
                   <option value="ggst">Guilty Gear -Strive-</option>
@@ -348,34 +349,26 @@
             <!-- coins injectés par JS -->
             <div class="left-slides-wrap">
 
-              <!-- Slide 0 : URL start.gg -->
+              <!-- Slide 0 : Import start.gg (format strictement identique au Top 8 empty state) -->
               <div class="left-slide" id="dcSlide0">
-                <div class="dc-url-row">
-                  <input type="text" id="dcUrl" class="dc-url-input"
-                    placeholder="https://start.gg/tournament/mon-tournoi/details"
-                    oninput="dcGenerate && dcGenerate()">
-                  <button id="dcFetchBtn" class="btn btn-primary dc-fetch-btn" onclick="dcFetch()">✨ Générer</button>
-                </div>
+                <label class="field-label" style="margin-top:0;text-align:center;display:block;">Lien du tournoi</label>
+                <input type="text" id="dcUrl" placeholder="https://start.gg/tournament/..." style="width:100%;margin-bottom:8px;text-align:center;" oninput="dcGenerate && dcGenerate()">
+                <button class="btn" id="dcFetchBtn" onclick="dcFetch()" style="width:100%;margin-bottom:8px;">🔍 Chercher</button>
                 <div id="dcStatus" class="dc-status" style="display:none;"></div>
               </div>
 
               <!-- Slide 1 : Réglages + Événements -->
               <div class="left-slide" id="dcSlide1">
-                <div class="dc-field-row">
-                  <label>Preset</label>
-                  <select id="dcPresetSelect" class="dc-text-input" onchange="dcApplyPreset(this.value)">
-                    <option value="lorem_smash">Lorem Ipsum — Smash Strasbourg</option>
-                    <option value="lorem_strasfighter">Lorem Ipsum — Stras'Fighter</option>
-                    <option value="magna">Magna Arena — Stras'Fighters</option>
-                  </select>
-                </div>
+                <div class="section-title" style="margin-top:4px;">⚙️ Preset</div>
+                <select id="dcPresetSelect" class="dc-text-input" onchange="dcApplyPreset(this.value)" style="width:100%;text-align:center;text-align-last:center;">
+                  <option value="lorem_smash">Lorem Ipsum — Smash Strasbourg</option>
+                  <option value="lorem_strasfighter">Lorem Ipsum — Stras'Fighter</option>
+                  <option value="magna">Magna Arena — Stras'Fighters</option>
+                </select>
+                <div class="section-title" style="margin-top:14px;">📝 Texte</div>
                 <div class="dc-field-row">
                   <label>Emoji du tournoi</label>
-                  <div class="dc-emoji-preview-wrap">
-                    <span class="dc-emoji-colon">:</span>
-                    <input type="text" id="dcTourneyEmoji" class="dc-emoji-input" placeholder="lorem" oninput="dcGenerate()">
-                    <span class="dc-emoji-colon">:</span>
-                  </div>
+                  <input type="text" id="dcTourneyEmoji" class="dc-text-input" placeholder=":lorem:" readonly onclick="openDcEmojiPicker()" oninput="dcGenerate()" style="cursor:pointer;">
                 </div>
                 <div class="dc-field-row">
                   <label>Lieu</label>
@@ -413,7 +406,15 @@
                   <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
                     <!-- Input ID caché : conservé pour le code legacy qui lit dcChannelId.value -->
                     <input type="text" id="dcChannelId" style="display:none;">
-                    <select id="dcChannelSelect" class="dc-text-input"></select>
+                    <!-- Wrapper pour le picker custom 2 étapes (serveur → salon) -->
+                    <div id="dcChannelPickerWrap">
+                      <button type="button" class="dc-role-picker-btn" onclick="openDcChannelPicker()">
+                        <span class="dc-rp-placeholder">— Choisir un salon —</span>
+                        <span class="dc-rp-arrow">▾</span>
+                      </button>
+                    </div>
+                    <!-- ancien <select id="dcChannelSelect"> retiré, remplacé par le picker -->
+                    <select id="dcChannelSelect" style="display:none;"></select>
                     <button class="dc-add-sched-btn" onclick="dcLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
                   </div>
                 </div>
@@ -462,9 +463,6 @@
 
       <!-- ── COLONNE DROITE : PRÉVISUALISATION ── -->
       <div class="dc-right">
-        <div class="dc-preview-header">
-          <span class="dc-preview-label">💬 Aperçu du message Discord</span>
-        </div>
         <div class="dc-preview-wrap">
           <!-- Élément masqué : conserve le contenu markdown pour le code legacy
                (window._dcMessage est lu par dcCopy/dcPost). -->
@@ -1061,6 +1059,17 @@
           <input type="password" id="cfgBotSecret" autocomplete="off" oninput="cfgSaveAll()">
           <small>Ce que tu as défini comme variable <code>APP_SECRET</code> sur Railway. Utilisé pour authentifier l'app web auprès du bot.</small>
         </div>
+        <div class="cfg-field">
+          <label>Salon de log Rêverie</label>
+          <input type="text" id="dcLogChannelId" style="display:none;" oninput="cfgSaveAll()">
+          <div id="dcLogChannelPickerWrap">
+            <button type="button" class="dc-role-picker-btn" onclick="openDcChannelPicker('dcLogChannelId','dcLogChannelPickerWrap')">
+              <span class="dc-rp-placeholder">— Choisir un salon de log —</span>
+              <span class="dc-rp-arrow">▾</span>
+            </button>
+          </div>
+          <small>Le bot postera un message de confirmation dans ce salon à chaque fois que tu programmes un envoi (avec la date prévue et l'aperçu du message). Laisse vide pour désactiver.</small>
+        </div>
       </div>
 
       <!-- ── Détection de tournois start.gg ─────────────────────────────────
@@ -1348,7 +1357,8 @@
     <!-- Contrôles mode MASQUE -->
     <div id="cropModeMask" style="display:none;margin-bottom:10px;">
       <p style="font-size:11px;color:#888;margin:0 0 8px 0;line-height:1.4;">
-        Clic sur le bord pour ajouter un point · Glisse pour bouger · Clic droit pour supprimer
+        Clic bord = ajouter point · Glisse = bouger · Clic droit = supprimer<br>
+        <strong>Double-clic sur un point</strong> = arrondir l'angle · <strong>Molette</strong> = zoom
       </p>
       <button class="btn" onclick="resetMaskPolygon()" style="width:100%;font-size:11px;">↩ Reset au cercle de base</button>
     </div>
@@ -1434,13 +1444,13 @@
       </div>
       <div class="lm-dots">
         <div class="lm-dot lm-dot-active" onclick="lmGoTo(1)" title="Image du jeu">🎮</div>
-        <div class="lm-dot" onclick="lmGoTo(2)" title="Fond">2</div>
-        <div class="lm-dot" onclick="lmGoTo(3)" title="Police">3</div>
-        <div class="lm-dot" onclick="lmGoTo(4)" title="Titres">4</div>
-        <div class="lm-dot" onclick="lmGoTo(5)" title="Formes">5</div>
-        <div class="lm-dot" onclick="lmGoTo(6)" title="Personnages">6</div>
-        <div class="lm-dot" onclick="lmGoTo(7)" title="Noms">7</div>
-        <div class="lm-dot" onclick="lmGoTo(8)" title="Rangs">8</div>
+        <div class="lm-dot" onclick="lmGoTo(2)" title="Fond">🖼️</div>
+        <div class="lm-dot" onclick="lmGoTo(3)" title="Police">🔤</div>
+        <div class="lm-dot" onclick="lmGoTo(4)" title="Titres">✏️</div>
+        <div class="lm-dot" onclick="lmGoTo(5)" title="Formes">🎴</div>
+        <div class="lm-dot" onclick="lmGoTo(6)" title="Personnages">👤</div>
+        <div class="lm-dot" onclick="lmGoTo(7)" title="Noms">💬</div>
+        <div class="lm-dot" onclick="lmGoTo(8)" title="Rangs">🏅</div>
         <div class="lm-dot" onclick="lmGoTo(9)" title="Sauvegarder">🎉</div>
       </div>
       <button class="btn btn-icon lm-close-x" onclick="closeLayoutMaker()">✕</button>
@@ -1607,8 +1617,8 @@
 
         </div>
 
-        <!-- ── STEP 2 : POLICE ── -->
-        <div class="lm-step-panel" data-step="2">
+        <!-- ── STEP 3 : POLICE ── -->
+        <div class="lm-step-panel" data-step="3">
           <div class="lm-block">
             <div class="lm-block-title">🔤 Choix de la police</div>
             <div id="lmFontGrid" class="lm-font-grid"></div>
@@ -1625,8 +1635,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 3 : TITRES ── -->
-        <div class="lm-step-panel" data-step="3">
+        <!-- ── STEP 4 : TITRES ── -->
+        <div class="lm-step-panel" data-step="4">
           <!-- T1 -->
           <div class="lm-block">
             <div class="lm-block-title">Ligne 1 — Nom du tournoi</div>
@@ -1659,8 +1669,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 4 : FORMES ── -->
-        <div class="lm-step-panel" data-step="4">
+        <!-- ── STEP 5 : FORMES ── -->
+        <div class="lm-step-panel" data-step="5">
           <div class="lm-block">
             <div class="lm-block-title">🎴 Forme des cartes</div>
             <div id="lmShapeGrid" class="lm-shape-grid"></div>
@@ -1724,8 +1734,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 5 : PERSONNAGES ── -->
-        <div class="lm-step-panel" data-step="5">
+        <!-- ── STEP 6 : PERSONNAGES ── -->
+        <div class="lm-step-panel" data-step="6">
           <div class="lm-block">
             <div class="lm-block-title">👤 Images par joueur</div>
             <p style="font-size:12px;color:#9b7fb8;margin-bottom:12px;line-height:1.5;">
@@ -1791,8 +1801,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 6 : NOMS ── -->
-        <div class="lm-step-panel" data-step="6">
+        <!-- ── STEP 7 : NOMS ── -->
+        <div class="lm-step-panel" data-step="7">
           <!-- Per-player name blocks -->
           <div class="lm-block">
             <div class="lm-block-title">💬 Noms des joueurs</div>
@@ -1864,8 +1874,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 7 : CLASSEMENTS ── -->
-        <div class="lm-step-panel" data-step="7">
+        <!-- ── STEP 8 : CLASSEMENTS ── -->
+        <div class="lm-step-panel" data-step="8">
           <!-- Global rank style -->
           <div class="lm-block">
             <div class="lm-block-title">🏅 Style des classements</div>
@@ -1951,8 +1961,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 8 : FINALISER ── -->
-        <div class="lm-step-panel" data-step="8">
+        <!-- ── STEP 9 : FINALISER ── -->
+        <div class="lm-step-panel" data-step="9">
           <div class="lm-block lm-final-block">
             <div style="text-align:center;padding:10px 0 16px;">
               <div style="font-size:40px;margin-bottom:8px;">🎉</div>
@@ -1961,7 +1971,10 @@
             </div>
             <img id="lmFinalThumb" style="display:none;width:100%;border-radius:12px;margin-bottom:12px;border:3px solid var(--border);box-shadow:0 4px 16px rgba(130,80,220,0.2);">
             <label class="lm-label">📛 Nom du layout</label>
-            <input type="text" id="lmLayoutNameInput" placeholder="Ex: Mortal Kombat 1 — FightClub..." style="width:100%;margin-bottom:8px;">
+            <input type="text" id="lmLayoutNameInput" placeholder="Ex: Mortal Kombat 1 — FightClub..." style="width:100%;margin-bottom:12px;">
+            <button id="lmFinalSaveBtn" class="btn btn-primary lm-btn-finish" onclick="lmFinishAndSave()" style="width:100%;font-size:14px;font-weight:800;padding:14px 24px;border-radius:14px;">
+              🎉 Sauvegarder dans le coffre
+            </button>
           </div>
         </div>
 
@@ -1969,11 +1982,13 @@
 
       <!-- ── COLONNE DROITE : PREVIEW ── -->
       <div class="lm-preview-col">
-        <div class="lm-preview-label">✦ Aperçu en direct</div>
         <div class="lm-bg-quick-change">
           <input type="file" id="lmBgFileQuick" accept="image/*" style="display:none" onchange="lmLoadBg(event)">
           <button class="btn lm-btn-bg-quick" onclick="document.getElementById('lmBgFileQuick').click()">🖼️ Changer le fond</button>
-          <span id="lmBgQuickLabel" class="lm-bg-quick-label">Aucun fond chargé</span>
+          <!-- Label "Aucun fond chargé" caché (le bouton suffit visuellement),
+               on conserve le span pour que lmSyncBg() puisse mettre à jour
+               le texte sans casser. -->
+          <span id="lmBgQuickLabel" class="lm-bg-quick-label" style="display:none;">Aucun fond chargé</span>
         </div>
         <div class="lm-canvas-wrap">
           <canvas id="lmPreviewCanvas" width="500" height="500"></canvas>
@@ -1983,22 +1998,13 @@
 
     </div><!-- /lm-body -->
 
-    <!-- FOOTER NAV -->
-    <div class="lm-footer">
-      <button id="lmPrevBtn" class="btn lm-nav-btn" onclick="lmPrev()" disabled>← Précédent</button>
-      <div class="lm-step-dots-mini">
-        <span class="lm-mini-dot lm-mini-active"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-        <span class="lm-mini-dot"></span>
-      </div>
-      <button id="lmNextBtn" class="btn btn-primary lm-nav-btn" onclick="lmNext()">Suivant →</button>
-    </div>
+    <!-- FOOTER RETIRÉ — navigation via les icônes du header. Le bouton
+         de sauvegarde est intégré dans le panel step 9 ci-dessus. -->
+    <!-- Boutons fantômes invisibles pour éviter les erreurs JS sur les
+         updates de label/disabled dans lmGoTo (références conservées
+         pour compat ascendante). -->
+    <button id="lmPrevBtn" style="display:none;" onclick="lmPrev()"></button>
+    <button id="lmNextBtn" style="display:none;" onclick="lmNext()"></button>
 
   </div><!-- /lm-modal -->
 </div>
@@ -2322,11 +2328,14 @@ function liquidSwitchTab(tab) {
 <script src="layouts.js"></script>
 <script src="multi.js"></script>
 <script src="data.js"></script>
+<script src="dc-typewriter-anim.js"></script>
 <script src="discord.js"></script>
 <script src="horaires.js"></script>
 <script src="rubiks-cube.js"></script>
 <script src="startgg.js"></script>
 <script src="crop.js"></script>
+<script src="lm-transitions.js"></script>
+<script src="lm-icons.js"></script>
 <script src="layout-maker.js"></script>
 <script src="config.js"></script>
 <script src="tournament-watch.js"></script>

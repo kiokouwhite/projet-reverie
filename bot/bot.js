@@ -772,6 +772,41 @@ app.get('/app-emojis', async (req, res) => {
   }
 });
 
+// ── ROUTE : Importer un Application Emoji depuis l'app ────────────────────────
+// Body JSON : { name: "mon_emoji", imageBase64: "data:image/png;base64,iVBOR…" }
+// Limites Discord : 256 KiB par fichier, nom 2-32 chars [a-z0-9_], max 2000 emojis.
+app.post('/app-emojis', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+  try {
+    let { name, imageBase64 } = req.body || {};
+    if (!name || !imageBase64) {
+      return res.status(400).json({ ok: false, error: 'name et imageBase64 requis' });
+    }
+    // Sanitize nom : minuscules, alphanum + _, 2-32 chars
+    name = String(name).toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+    if (name.length < 2) return res.status(400).json({ ok: false, error: 'Nom trop court (min 2 chars)' });
+    // L'API discord.js accepte une data URL ou un Buffer directement
+    const emoji = await client.application.emojis.create({
+      attachment: imageBase64,
+      name,
+    });
+    res.json({
+      ok: true,
+      emoji: {
+        id:       emoji.id,
+        name:     emoji.name,
+        url:      emoji.imageURL({ size: 64 }),
+        animated: emoji.animated,
+        markdown: `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`,
+      },
+    });
+  } catch(e) {
+    console.error('app-emojis POST :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── ROUTE : Lister les emojis custom du serveur ───────────────────────────────
 app.get('/emojis', async (req, res) => {
   if (!checkSecret(req, res)) return;

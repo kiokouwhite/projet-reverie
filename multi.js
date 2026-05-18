@@ -474,6 +474,7 @@ async function generateAllGraphs() {
         const bgSrc = layout?.bgFile || layout?._lm?.bgDataUrl || null;
         if (bgSrc) {
           const img = new Image();
+          img.crossOrigin = 'anonymous'; // CORS pour toDataURL (Insta)
           img.onload = () => { bgImg = img; resolve(); };
           img.onerror = () => { bgImg = null; resolve(); };
           img.src = bgSrc;
@@ -556,6 +557,7 @@ function renderMultiPreview() {
   const bgSrc = layout?.bgFile || layout?._lm?.bgDataUrl || null;
   if (bgSrc) {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       bgImg = img;
       if (layout?.bgFile) updateUploadLabel(layout.bgFile);
@@ -626,6 +628,7 @@ async function addCustomLayoutGraph(layout) {
     const bgSrc = lay?.bgFile || lay?._lm?.bgDataUrl || null;
     if (bgSrc) {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload  = () => { bgImg = img; resolve(); };
       img.onerror = () => { bgImg = null; resolve(); };
       img.src = bgSrc;
@@ -719,6 +722,7 @@ async function postThreadToTwitter() {
       const bgSrc = layout?.bgFile || layout?._lm?.bgDataUrl || null;
       if (bgSrc) {
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.onload = () => { bgImg = img; resolve(); };
         img.onerror = () => { bgImg = null; resolve(); };
         img.src = bgSrc;

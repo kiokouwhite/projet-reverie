@@ -98,6 +98,7 @@ function dcGetPreset(id) {
 // ── DESCRIPTIONS DE JEUX (pour les embeds Stras'Fighters) ─────────────────────
 // Base hardcodée — overridable via UI (stocké en localStorage par nom normalisé).
 const DC_GAME_DESCRIPTIONS = {
+  // ── Mainline modernes ──
   'tekken 8':                "Le 8e opus de la légendaire saga 3D de Bandai Namco (2024). Heat System, combats viscéraux, roster massif.",
   'street fighter 6':        "Le dernier né de la saga Capcom (2023). Drive System, mode World Tour, et ultra compétitif.",
   'super smash bros ultimate': "Le crossover Nintendo ultime sur Switch (2018). 89 personnages, toujours au top du Smash compétitif.",
@@ -112,25 +113,137 @@ const DC_GAME_DESCRIPTIONS = {
   'the king of fighters xv': "Le dernier KOF de SNK (2022). Format 3v3, roster monumental.",
   'fatal fury city of the wolves': "Suite de Fatal Fury par SNK (2025). Modernisation de la légendaire saga Garou.",
   'invincible vs':           "Tag fighter inspiré de la série Invincible (Maximum Game). Style comic book.",
+  // ── BlazBlue ──
+  'blazblue central fiction':  "Le climax de la saga BlazBlue par Arc System Works (2015). Fighter 2D anime virtuose, 36 persos, mode story complet.",
+  'blazblue cross tag battle': "Crossover 2v2 d'Arc System Works (2018). Réunit BlazBlue, Persona 4 Arena, RWBY, Under Night et plus.",
+  // ── Smash & plateforme fighters ──
+  'super smash bros melee':  "Le légendaire opus GameCube (2001). Wavedashing, vitesse extrême, scène compétitive culte.",
+  'super smash bros brawl':  "Smash sur Wii (2008), avec son extension compétitive Project M.",
+  'project m':               "Mod compétitif de Smash Bros Brawl. Mécaniques façon Melee + roster étendu.",
+  'rivals of aether':        "Plateforme fighter indé (2017) par Dan Fornace. Hommage à Melee avec mécaniques originales.",
+  'rivals 2':                "Rivals of Aether 2 (2024) — gameplay 3D, online rollback, scène compétitive en expansion.",
+  'multiversus':             "Plateforme fighter free-to-play de Warner Bros (2024). Crossover DC, Looney Tunes, Game of Thrones…",
+  'nickelodeon all star brawl 2': "Plateforme fighter Nickelodeon (2023). SpongeBob, TMNT, Avatar et plus.",
+  'brawlhalla':              "Plateforme fighter free-to-play (2017). Roster énorme, accessibilité maximale.",
+  // ── Anime / arc system & french bread ──
+  'persona 4 arena ultimax': "Anime fighter Atlus × Arc System Works (2014). Suite de Persona 4 Arena.",
+  'skullgirls 2nd encore':   "Fighter 2D indé (2013). Hand-drawn, tag system, roster 100% féminin.",
+  'them fighting herds':     "Fighter 2D indé inspiré par la communauté MLP (2020).",
+  'pocket bravery':          "Fighter 2D pixel art rétro (2023). Inspiré par les classiques arcade SNK/Capcom.",
+  // ── Capcom legacy & Marvel ──
+  'street fighter v':        "Capcom (2016). 5e opus principal — V-Trigger, V-System, scène encore active.",
+  'street fighter iii 3rd strike': "Capcom (1999). Le summit de SF2D — parries, Daigo Moment, sacré culte.",
+  'ultra street fighter iv': "Capcom (2014). Édition ultime de SF4, focus attack & FADC.",
+  'marvel vs capcom 3':      "Tag fighter Capcom × Marvel (2011). Roster crossover dément.",
+  'marvel vs capcom infinite': "Capcom × Marvel (2017). 2v2, Infinity Stones, scène modérément active.",
+  'ultimate marvel vs capcom 3': "Capcom (2011). LE Marvel — Vergil, Doom, scène compétitive intemporelle.",
+  // ── SNK Legacy ──
+  'samurai shodown':         "SNK (2019). Reboot de la saga sabre — combats lents et mortels.",
+  'garou mark of the wolves':"SNK (1999). Suite de Fatal Fury — Just Defense, esthétique iconique.",
+  // ── 3D fighters ──
+  'soulcalibur vi':          "SoulCalibur VI de Bandai Namco (2018). Combats à l'arme blanche, Reversal Edge, roster classique.",
+  'virtua fighter 5 ultimate showdown': "VF5US de SEGA (2021). Refonte du king du 3D fighter (1993).",
+  'dead or alive 6':         "Koei Tecmo (2019). 3D fighter avec Hold System, suite après DOA5.",
+  // ── Smash side / Pokémon / Nintendo ──
+  'pokken tournament':       "Bandai Namco × Pokémon (2015). 3D fighter Pokémon avec phases d'arène et de duel.",
+  // ── Indé / autres ──
+  'fantasy strike':          "Sirlin Games (2019). Fighter accessible, contrôles simplifiés sans inputs complexes.",
+  'killer instinct':         "Iron Galaxy / Microsoft (2013). Combo Breakers, Instinct Mode.",
+  'omen of sorrow':          "AOne Games (2018). Fighter 2.5D au thème horreur/dark fantasy.",
+  // ── Side games tournois ──
   'bomberman':               "Bomberman compétitif. Pose de bombes, explosions, dernier debout gagne.",
   'pikmin':                  "Pikmin de Nintendo. Stratégie en temps réel, mignon et brutal.",
+  'mario kart 8 deluxe':     "Mario Kart 8 Deluxe (2017). Le standard du party-race compétitif.",
+  'super mario party':       "Mario Party Nintendo. Soirée chaotique au plateau, mini-jeux en chaîne.",
+  'tetris':                  "Le puzzle game roi — Tetris compétitif (T-spins, perfect clears, KOs).",
 };
+
+// Cache des descriptions auto-fetchées depuis Wikipedia (persisté en
+// localStorage pour éviter de re-fetch à chaque chargement).
+const _DC_WIKI_CACHE = (() => {
+  try { return JSON.parse(localStorage.getItem('dc_game_desc_wiki_cache') || '{}'); }
+  catch { return {}; }
+})();
+const _DC_WIKI_FETCHING = new Set();    // norms en cours de fetch
+const _DC_WIKI_FAILED   = new Set();    // norms ayant échoué (on ne retry pas immédiatement)
 
 function dcGameDescription(gameName) {
   if (!gameName) return '';
   const norm = dcNormalize(gameName);
-  // Override utilisateur en priorité
+  // 1. Override utilisateur (textarea) — priorité absolue
   try {
     const overrides = JSON.parse(localStorage.getItem('dc_game_desc_overrides') || '{}');
     if (overrides[norm]) return overrides[norm];
   } catch {}
-  // Match hardcodé : exact d'abord, sinon contains
+  // 2. Hardcoded — match exact, puis contains
   if (DC_GAME_DESCRIPTIONS[norm]) return DC_GAME_DESCRIPTIONS[norm];
   for (const [key, desc] of Object.entries(DC_GAME_DESCRIPTIONS)) {
     if (norm.includes(key) || key.includes(norm)) return desc;
   }
-  return '';
+  // 3. Cache Wikipedia (fetch précédent réussi)
+  if (_DC_WIKI_CACHE[norm]) return _DC_WIKI_CACHE[norm];
+  // 4. Lance fetch async Wikipedia (une seule fois par jeu)
+  if (!_DC_WIKI_FETCHING.has(norm) && !_DC_WIKI_FAILED.has(norm)) {
+    _DC_WIKI_FETCHING.add(norm);
+    _dcFetchWikiDescription(gameName).then(desc => {
+      _DC_WIKI_FETCHING.delete(norm);
+      if (desc) {
+        _DC_WIKI_CACHE[norm] = desc;
+        try { localStorage.setItem('dc_game_desc_wiki_cache', JSON.stringify(_DC_WIKI_CACHE)); } catch {}
+        // Debounce le re-render : si plusieurs jeux finissent en cascade,
+        // on n'appelle dcGenerate() qu'une fois.
+        clearTimeout(_dcRerenderTimeout);
+        _dcRerenderTimeout = setTimeout(() => {
+          if (typeof dcGenerate === 'function') dcGenerate();
+          if (typeof dcBuildEventControls === 'function') dcBuildEventControls();
+        }, 100);
+      } else {
+        _DC_WIKI_FAILED.add(norm);
+      }
+    }).catch(() => {
+      _DC_WIKI_FETCHING.delete(norm);
+      _DC_WIKI_FAILED.add(norm);
+    });
+  }
+  return ''; // Vide pour l'instant — le re-render arrivera quand fetch terminé
 }
+let _dcRerenderTimeout = null;
+
+// Fetch async Wikipedia avec plusieurs tentatives (suffixes "jeu vidéo" /
+// "video game" pour désambigüer + lang fr puis en).
+async function _dcFetchWikiDescription(gameName) {
+  const queries = [
+    `${gameName} (jeu vidéo)`,
+    `${gameName} (video game)`,
+    gameName,
+  ];
+  for (const q of queries) {
+    for (const lang of ['fr', 'en']) {
+      try {
+        const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const data = await res.json();
+        // Skip les pages de désambiguïsation (homonymes)
+        if (data.type === 'disambiguation') continue;
+        if (!data.extract) continue;
+        // Limite à ~2 phrases / 200 chars pour rester compact dans Discord
+        let text = data.extract.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ').trim();
+        if (text.length > 220) text = text.slice(0, 217).trim() + '…';
+        return text;
+      } catch (e) { /* try next */ }
+    }
+  }
+  return null;
+}
+
+// Permet de purger le cache wiki si le user veut forcer des re-fetches
+window.dcClearWikiCache = function(){
+  for (const k of Object.keys(_DC_WIKI_CACHE)) delete _DC_WIKI_CACHE[k];
+  _DC_WIKI_FAILED.clear();
+  try { localStorage.removeItem('dc_game_desc_wiki_cache'); } catch {}
+  console.log('[dc] Wikipedia cache purgé');
+};
 
 function dcSaveGameDescription(gameName, text) {
   if (!gameName) return;
@@ -140,6 +253,48 @@ function dcSaveGameDescription(gameName, text) {
   if (text && text.trim()) overrides[norm] = text.trim();
   else delete overrides[norm];
   try { localStorage.setItem('dc_game_desc_overrides', JSON.stringify(overrides)); } catch {}
+}
+
+// ── Persistance par jeu : rôle (ping) et flag isSide ──
+// Stocké dans localStorage par version normalisée du nom du jeu, comme
+// dcSaveGameDescription. Permet de retrouver les réglages d'un jeu d'un
+// tournoi à l'autre (ex: Street Fighter 6 → toujours le même rôle pingué).
+function dcSaveGameRole(gameName, roleId) {
+  if (!gameName) return;
+  const norm = dcNormalize(gameName);
+  let overrides = {};
+  try { overrides = JSON.parse(localStorage.getItem('dc_game_role_overrides') || '{}'); } catch {}
+  if (roleId && roleId.trim()) overrides[norm] = roleId.trim();
+  else delete overrides[norm];
+  try { localStorage.setItem('dc_game_role_overrides', JSON.stringify(overrides)); } catch {}
+}
+function dcLoadGameRole(gameName) {
+  if (!gameName) return '';
+  const norm = dcNormalize(gameName);
+  try {
+    const overrides = JSON.parse(localStorage.getItem('dc_game_role_overrides') || '{}');
+    return overrides[norm] || '';
+  } catch { return ''; }
+}
+function dcSaveGameIsSide(gameName, isSide) {
+  if (!gameName) return;
+  const norm = dcNormalize(gameName);
+  let overrides = {};
+  try { overrides = JSON.parse(localStorage.getItem('dc_game_side_overrides') || '{}'); } catch {}
+  // On stocke true ET false (explicite, pour respecter le choix user
+  // même quand il marque un event comme MAIN alors que dcIsSide() le
+  // détectait comme side). null/undefined = pas d'override.
+  overrides[norm] = !!isSide;
+  try { localStorage.setItem('dc_game_side_overrides', JSON.stringify(overrides)); } catch {}
+}
+function dcLoadGameIsSide(gameName) {
+  if (!gameName) return null;
+  const norm = dcNormalize(gameName);
+  try {
+    const overrides = JSON.parse(localStorage.getItem('dc_game_side_overrides') || '{}');
+    if (norm in overrides) return overrides[norm] === true;
+    return null; // pas d'override → laisser l'auto-détection
+  } catch { return null; }
 }
 
 // ── UTILITAIRES ───────────────────────────────────────────────────────────────
@@ -191,6 +346,13 @@ async function dcFetch() {
   dcStatus('loading','⏳ Récupération du tournoi…');
   document.getElementById('dcFetchBtn').disabled = true;
 
+  // Lance l'animation typewriter onirique EN PARALLÈLE du fetch start.gg.
+  // L'overlay couvre l'écran pendant que la requête tourne — wow factor.
+  // On attend la fin de l'animation ET la fin du fetch (Promise.all).
+  const animPromise = (typeof dcPlayTypewriterAnim === 'function' && !window._dcTwActive)
+    ? dcPlayTypewriterAnim()
+    : Promise.resolve();
+
   try {
     const data = await gqlFetch(apiKey, `
       query($slug:String!) {
@@ -220,15 +382,19 @@ async function dcFetch() {
       // Image du jeu : préférer "primary" (logo carré), sinon la 1ère
       const images   = ev.videogame?.images || [];
       const gameImg  = (images.find(i => i.type === 'primary') || images[0])?.url || '';
+      // Restaure les overrides persistés par jeu (rôle pingué + flag isSide)
+      // → un jeu garde ses réglages d'un tournoi à l'autre.
+      const savedRole   = dcLoadGameRole(gameName);
+      const savedIsSide = dcLoadGameIsSide(gameName);
       return {
         id:            ev.id,
         name:          ev.name,
         gameName,
         numEntrants:   ev.numEntrants || 0,
-        isSide:        dcIsSide(ev.name),
+        isSide:        savedIsSide !== null ? savedIsSide : dcIsSide(ev.name),
         description:   '',
-        roleId:        '', // ID du rôle Discord à pinguer pour cet event (vide = aucun)
-        gameImageUrl:  gameImg, // utilisé dans les embeds par-jeu (presets Stras'Fighters)
+        roleId:        savedRole || '',
+        gameImageUrl:  gameImg,
       };
     });
 
@@ -248,13 +414,42 @@ async function dcFetch() {
     dcBuildEventControls();
     // Auto-détection des rôles si preset Stras'Fighters/Magna et rôles chargés
     dcAutoAssignRoles(false);
+    // On rend la page Discord IMMÉDIATEMENT (derrière l'overlay typewriter
+    // toujours en cours d'animation). Comme ça, quand la feuille disparaît
+    // à la fin de l'anim, la page est DÉJÀ chargée → bascule fluide,
+    // pas de flash de l'ancienne empty state.
     dcGenerate();
+    if (typeof _toggleDcEmptyState === 'function') _toggleDcEmptyState();
+    // On attend quand même la fin de l'anim pour que le status soit
+    // affiché au bon moment (et pour synchroniser le reset _isTransitioning).
+    await animPromise;
 
   } catch(e) {
     dcStatus('error','❌ Erreur API : ' + (e.message || e));
+    // Si erreur, on attend quand même la fin de l'anim avant de re-afficher
+    // le formulaire pour éviter le mismatch visuel.
+    try { await animPromise; } catch{}
   } finally {
     document.getElementById('dcFetchBtn').disabled = false;
   }
+}
+
+// État vide : tant qu'aucun tournoi n'a été fetché, on cache la preview
+// Discord à droite + les autres slides du tarot (Réglages, Horaires, Bot),
+// et on centre la carte "URL start.gg" au milieu de la page.
+function _dcHasTournament() {
+  return !!(typeof DC !== 'undefined' && DC && DC.tournament);
+}
+function _toggleDcEmptyState() {
+  const isEmpty = !_dcHasTournament();
+  document.body.classList.toggle('dc-no-tournament', isEmpty);
+}
+window._toggleDcEmptyState = _toggleDcEmptyState;
+// Toggle initial au boot
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _toggleDcEmptyState);
+} else {
+  _toggleDcEmptyState();
 }
 
 function dcStatus(type, msg) {
@@ -294,9 +489,7 @@ function dcBuildEventControls() {
       <div class="dc-event-fields">
         <div class="dc-field-row">
           <label>Pinger un rôle</label>
-          <select class="dc-text-input" onchange="dcSetRole(${i}, this.value)">
-            ${dcRolesOptionsHTML(ev.roleId)}
-          </select>
+          ${renderDcRolePickerBtn(i, ev.roleId)}
         </div>
         <div class="dc-field-row dc-game-desc-row" style="${dcUsesGameEmbeds() ? '' : 'display:none'}">
           <label>Description (embed)</label>
@@ -314,8 +507,179 @@ function dcBuildEventControls() {
   }).join('');
 }
 
-// Génère les <option> pour le picker de rôle d'un event, groupés par serveur
-// via <optgroup> quand le bot est sur plusieurs serveurs.
+// ── NOUVEAU : picker de rôle custom "à la Discord" ─────────────────────────
+// Bouton custom (au lieu de <select> natif illisible) qui ouvre une modale
+// avec navigation 2 étapes : 1) choisir le serveur, 2) chercher/cliquer le
+// rôle (avec barre de recherche).
+function renderDcRolePickerBtn(eventIdx, selectedId) {
+  const roles = window._dcRoles || [];
+  const role = roles.find(r => r.id === selectedId);
+  let label;
+  if (role) {
+    const color = role.color && role.color !== '#000000' ? role.color : '#9b7fb8';
+    label = `<span class="dc-rp-dot" style="background:${escDC(color)}"></span>
+             <span class="dc-rp-srv">${escDC(role.guildName || '')}</span>
+             <span class="dc-rp-sep">·</span>
+             <span class="dc-rp-role">${escDC(role.name)}</span>`;
+  } else {
+    label = `<span class="dc-rp-placeholder">— Aucun rôle (pas de ping) —</span>`;
+  }
+  return `<button type="button" class="dc-role-picker-btn"
+            onclick="openDcRolePicker(${eventIdx})">
+            ${label}
+            <span class="dc-rp-arrow">▾</span>
+          </button>`;
+}
+
+const _dcRolePickerState = { eventIdx: -1, serverFilter: null };
+
+function openDcRolePicker(eventIdx) {
+  _dcRolePickerState.eventIdx = eventIdx;
+  _dcRolePickerState.serverFilter = null;
+  let overlay = document.getElementById('dcRolePickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dcRolePickerOverlay';
+    overlay.className = 'dc-role-picker-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeDcRolePicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') closeDcRolePicker();
+    });
+    document.body.appendChild(overlay);
+  }
+  // Si un seul serveur, on saute direct à la liste des rôles
+  const roles = window._dcRoles || [];
+  const guilds = [...new Set(roles.map(r => r.guildName || 'Serveur'))];
+  if (guilds.length === 1) _dcRolePickerState.serverFilter = guilds[0];
+  _renderDcRolePicker();
+  overlay.style.display = 'flex';
+}
+
+function closeDcRolePicker() {
+  const overlay = document.getElementById('dcRolePickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _renderDcRolePicker() {
+  const overlay = document.getElementById('dcRolePickerOverlay');
+  if (!overlay) return;
+  const roles = window._dcRoles || [];
+  if (!roles.length) {
+    overlay.innerHTML = `
+      <div class="dc-rp-modal">
+        <div class="dc-rp-header">
+          <span>Pinger un rôle</span>
+          <button class="dc-rp-close" onclick="closeDcRolePicker()">✕</button>
+        </div>
+        <div class="dc-rp-empty">Aucun rôle chargé. Va dans la section Bot Discord et clique 🔄 pour charger les rôles.</div>
+      </div>`;
+    return;
+  }
+  const guilds = [...new Set(roles.map(r => r.guildName || 'Serveur'))].sort();
+  const guildFilter = _dcRolePickerState.serverFilter;
+
+  // ── ÉTAPE 1 : choix du serveur ──
+  if (!guildFilter) {
+    const icons = window._dcGuildIcons || {};
+    const guildHTML = guilds.map(g => {
+      const count = roles.filter(r => (r.guildName || 'Serveur') === g).length;
+      const iconUrl = icons[g];
+      const initials = g.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      // Avatar : si logo Discord dispo → image, sinon fallback initiales
+      const avatarHTML = iconUrl
+        ? `<img class="dc-rp-guild-icon" src="${escDC(iconUrl)}" alt="" onerror="this.outerHTML='<span class=\\'dc-rp-guild-init\\'>${escDC(initials)}</span>'">`
+        : `<span class="dc-rp-guild-init">${escDC(initials)}</span>`;
+      return `<button class="dc-rp-guild-btn" onclick="_dcRolePickerSelectGuild('${escDC(g.replace(/'/g, "\\'"))}')">
+        ${avatarHTML}
+        <span class="dc-rp-guild-name">${escDC(g)}</span>
+        <span class="dc-rp-guild-count">${count} rôle${count > 1 ? 's' : ''}</span>
+        <span class="dc-rp-chevron">›</span>
+      </button>`;
+    }).join('');
+    overlay.innerHTML = `
+      <div class="dc-rp-modal">
+        <div class="dc-rp-header">
+          <span>Choisir un serveur</span>
+          <button class="dc-rp-close" onclick="closeDcRolePicker()">✕</button>
+        </div>
+        <div class="dc-rp-action-row">
+          <button class="dc-rp-noselect" onclick="_dcRolePickerSelectRole('')">— Aucun rôle (pas de ping) —</button>
+        </div>
+        <div class="dc-rp-guild-list">${guildHTML}</div>
+      </div>`;
+    return;
+  }
+
+  // ── ÉTAPE 2 : liste des rôles du serveur (avec search) ──
+  const filtered = roles.filter(r => (r.guildName || 'Serveur') === guildFilter);
+  const showBack = guilds.length > 1;
+  const rolesHTML = filtered.map(r => {
+    const color = r.color && r.color !== '#000000' ? r.color : '#9b7fb8';
+    return `<button class="dc-rp-role-btn" data-name="${escDC(r.name.toLowerCase())}"
+              onclick="_dcRolePickerSelectRole('${escDC(r.id)}')">
+      <span class="dc-rp-role-dot" style="background:${escDC(color)}"></span>
+      <span class="dc-rp-role-name">${escDC(r.name)}</span>
+    </button>`;
+  }).join('');
+  const headerIconUrl = (window._dcGuildIcons || {})[guildFilter];
+  const headerIcon = headerIconUrl
+    ? `<img class="dc-rp-header-icon" src="${escDC(headerIconUrl)}" alt="">`
+    : '';
+  overlay.innerHTML = `
+    <div class="dc-rp-modal">
+      <div class="dc-rp-header">
+        ${showBack ? `<button class="dc-rp-back" onclick="_dcRolePickerSelectGuild(null)">←</button>` : ''}
+        ${headerIcon}
+        <span class="dc-rp-current-guild">${escDC(guildFilter)}</span>
+        <button class="dc-rp-close" onclick="closeDcRolePicker()">✕</button>
+      </div>
+      <div class="dc-rp-search-wrap">
+        <input type="text" class="dc-rp-search" placeholder="🔍 Rechercher un rôle…"
+          oninput="_dcRolePickerSearch(this.value)" autofocus>
+      </div>
+      <div class="dc-rp-action-row">
+        <button class="dc-rp-noselect" onclick="_dcRolePickerSelectRole('')">— Aucun rôle (pas de ping) —</button>
+      </div>
+      <div class="dc-rp-role-list" id="dcRolePickerList">${rolesHTML}</div>
+    </div>`;
+  // Focus search input
+  setTimeout(() => {
+    const inp = overlay.querySelector('.dc-rp-search');
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function _dcRolePickerSelectGuild(guild) {
+  _dcRolePickerState.serverFilter = guild;
+  _renderDcRolePicker();
+}
+
+function _dcRolePickerSelectRole(roleId) {
+  const i = _dcRolePickerState.eventIdx;
+  if (i < 0 || !DC.events?.[i]) { closeDcRolePicker(); return; }
+  dcSetRole(i, roleId);
+  if (typeof dcBuildEventControls === 'function') dcBuildEventControls();
+  closeDcRolePicker();
+}
+
+function _dcRolePickerSearch(query) {
+  const list = document.getElementById('dcRolePickerList');
+  if (!list) return;
+  const q = (query || '').trim().toLowerCase();
+  list.querySelectorAll('.dc-rp-role-btn').forEach(btn => {
+    const name = btn.getAttribute('data-name') || '';
+    btn.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+// Expose globalement
+window.openDcRolePicker = openDcRolePicker;
+window.closeDcRolePicker = closeDcRolePicker;
+window._dcRolePickerSelectGuild = _dcRolePickerSelectGuild;
+window._dcRolePickerSelectRole = _dcRolePickerSelectRole;
+window._dcRolePickerSearch = _dcRolePickerSearch;
+
+// (Ancienne fonction <select> conservée pour compat — peut être supprimée)
 function dcRolesOptionsHTML(selectedId) {
   const roles = window._dcRoles || [];
   let html = `<option value="">— Aucun —</option>`;
@@ -364,6 +728,8 @@ async function dcLoadRoles(silent = false) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Erreur inconnue');
     window._dcRoles = data.roles || [];
+    // Tentative de chargement des icônes de serveurs (en parallèle, silencieux)
+    dcLoadGuildIcons(botUrl, secret);
     // Re-render des events pour peupler les dropdowns
     if (typeof dcRenderEvents === 'function') dcRenderEvents();
     // Auto-détection des rôles maintenant qu'on a la liste (presets ciblés)
@@ -374,15 +740,55 @@ async function dcLoadRoles(silent = false) {
   }
 }
 
+// Récupère les icônes des serveurs Discord via endpoint /guilds du bot.
+// Cache dans window._dcGuildIcons (map guildName → iconUrl). Silencieux si
+// l'endpoint n'existe pas (le picker fallback aux initiales).
+async function dcLoadGuildIcons(botUrl, secret) {
+  try {
+    const res = await fetch(`${botUrl}/guilds`, { headers: { 'x-secret': secret } });
+    if (!res.ok) return; // endpoint pas dispo
+    const data = await res.json();
+    if (!data.ok || !Array.isArray(data.guilds)) return;
+    const map = {};
+    data.guilds.forEach(g => {
+      // Cherche un champ iconUrl, icon (hash Discord), ou rien
+      let url = g.iconUrl || g.icon_url || null;
+      if (!url && g.icon && g.id) {
+        // Construit l'URL CDN Discord depuis le hash
+        const ext = g.icon.startsWith('a_') ? 'gif' : 'png';
+        url = `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.${ext}?size=64`;
+      }
+      if (url && g.name) map[g.name] = url;
+    });
+    window._dcGuildIcons = map;
+    // Re-render le picker si actuellement ouvert
+    const overlay = document.getElementById('dcRolePickerOverlay');
+    if (overlay && overlay.style.display === 'flex' && typeof _renderDcRolePicker === 'function') {
+      _renderDcRolePicker();
+    }
+  } catch(e) { /* silent, fallback aux initiales */ }
+}
+
 function dcToggleSide(i, val) {
-  DC.events[i].isSide = val;
-  // Re-render pour que la carte glisse en bas (side) ou remonte (main)
-  // selon le tri stable mains-d'abord/sides-ensuite.
+  const ev = DC.events[i];
+  if (!ev) return;
+  ev.isSide = val;
+  // Persiste par jeu pour qu'un même jeu garde son statut side/main d'un
+  // tournoi à l'autre.
+  dcSaveGameIsSide(ev.gameName, val);
   dcBuildEventControls();
   dcGenerate();
 }
 function dcSetDesc(i, val)  { DC.events[i].description   = val;         dcGenerate(); }
-function dcSetRole(i, val)  { DC.events[i].roleId        = val.trim(); dcGenerate(); }
+function dcSetRole(i, val)  {
+  const ev = DC.events[i];
+  if (!ev) return;
+  const roleId = (val || '').trim();
+  ev.roleId = roleId;
+  // Persiste par jeu (le même jeu pingera toujours le même rôle).
+  dcSaveGameRole(ev.gameName, roleId);
+  dcGenerate();
+}
 // Retire un event de l'annonce (uniquement de DC.events — n'affecte pas start.gg).
 // Re-render des cartes (indices décalent) + régénération du message/embeds.
 function dcDeleteEvent(i) {
@@ -957,45 +1363,214 @@ async function dcLoadChannels(silent = false) {
       if (!silent) dcPostStatus('error', `❌ ${data.error}`);
       return;
     }
-
-    const sel = document.getElementById('dcChannelSelect');
+    // Stocke globalement pour le picker custom
+    window._dcChannels = data.channels || [];
+    // Tente aussi de charger les icônes des serveurs (si pas déjà chargées)
+    if (!window._dcGuildIcons) dcLoadGuildIcons(botUrl, secret);
+    // Re-render le bouton du picker (label = salon courant)
     const inp = document.getElementById('dcChannelId');
-    if (sel) {
-      // Grouper par serveur (puis par catégorie au sein du serveur)
-      const byGuild = new Map(); // guildName → { catName → [channels] }
-      data.channels.forEach(c => {
-        const g = c.guildName || 'Serveur';
-        const cat = c.category || '—';
-        if (!byGuild.has(g)) byGuild.set(g, {});
-        const cats = byGuild.get(g);
-        if (!cats[cat]) cats[cat] = [];
-        cats[cat].push(c);
-      });
-
-      const opts = ['<option value="">— Choisir un salon —</option>'];
-      const multiGuild = byGuild.size > 1;
-      for (const [guildName, cats] of byGuild) {
-        const catNames = Object.keys(cats).sort((a, b) => {
-          if (a === '—') return 1; if (b === '—') return -1;
-          return a.localeCompare(b);
-        });
-        // Préfixer les catégories avec le nom du serveur si plusieurs guildes
-        for (const cat of catNames) {
-          const label = multiGuild ? `${guildName} › ${cat}` : cat;
-          opts.push(`<optgroup label="${escDC(label)}">`);
-          opts.push(...cats[cat].map(c => `<option value="${c.id}">#${escDC(c.name)}</option>`));
-          opts.push(`</optgroup>`);
-        }
-      }
-      sel.innerHTML = opts.join('');
-      sel.style.display = 'block';
-      sel.onchange = () => { if (inp) inp.value = sel.value; };
-    }
+    const wrap = document.getElementById('dcChannelPickerWrap');
+    if (wrap) wrap.innerHTML = renderDcChannelPickerBtn(inp?.value || '');
     if (!silent) dcPostStatus('ok', `✅ ${data.channels.length} salons chargés`);
   } catch(e) {
     if (!silent) dcPostStatus('error', `❌ ${e.message}`);
   }
 }
+
+// ── PICKER DE SALON custom (2 étapes : serveur → salon avec search) ──
+// Paramétrable : peut cibler n'importe quel input/wrap (par défaut
+// dcChannelId/dcChannelPickerWrap pour l'envoi Discord, mais on peut
+// l'utiliser pour le channel de log Rêverie ou autres usages).
+const _dcChannelPickerState = { serverFilter: null, targetInputId: 'dcChannelId', targetWrapId: 'dcChannelPickerWrap' };
+
+function renderDcChannelPickerBtn(selectedId, targetInputId, targetWrapId) {
+  const channels = window._dcChannels || [];
+  const ch = channels.find(c => c.id === selectedId);
+  let label;
+  if (ch) {
+    label = `<span class="dc-rp-srv">${escDC(ch.guildName || '')}</span>
+             <span class="dc-rp-sep">·</span>
+             <span class="dc-rp-role">#${escDC(ch.name)}</span>`;
+  } else {
+    label = `<span class="dc-rp-placeholder">— Choisir un salon —</span>`;
+  }
+  const args = targetInputId ? `'${escDC(targetInputId)}','${escDC(targetWrapId || '')}'` : '';
+  return `<button type="button" class="dc-role-picker-btn" onclick="openDcChannelPicker(${args})">
+            ${label}
+            <span class="dc-rp-arrow">▾</span>
+          </button>`;
+}
+
+function openDcChannelPicker(targetInputId, targetWrapId) {
+  _dcChannelPickerState.serverFilter = null;
+  _dcChannelPickerState.targetInputId = targetInputId || 'dcChannelId';
+  _dcChannelPickerState.targetWrapId = targetWrapId || 'dcChannelPickerWrap';
+  let overlay = document.getElementById('dcChannelPickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dcChannelPickerOverlay';
+    overlay.className = 'dc-role-picker-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeDcChannelPicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') closeDcChannelPicker();
+    });
+    document.body.appendChild(overlay);
+  }
+  const channels = window._dcChannels || [];
+  const guilds = [...new Set(channels.map(c => c.guildName || 'Serveur'))];
+  if (guilds.length === 1) _dcChannelPickerState.serverFilter = guilds[0];
+  _renderDcChannelPicker();
+  overlay.style.display = 'flex';
+}
+
+function closeDcChannelPicker() {
+  const overlay = document.getElementById('dcChannelPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _renderDcChannelPicker() {
+  const overlay = document.getElementById('dcChannelPickerOverlay');
+  if (!overlay) return;
+  const channels = window._dcChannels || [];
+  if (!channels.length) {
+    overlay.innerHTML = `
+      <div class="dc-rp-modal">
+        <div class="dc-rp-header">
+          <span>Choisir un salon</span>
+          <button class="dc-rp-close" onclick="closeDcChannelPicker()">✕</button>
+        </div>
+        <div class="dc-rp-empty">Aucun salon chargé. Clique 🔄 sous le sélecteur pour charger.</div>
+      </div>`;
+    return;
+  }
+  const guilds = [...new Set(channels.map(c => c.guildName || 'Serveur'))].sort();
+  const guildFilter = _dcChannelPickerState.serverFilter;
+  const icons = window._dcGuildIcons || {};
+
+  // ── ÉTAPE 1 : choix du serveur ──
+  if (!guildFilter) {
+    const guildHTML = guilds.map(g => {
+      const count = channels.filter(c => (c.guildName || 'Serveur') === g).length;
+      const iconUrl = icons[g];
+      const initials = g.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      const avatarHTML = iconUrl
+        ? `<img class="dc-rp-guild-icon" src="${escDC(iconUrl)}" alt="" onerror="this.outerHTML='<span class=\\'dc-rp-guild-init\\'>${escDC(initials)}</span>'">`
+        : `<span class="dc-rp-guild-init">${escDC(initials)}</span>`;
+      return `<button class="dc-rp-guild-btn" onclick="_dcChannelPickerSelectGuild('${escDC(g.replace(/'/g, "\\'"))}')">
+        ${avatarHTML}
+        <span class="dc-rp-guild-name">${escDC(g)}</span>
+        <span class="dc-rp-guild-count">${count} salon${count > 1 ? 's' : ''}</span>
+        <span class="dc-rp-chevron">›</span>
+      </button>`;
+    }).join('');
+    overlay.innerHTML = `
+      <div class="dc-rp-modal">
+        <div class="dc-rp-header">
+          <span>Choisir un serveur</span>
+          <button class="dc-rp-close" onclick="closeDcChannelPicker()">✕</button>
+        </div>
+        <div class="dc-rp-guild-list">${guildHTML}</div>
+      </div>`;
+    return;
+  }
+
+  // ── ÉTAPE 2 : liste des salons du serveur, groupés par catégorie ──
+  const filtered = channels.filter(c => (c.guildName || 'Serveur') === guildFilter);
+  const byCat = {};
+  filtered.forEach(c => {
+    const cat = c.category || '—';
+    if (!byCat[cat]) byCat[cat] = [];
+    byCat[cat].push(c);
+  });
+  const catNames = Object.keys(byCat).sort((a, b) => {
+    if (a === '—') return 1; if (b === '—') return -1;
+    return a.localeCompare(b);
+  });
+  const channelsHTML = catNames.map(cat => {
+    const itemsHTML = byCat[cat].map(c => `
+      <button class="dc-rp-role-btn dc-cp-channel-btn" data-name="${escDC(c.name.toLowerCase())}"
+        onclick="_dcChannelPickerSelectChannel('${escDC(c.id)}')">
+        <span class="dc-cp-channel-hash">#</span>
+        <span class="dc-rp-role-name">${escDC(c.name)}</span>
+      </button>
+    `).join('');
+    return `<div class="dc-cp-category">
+      ${cat !== '—' ? `<div class="dc-cp-category-name">${escDC(cat)}</div>` : ''}
+      ${itemsHTML}
+    </div>`;
+  }).join('');
+  const showBack = guilds.length > 1;
+  const headerIconUrl = (window._dcGuildIcons || {})[guildFilter];
+  const headerIcon = headerIconUrl
+    ? `<img class="dc-rp-header-icon" src="${escDC(headerIconUrl)}" alt="">`
+    : '';
+  overlay.innerHTML = `
+    <div class="dc-rp-modal">
+      <div class="dc-rp-header">
+        ${showBack ? `<button class="dc-rp-back" onclick="_dcChannelPickerSelectGuild(null)">←</button>` : ''}
+        ${headerIcon}
+        <span class="dc-rp-current-guild">${escDC(guildFilter)}</span>
+        <button class="dc-rp-close" onclick="closeDcChannelPicker()">✕</button>
+      </div>
+      <div class="dc-rp-search-wrap">
+        <input type="text" class="dc-rp-search" placeholder="🔍 Rechercher un salon…"
+          oninput="_dcChannelPickerSearch(this.value)" autofocus>
+      </div>
+      <div class="dc-rp-role-list" id="dcChannelPickerList">${channelsHTML}</div>
+    </div>`;
+  setTimeout(() => {
+    const inp = overlay.querySelector('.dc-rp-search');
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function _dcChannelPickerSelectGuild(guild) {
+  _dcChannelPickerState.serverFilter = guild;
+  _renderDcChannelPicker();
+}
+
+function _dcChannelPickerSelectChannel(channelId) {
+  const targetInputId = _dcChannelPickerState.targetInputId;
+  const targetWrapId  = _dcChannelPickerState.targetWrapId;
+  const inp = document.getElementById(targetInputId);
+  if (inp) {
+    inp.value = channelId;
+    // Trigger onchange/input handler si défini (ex: cfgSaveAll)
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  // Update aussi l'ancien select pour compat (uniquement pour l'envoi Discord)
+  if (targetInputId === 'dcChannelId') {
+    const sel = document.getElementById('dcChannelSelect');
+    if (sel) sel.value = channelId;
+  }
+  // Update label du bouton
+  const wrap = document.getElementById(targetWrapId);
+  if (wrap) wrap.innerHTML = renderDcChannelPickerBtn(channelId, targetInputId, targetWrapId);
+  closeDcChannelPicker();
+}
+
+function _dcChannelPickerSearch(query) {
+  const list = document.getElementById('dcChannelPickerList');
+  if (!list) return;
+  const q = (query || '').trim().toLowerCase();
+  list.querySelectorAll('.dc-cp-channel-btn').forEach(btn => {
+    const name = btn.getAttribute('data-name') || '';
+    btn.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+  // Cache les catégories vides
+  list.querySelectorAll('.dc-cp-category').forEach(cat => {
+    const visible = Array.from(cat.querySelectorAll('.dc-cp-channel-btn')).some(b => b.style.display !== 'none');
+    cat.style.display = visible ? '' : 'none';
+  });
+}
+
+window.openDcChannelPicker = openDcChannelPicker;
+window.closeDcChannelPicker = closeDcChannelPicker;
+window._dcChannelPickerSelectGuild = _dcChannelPickerSelectGuild;
+window._dcChannelPickerSelectChannel = _dcChannelPickerSelectChannel;
+window._dcChannelPickerSearch = _dcChannelPickerSearch;
+window.renderDcChannelPickerBtn = renderDcChannelPickerBtn;
 
 // ── PROGRAMMER L'ENVOI ───────────────────────────────────────────────────────
 async function dcSchedule() {
@@ -1051,6 +1626,36 @@ async function dcSchedule() {
       const fmt = dt.toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
       dcPostStatus('ok', `✅ Envoi programmé le ${fmt} (ID #${data.id})`);
       dcLoadScheduled();
+      // ── Envoi du log Rêverie dans le salon configuré (si défini) ──
+      // Notification "événement enregistré" avec date prévue + preview
+      // des 200 premiers chars du message. Silencieux si pas configuré.
+      // Lit l'input ET localStorage (au cas où la page Config pas encore
+      // ouverte dans la session → cfgInit pas exécuté).
+      const logChanId = (
+        (document.getElementById('dcLogChannelId')?.value || '').trim() ||
+        (localStorage.getItem('dc_log_channel_id') || '').trim()
+      );
+      if (logChanId) {
+        const targetCh = (window._dcChannels || []).find(c => c.id === chanId);
+        const targetLabel = targetCh ? `#${targetCh.name}` : `<#${chanId}>`;
+        const preview = (msg || '').slice(0, 200).replace(/\n/g, ' ') + ((msg || '').length > 200 ? '…' : '');
+        const logMsg = `📅 **Envoi programmé** par Rêverie\n` +
+                       `🎯 Salon cible : ${targetLabel}\n` +
+                       `🕐 Date prévue : **${fmt}**\n` +
+                       `🆔 ID de planification : \`#${data.id}\`\n` +
+                       (preview ? `\n> ${preview}` : '');
+        try {
+          await fetch(`${botUrl}/post-announce`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'x-secret': secret },
+            body:    JSON.stringify({ channelId: logChanId, message: logMsg }),
+          });
+        } catch (e) {
+          // Silencieux : si le log fail, on n'embête pas le user, l'envoi
+          // principal est OK et c'est ce qui compte.
+          console.warn('[dc] log channel post failed:', e);
+        }
+      }
     } else {
       dcPostStatus('error', `❌ Erreur : ${data.error}`);
     }
@@ -1189,12 +1794,15 @@ function dcLoadPreset() {
   // avoir déjà rempli des trucs personnalisés depuis la dernière session)
   const sel = document.getElementById('dcPresetSelect');
   if (sel) sel.value = DC.presetId;
-  // Pré-remplir l'emoji tournoi UNIQUEMENT s'il est vide (préserver la valeur
-  // perso de la session précédente).
+  // Emoji tournoi : restaurer la valeur sauvegardée par l'utilisateur, sinon
+  // tomber sur le défaut du preset.
   const preset = dcGetPreset();
   const emojiEl = document.getElementById('dcTourneyEmoji');
-  if (emojiEl && !emojiEl.value && preset.tournamentEmoji) {
-    emojiEl.value = preset.tournamentEmoji;
+  if (emojiEl) {
+    let savedEmoji = '';
+    try { savedEmoji = localStorage.getItem('dc_tourney_emoji') || ''; } catch {}
+    if (savedEmoji) emojiEl.value = savedEmoji;
+    else if (!emojiEl.value && preset.tournamentEmoji) emojiEl.value = preset.tournamentEmoji;
   }
   // Restaurer le schedule sauvegardé pour le preset actif s'il existe,
   // sinon garder le défaut codé dans le preset.
@@ -1204,9 +1812,13 @@ function dcLoadPreset() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function dcInit() {
-  dcBuildSchedule();
   dcLoadBotSettings();
+  // Load AVANT build — sinon dcBuildSchedule rend les valeurs default
+  // alors que dcLoadPreset() vient juste de restaurer DC.scheduleLines
+  // depuis localStorage (les éditions de l'utilisateur sont perdues à
+  // l'affichage même si elles persistaient bien en stockage).
   dcLoadPreset();
+  dcBuildSchedule();
 
   // Charger automatiquement les rôles du serveur (silent : pas d'erreur si
   // bot pas encore configuré — l'utilisateur peut cliquer 🔄 plus tard).
@@ -1314,4 +1926,152 @@ async function dcCopyAppEmoji(markdown, name) {
   } catch(e) {
     alert('Copie impossible : ' + e.message);
   }
+}
+
+// ─────────────────────────────────────────────────────────
+// EMOJI PICKER pour "Emoji du tournoi"
+// ─────────────────────────────────────────────────────────
+function openDcEmojiPicker() {
+  let overlay = document.getElementById('dcEmojiPickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dcEmojiPickerOverlay';
+    overlay.className = 'dc-role-picker-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeDcEmojiPicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') closeDcEmojiPicker();
+    });
+    document.body.appendChild(overlay);
+  }
+  _renderDcEmojiPicker('');
+  overlay.style.display = 'flex';
+  if (!window._dcAppEmojis || !window._dcAppEmojis.length) {
+    dcLoadAppEmojis(true).then(() => _renderDcEmojiPicker(''));
+  }
+  setTimeout(() => {
+    const s = document.getElementById('dcEmojiPickerSearch');
+    if (s) s.focus();
+  }, 50);
+}
+
+function closeDcEmojiPicker() {
+  const overlay = document.getElementById('dcEmojiPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _renderDcEmojiPicker(query) {
+  const overlay = document.getElementById('dcEmojiPickerOverlay');
+  if (!overlay) return;
+  const all = window._dcAppEmojis || [];
+  const q = (query || '').trim().toLowerCase();
+  const filtered = q ? all.filter(e => e.name.toLowerCase().includes(q)) : all;
+
+  const importTileHTML = `
+    <button class="dc-ep-tile dc-ep-tile-import" onclick="_dcEmojiPickerImportClick()" title="Importer un nouvel emoji au bot">
+      <span class="dc-ep-import-plus">+</span>
+      <span>Importer</span>
+    </button>`;
+
+  const gridHTML = !all.length
+    ? `<div class="dc-ep-grid">${importTileHTML}</div>
+       <div class="dc-rp-empty">Aucun emoji chargé.<br>Va dans la section Bot Discord pour configurer URL + secret, puis ré-essaie.</div>`
+    : !filtered.length
+      ? `<div class="dc-ep-grid">${importTileHTML}</div>
+         <div class="dc-rp-empty">Aucun emoji ne correspond à « ${escDC(query)} ».</div>`
+      : `<div class="dc-ep-grid">${filtered.map(e => `
+          <button class="dc-ep-tile" onclick="_dcEmojiPickerSelect('${escDC(e.name.replace(/'/g,"\\'"))}')" title="${escDC(e.name)}">
+            <img src="${escDC(e.url)}" alt="${escDC(e.name)}">
+            <span>${escDC(e.name)}</span>
+          </button>`).join('')}${importTileHTML}</div>`;
+
+  overlay.innerHTML = `
+    <div class="dc-rp-modal">
+      <div class="dc-rp-header">
+        <span>Emoji du tournoi</span>
+        <button class="dc-rp-close" onclick="closeDcEmojiPicker()">✕</button>
+      </div>
+      <div class="dc-rp-action-row">
+        <button class="dc-rp-noselect" onclick="_dcEmojiPickerSelect('')">— Aucun emoji —</button>
+      </div>
+      <input type="file" id="dcEmojiPickerFile" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none;" onchange="_dcEmojiPickerFileChosen(this.files[0])">
+      <div id="dcEmojiPickerImportStatus" class="dc-ep-import-status" style="display:none;"></div>
+      <div class="dc-rp-search-wrap">
+        <input id="dcEmojiPickerSearch" class="dc-rp-search" type="text" placeholder="Rechercher un emoji…"
+          value="${escDC(query)}" oninput="_dcEmojiPickerSearch(this.value)">
+      </div>
+      <div class="dc-ep-scroll">${gridHTML}</div>
+    </div>`;
+}
+
+function _dcEmojiPickerImportClick() {
+  const f = document.getElementById('dcEmojiPickerFile');
+  if (f) f.click();
+}
+
+async function _dcEmojiPickerFileChosen(file) {
+  if (!file) return;
+  const status = document.getElementById('dcEmojiPickerImportStatus');
+  const setStatus = (msg, isError = false) => {
+    if (!status) return;
+    status.style.display = 'block';
+    status.textContent = msg;
+    status.style.color = isError ? '#c62828' : '#5d3fa3';
+  };
+  if (file.size > 256 * 1024) {
+    setStatus(`❌ Fichier trop gros (${Math.round(file.size/1024)} KiB). Max 256 KiB.`, true);
+    return;
+  }
+  const defaultName = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+  const name = prompt('Nom de l\'emoji (2-32 chars, a-z 0-9 _) :', defaultName);
+  if (!name) return;
+  setStatus('⏳ Conversion + upload…');
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Lecture impossible'));
+      r.readAsDataURL(file);
+    });
+    const botUrl = (document.getElementById('dcBotUrl')?.value   || '').trim().replace(/\/$/, '');
+    const secret = (document.getElementById('dcBotSecret')?.value || '').trim();
+    if (!botUrl || !secret) { setStatus('❌ URL bot / secret manquant.', true); return; }
+    const res = await fetch(`${botUrl}/app-emojis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-secret': secret },
+      body: JSON.stringify({ name, imageBase64: dataUrl }),
+    });
+    // Tenter de parser en JSON ; si ça rate, c'est probablement une 404/500 HTML
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch {
+      if (res.status === 404) throw new Error('Route POST /app-emojis introuvable — redémarre le bot pour activer la nouvelle route.');
+      throw new Error(`Réponse non-JSON du bot (HTTP ${res.status}). Vérifie que le bot est à jour et redémarré.`);
+    }
+    if (!data.ok) throw new Error(data.error || `Upload échoué (HTTP ${res.status})`);
+    setStatus(`✅ "${data.emoji.name}" importé.`);
+    // Rafraîchir la liste et re-render le picker
+    await dcLoadAppEmojis(true);
+    _renderDcEmojiPicker('');
+  } catch(e) {
+    setStatus(`❌ ${e.message}`, true);
+  }
+}
+
+function _dcEmojiPickerSearch(query) {
+  _renderDcEmojiPicker(query);
+  setTimeout(() => {
+    const s = document.getElementById('dcEmojiPickerSearch');
+    if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  }, 0);
+}
+
+function _dcEmojiPickerSelect(name) {
+  const input = document.getElementById('dcTourneyEmoji');
+  if (input) {
+    input.value = name ? `:${name}:` : '';
+    try { localStorage.setItem('dc_tourney_emoji', input.value); } catch {}
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  closeDcEmojiPicker();
 }

@@ -64,6 +64,10 @@ const LAYOUTS = {
     // curvedNames : le pseudo suit l'arc du cercle (en haut-droite à -π/4)
     // au lieu d'être en ligne droite sous le cercle. Look magazine/badge.
     curvedNames: true,
+    // slotBgColor : remplit chaque cercle de noir avant de dessiner le
+    // perso, pour masquer les cercles blancs baked dans ggst.jpg qui
+    // transparaîtraient à travers les zones transparentes des PNG.
+    slotBgColor: '#000',
   },
 
   // ── TEKKEN 8 — 3 joueurs, cartes inclinées ───────────────────────────────

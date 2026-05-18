@@ -639,10 +639,15 @@ body.top8-no-import #pageTop8 #topPage {
    - Demi-largeur visible : 190px à partir du centre.
    - On colle le bouton juste à droite de ce bord visible : 190 + 8 = 198px.
    z-index 5 pour qu'il passe par-dessus le panel au lieu de rester tucké. */
-body.top8-no-import #topPage.main .page-collapse-btn,
-body.top8-no-import #topPage .page-collapse-btn {
+body.top8-no-import #topPage.main:not(.left-collapsed) .page-collapse-btn,
+body.top8-no-import #topPage:not(.left-collapsed) .page-collapse-btn {
   left: calc(50% + 198px);
-  z-index: 5;
+  /* z-index 1 (au lieu de 5) : le bouton reste TUCKÉ derrière la carte
+     tarot — seule la partie qui dépasse à droite reste visible. Sinon
+     le bouton flotte au-dessus de la carte (vu sur top8-no-import).
+     :not(.left-collapsed) : en mode collapsed, on garde z-index 30
+     défini plus bas pour conserver la cliquabilité au bord gauche. */
+  z-index: 1;
 }
 
 /* ── TAROT CAROUSEL ─────────────────────────────────────── */
@@ -1834,11 +1839,13 @@ canvas { width: 100%; display: block; }
   display: inline-block;
 }
 /* Variante "static" du pill : pas de flèches → le clip prend toute la
-   largeur, le pill est compact (hauteur réduite) et le texte uppercase. */
+   largeur, le pill est compact (hauteur réduite) et le texte uppercase.
+   Pas de max-width : le pill s'adapte à la longueur du nom (ex.
+   "GUILTY GEAR -STRIVE-", "SUPER SMASH BROS. ULTIMATE") au lieu de
+   tronquer. white-space:nowrap garantit le texte sur une seule ligne. */
 .gs-pill-static {
   width: auto !important;
   min-width: 140px;
-  max-width: 260px;
   height: 30px !important;
 }
 .gs-pill-static .gs-pill-clip {
@@ -1851,7 +1858,9 @@ canvas { width: 100%; display: block; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 0 14px !important;
+  white-space: nowrap;
 }
+.gs-pill-static .gs-text-name { white-space: nowrap; }
 
 .editor-modal-body {
   display: flex;
@@ -2446,6 +2455,82 @@ canvas { width: 100%; display: block; }
   color: var(--text);
   cursor: pointer;
   box-sizing: border-box;
+}
+
+/* ── CUSTOM FONT DROPDOWN ─────────────────────────────────
+   Le <select> natif ne respecte pas font-family sur les <option>
+   (widget OS). enhanceFontSelectVisuals() le remplace par ce
+   dropdown custom où chaque ligne utilise sa propre police. */
+.font-dd-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: inline-block;
+}
+.font-dd-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color .15s, background .15s;
+}
+.font-dd-btn:hover { background: #faf5ff; border-color: #c8a8e0; }
+.font-dd-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-dd-arrow {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #9b7fb8;
+  transition: transform .15s;
+}
+.font-dd-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(100, 50, 200, 0.18);
+  z-index: 5000;
+  padding: 4px;
+}
+.font-dd-menu.open { display: block; }
+.font-dd-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .12s;
+}
+.font-dd-item:hover { background: #f3eaff; }
+.font-dd-item.selected {
+  background: #e8def8;
+  font-weight: 700;
 }
 
 /* ── COLOR PICKER ───────────────────────────────────────── */
@@ -3169,9 +3254,9 @@ canvas { width: 100%; display: block; }
 }
 
 .lm-dot {
-  width: 30px; height: 30px;
+  width: 38px; height: 38px;
   border-radius: 50%;
-  background: #e8d5f8;
+  background: #f3eaff;
   color: #b89cd8;
   font-size: 11px;
   font-weight: 800;
@@ -3180,19 +3265,32 @@ canvas { width: 100%; display: block; }
   transition: all 0.2s;
   border: 2px solid transparent;
   user-select: none;
+  padding: 3px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
-.lm-dot:hover { background: #d8c5f8; }
+.lm-dot:hover { background: #ebddff; transform: translateY(-1px); }
 .lm-dot-done {
-  background: linear-gradient(135deg, var(--lavender), var(--purple));
-  color: #fff;
-  border-color: var(--purple);
+  background: linear-gradient(135deg, #fff5fb, #fde7f3);
+  border-color: rgba(224, 126, 160, .35);
 }
 .lm-dot-active {
-  background: linear-gradient(135deg, var(--purple), var(--purple-deep));
-  color: #fff;
+  background: linear-gradient(135deg, #fff5fb, #f3eaff);
   border-color: var(--purple-deep);
-  box-shadow: 0 3px 12px rgba(118,84,196,0.45);
-  transform: scale(1.15);
+  box-shadow: 0 4px 14px rgba(118,84,196,0.45), 0 0 0 3px rgba(224, 126, 160, 0.2);
+  transform: scale(1.18);
+}
+/* Quand le SVG est injecté par lm-icons.js, on s'assure que ça remplit
+   bien la pastille et que le SVG ne déborde pas. */
+.lm-dot-iconified > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* En mode actif, légère désaturation du fond pour faire ressortir les
+   couleurs de l'icône SVG. Hover idem. */
+.lm-dot-iconified:hover {
+  background: #f8f0ff;
 }
 
 .lm-close-x { margin-left: 4px; flex-shrink: 0; }
@@ -3202,6 +3300,336 @@ canvas { width: 100%; display: block; }
   display: flex;
   flex: 1;
   overflow: hidden;
+  /* Background opaque (même dégradé que .lm-modal parent) pour que
+     pendant les transitions onirique, si les snapshots ont un micro-gap
+     ou un instant non couvert, on voie le pastel et non le modal-bg
+     sombre (rgba(20,8,50,0.6)) → plus de flash noir intermittent. */
+  background: linear-gradient(145deg, #fef9ff 0%, #fff4fc 50%, #f5f0ff 100%);
+}
+
+/* ── PICKER DE RÔLE DISCORD (custom 2 étapes) ─────────────────────── */
+.dc-role-picker-btn {
+  width: 100%;
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  transition: border-color .15s, background .15s;
+  box-sizing: border-box;
+  font-family: inherit;
+  min-height: 36px;
+}
+.dc-role-picker-btn:hover { border-color: var(--purple); background: #faf5ff; }
+.dc-rp-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dc-rp-srv { color: var(--text-soft); font-weight: 500; font-size: 11px; }
+.dc-rp-sep { color: var(--text-soft); opacity: .6; }
+.dc-rp-role { color: var(--text); font-weight: 700; }
+.dc-rp-placeholder { color: var(--text-soft); font-style: italic; }
+.dc-rp-arrow { margin-left: auto; font-size: 10px; color: var(--text-soft); }
+
+.dc-role-picker-overlay {
+  position: fixed; inset: 0;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(20, 8, 50, 0.65);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  padding: 16px;
+}
+.dc-rp-modal {
+  width: 440px; max-width: 100%;
+  max-height: 80vh;
+  background: linear-gradient(145deg, #fef9ff 0%, #f5eeff 100%);
+  border: 2px solid var(--purple);
+  border-radius: 16px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(60, 30, 140, 0.4);
+}
+.dc-rp-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--purple), var(--purple-deep));
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.dc-rp-header > span:not(.dc-rp-current-guild) { flex: 1; }
+.dc-rp-current-guild {
+  flex: 1;
+  font-style: italic;
+  font-weight: 600;
+}
+.dc-rp-close, .dc-rp-back {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-family: inherit;
+  transition: background .15s;
+}
+.dc-rp-close {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.dc-rp-back {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.dc-rp-close:hover, .dc-rp-back:hover { background: rgba(255, 255, 255, 0.32); }
+
+.dc-rp-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dc-rp-action-row { padding: 12px 14px 0; flex-shrink: 0; }
+.dc-rp-noselect {
+  width: 100%;
+  padding: 10px 14px;
+  background: #f0e8ff;
+  border: 1px dashed var(--purple);
+  border-radius: 10px;
+  color: var(--purple-deep);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.dc-rp-noselect:hover { background: #e6dafa; }
+
+.dc-rp-search-wrap { padding: 12px 14px 0; flex-shrink: 0; }
+.dc-rp-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  background: #fff;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.dc-rp-search:focus { outline: none; border-color: var(--purple); }
+
+/* Emoji picker tournoi */
+.dc-ep-import-status {
+  margin: 6px 14px 0;
+  padding: 8px 12px;
+  background: #f5eeff;
+  border: 1px solid #d9c5f5;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #5d3fa3;
+  flex-shrink: 0;
+}
+.dc-ep-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+  min-height: 120px;
+}
+.dc-ep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+.dc-ep-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  color: #666;
+  transition: all .15s;
+}
+.dc-ep-tile:hover {
+  background: #faf5ff;
+  border-color: var(--purple);
+  transform: translateY(-1px);
+}
+.dc-ep-tile img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+.dc-ep-tile span {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.dc-ep-tile-import {
+  background: #f5eeff;
+  border-style: dashed;
+  border-color: var(--purple);
+  color: var(--purple-deep);
+  font-weight: 700;
+  justify-content: center;
+}
+.dc-ep-tile-import:hover {
+  background: #ebdcff;
+  border-color: var(--purple-deep);
+}
+.dc-ep-import-plus {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--purple);
+  margin-bottom: 2px;
+}
+
+.dc-rp-guild-list,
+.dc-rp-role-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+  display: flex; flex-direction: column;
+  gap: 6px;
+  min-height: 80px;
+}
+.dc-rp-guild-btn {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all .15s;
+  font-family: inherit;
+}
+.dc-rp-guild-btn:hover {
+  background: #faf5ff;
+  border-color: var(--purple);
+  transform: translateX(2px);
+}
+.dc-rp-guild-init {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--purple-deep));
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 1px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+/* Avatar image (logo Discord server) — même format que les initials */
+.dc-rp-guild-icon {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+/* Icon dans le header de l'étape 2 (plus petit) */
+.dc-rp-header-icon {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.6);
+}
+.dc-rp-guild-name {
+  flex: 1;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 14px;
+}
+.dc-rp-guild-count {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-style: italic;
+}
+.dc-rp-chevron {
+  color: var(--purple);
+  font-size: 16px;
+  margin-left: 4px;
+}
+
+.dc-rp-role-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all .12s;
+  font-family: inherit;
+}
+.dc-rp-role-btn:hover {
+  background: #f0e8ff;
+  border-color: var(--border);
+}
+.dc-rp-role-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dc-rp-role-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Channel picker — groupes par catégorie */
+.dc-cp-category {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 10px;
+}
+.dc-cp-category-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  padding: 6px 14px 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dc-cp-category-name::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--border) 0%, transparent 100%);
+}
+.dc-cp-channel-hash {
+  color: var(--text-soft);
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
 }
 
 /* Controls column */
@@ -3214,6 +3642,27 @@ canvas { width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* Firefox : scrollbar fine pastel */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 130, 255, 0.35) transparent;
+}
+/* WebKit (Chrome, Edge, Safari) : scrollbar pastel discrète, ne devient
+   pas foncée au hover comme la règle globale qui s'appliquait avant. */
+.lm-controls::-webkit-scrollbar {
+  width: 8px;
+}
+.lm-controls::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lm-controls::-webkit-scrollbar-thumb {
+  background: rgba(180, 130, 255, 0.30);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.lm-controls::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 130, 255, 0.55);
+  background-clip: content-box;
 }
 
 .lm-game-name-block { margin-bottom: 10px; }
@@ -3247,7 +3696,39 @@ canvas { width: 100%; display: block; }
 
 /* Step panels */
 .lm-step-panel { display: none; }
-.lm-step-active { display: block; }
+.lm-step-active {
+  display: block;
+  /* Fade-in subtil à l'apparition d'un panel. Volontairement léger
+     (opacity .5 → 1, faible blur) pour ne PAS créer de saut visible
+     entre l'état final du snapshot de transition (net, opacity 1) et
+     le démarrage de cette animation au cleanup. */
+  animation: lmPanelFadeIn 380ms cubic-bezier(.25, .8, .3, 1);
+}
+@keyframes lmPanelFadeIn {
+  from {
+    opacity: 0.5;
+    filter: blur(2px);
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+/* Fade-out appliqué par JS sur le panel sortant pendant la transition.
+   Comme le panel sortant est visuellement caché par le snapshot/stage,
+   ce fade-out ne se voit pas en pratique — mais en backup pour les
+   transitions où le snapshot fail. */
+.lm-step-panel.lm-step-fading-out {
+  display: block;
+  animation: lmPanelFadeOut 280ms cubic-bezier(.4, 0, .2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes lmPanelFadeOut {
+  from { opacity: 1; filter: blur(0); }
+  to   { opacity: 0; filter: blur(3px); }
+}
 
 /* ── STEP 1 — DROP ZONE ────────────────────────────────────── */
 .lm-drop-zone {
@@ -3560,6 +4041,25 @@ canvas { width: 100%; display: block; }
   border-radius: 8px !important;
   cursor: pointer;
   flex-shrink: 0;
+}
+/* Évite que le pseudo (input text) déborde sur le hex-input / color picker
+   en empêchant le shrink ; force min-width:0 pour qu'il puisse rétrécir. */
+.lm-name-player-header > input[type="text"] {
+  min-width: 0;
+}
+/* Hex-input compact dans le LM (la colonne est étroite, 360px) */
+.lm-name-player-header .hex-input {
+  width: 56px !important;
+  font-size: 10px !important;
+  padding: 3px 4px !important;
+  letter-spacing: 0 !important;
+}
+/* Idem dans la step 8 (rangs) — même header structure */
+.lm-rank-player-block .hex-input {
+  width: 56px !important;
+  font-size: 10px !important;
+  padding: 3px 4px !important;
+  letter-spacing: 0 !important;
 }
 .lm-name-pos-row {
   display: flex;
@@ -3875,6 +4375,35 @@ canvas { width: 100%; display: block; }
   width: 100%;
   transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ── ÉTAT "AUCUN TOURNOI CHARGÉ" ─────────────────────────────────────
+   Tant que dcFetch() n'a pas réussi, on reproduit EXACTEMENT le format
+   de la page Top 8 en empty state : carte tarot centrée avec sigil
+   doré + titre au-dessus, nav minimaliste, preview cachée. */
+body.dc-no-tournament #dcPage .dc-right,
+body.dc-no-tournament #dcPage .page-collapse-btn {
+  display: none !important;
+}
+body.dc-no-tournament #dcPage .dc-left {
+  flex: 1 1 auto;
+  max-width: 480px;
+  margin: 0 auto;
+}
+/* Cache les autres tabs en empty state (on ne montre que le tab actif,
+   reproduit le format Top 8 empty state). */
+body.dc-no-tournament #dcPage #dcTcTabs .tc-tab-btn:not(:first-child) {
+  display: none !important;
+}
+/* Cache TOUJOURS les flèches < et > de TOUS les carrousels tarot
+   (Top 8, Discord, Hebdo) — la navigation se fait par clic direct
+   sur les tabs (icons), inutile d'avoir des chevrons supplémentaires. */
+.tc-arrow {
+  display: none !important;
+}
+/* Cache aussi les autres slides du tarot — on n'a que la slide 0 (URL) */
+body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
+  display: none !important;
+}
 @media (max-width: 900px) {
   .dc-page { flex-direction: column; }
 }
@@ -3887,6 +4416,14 @@ canvas { width: 100%; display: block; }
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  /* Hérite du look "panel" comme .panel-left du Top 8 : rectangle pastel
+     arrondi derrière la carte tarot. */
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 /* Colonne droite : flex column, la preview prend tout l'espace restant */
@@ -8571,13 +9108,51 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  cursor: grab;
+  /* Évite que le drag sélectionne du texte */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
+.lm-canvas-wrap.lm-canvas-panning { cursor: grabbing; }
 .lm-canvas-wrap canvas {
   display: block;
   max-width: 100%;
   max-height: calc(min(860px,96vh) - 160px);
   width: auto;
   height: auto;
+  transform-origin: 0 0;
+  will-change: transform;
+  transition: transform .15s cubic-bezier(.25, .8, .3, 1);
+}
+/* Pas de transition pendant le drag (sinon ça lag) */
+.lm-canvas-wrap.lm-canvas-panning canvas {
+  transition: none;
+}
+/* Indicateur de zoom (apparaît en bas-droite de la preview quand zoom > 1) */
+.lm-canvas-zoom-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 8px;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-family: 'Courier New', monospace;
+  user-select: none;
+}
+.lm-canvas-zoom-indicator.lm-zoom-visible {
+  opacity: 1;
+}
+.lm-canvas-zoom-indicator:hover {
+  background: rgba(118, 84, 196, 0.85);
 }
 
 /* ── FOOTER ────────────────────────────────────────────────── */
@@ -8605,15 +9180,7 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   50%       { box-shadow: 0 6px 24px rgba(245,200,66,0.7); }
 }
 
-/* Mini progress dots in footer */
-.lm-step-dots-mini { display: flex; gap: 5px; }
-.lm-mini-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #e8d5f8;
-  transition: all 0.25s;
-}
-.lm-mini-dot.lm-mini-active { background: var(--purple); transform: scale(1.3); }
+/* (Mini progress dots in footer — règles retirées, le footer n'a plus que Précédent/Suivant) */
 
 /* ── CELEBRATION ───────────────────────────────────────────── */
 .lm-celeb-bg {
