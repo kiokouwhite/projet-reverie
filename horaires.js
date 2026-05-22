@@ -1673,6 +1673,14 @@ function hrBuildPlanningUI() {
   if (sec) sec.style.display = '';
   hrAutoAssign(HR.lastResults);
   hrRenderPlanningRoles();
+  // Restaure l'éventuel message déjà posté (pour réafficher le bouton Modifier)
+  if (!HR.planningPost) {
+    try {
+      const saved = localStorage.getItem('hr_planning_post');
+      if (saved) HR.planningPost = JSON.parse(saved);
+    } catch {}
+  }
+  hrUpdatePlanEditBtn();
 }
 
 // Détermine l'équipe d'un user pour la coloration du Mii.
@@ -2702,8 +2710,17 @@ async function hrPostPlanning() {
       return;
     }
     if (!data.ok) { hrPlanningStatus('error', `❌ ${data.error || 'Erreur'}`); return; }
-    hrPlanningStatus('ok', `✅ Planning posté dans #${data.channel} !`);
+    hrPlanningStatus('ok', `✅ Planning posté dans #${data.channel} ! Tu peux encore le corriger via "✏️ Modifier".`);
     if (btn) btn.textContent = '✅ Posté !';
+    // Mémorise les IDs du message posté → permet de l'éditer ensuite si des
+    // personnes se sont trompées (sans reposter un nouveau message).
+    HR.planningPost = {
+      channelId,
+      messageId:      data.messageId || null,
+      imageMessageId: data.imageMessageId || null,
+    };
+    try { localStorage.setItem('hr_planning_post', JSON.stringify(HR.planningPost)); } catch {}
+    hrUpdatePlanEditBtn();
   } catch(e) {
     console.error('[hrPostPlanning]', e);
     if (e.name === 'AbortError') hrPlanningStatus('error', '❌ Délai dépassé (30 s)');
@@ -2713,6 +2730,84 @@ async function hrPostPlanning() {
     clearTimeout(timer);
     if (btn) btn.disabled = false;
   }
+}
+
+// Édite le message de planning déjà posté (corrections après coup).
+async function hrEditPlanning() {
+  const post = HR.planningPost;
+  if (!post || (!post.messageId && !post.imageMessageId)) {
+    hrPlanningStatus('error', '❌ Aucun message posté à modifier — poste d\'abord le planning.');
+    return;
+  }
+  const botUrl = hrGetBotUrl();
+  const secret = hrGetSecret();
+  if (!botUrl || !secret) { hrPlanningStatus('error', '❌ Configure le bot d\'abord'); return; }
+
+  hrUpdatePlanMsg();
+  const planText = (document.getElementById('hrPlanningMsg')?.value || '').trim();
+  if (!planText) { hrPlanningStatus('error', '❌ Aucun rôle assigné'); return; }
+
+  const body = {
+    channelId:      post.channelId,
+    messageId:      post.messageId,
+    imageMessageId: post.imageMessageId,
+    message:        planText,
+  };
+
+  const btn = document.getElementById('hrEditPlanBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Mise à jour…'; }
+  hrPlanningStatus('loading', '⏳ Capture de l\'image…');
+
+  // Recapture l'image (best-effort) pour que la version éditée reflète le
+  // planning corrigé.
+  try {
+    const dataUrl = await hrCapturePlanningPng();
+    if (dataUrl) body.image = { name: 'planning.png', dataB64: dataUrl };
+  } catch (e) {
+    console.warn('[hrEditPlanning] Capture image échouée :', e.message);
+  }
+  hrPlanningStatus('loading', '⏳ Mise à jour du message…');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const res = await fetch(`${botUrl}/edit-announce`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'x-secret': secret },
+      body:    JSON.stringify(body),
+      signal:  controller.signal,
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(_) {
+      if (res.status === 404) hrPlanningStatus('error', '❌ Route /edit-announce introuvable — redémarre le bot pour activer l\'édition.');
+      else hrPlanningStatus('error', `❌ Réponse invalide du bot (HTTP ${res.status})`);
+      return;
+    }
+    if (!data.ok) { hrPlanningStatus('error', `❌ ${data.error || 'Erreur'}`); return; }
+    hrPlanningStatus('ok', `✅ Message mis à jour dans #${data.channel} !`);
+    if (btn) {
+      btn.textContent = '✅ Mis à jour !';
+      setTimeout(() => { if (btn) btn.textContent = '✏️ Modifier le message'; }, 2500);
+    }
+  } catch(e) {
+    console.error('[hrEditPlanning]', e);
+    if (e.name === 'AbortError') hrPlanningStatus('error', '❌ Délai dépassé (30 s)');
+    else hrPlanningStatus('error', `❌ ${e.message}`);
+    if (btn) btn.textContent = '✏️ Modifier le message';
+  } finally {
+    clearTimeout(timer);
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Affiche le bouton "Modifier" uniquement si un message a déjà été posté.
+function hrUpdatePlanEditBtn() {
+  const btn = document.getElementById('hrEditPlanBtn');
+  if (!btn) return;
+  const post = HR.planningPost;
+  btn.style.display = (post && (post.messageId || post.imageMessageId)) ? '' : 'none';
 }
 
 function hrPlanningStatus(type, msg) {

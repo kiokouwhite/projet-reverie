@@ -383,10 +383,10 @@ function nextLeftPanel() { tcGo(_tcActive + 1); }
 //      dcTcMainCard, dcTcIncoming, dcTcInContent, dcSlide{0-3}
 
 const DC_TC_PANELS = [
-  { label: 'Import',   roman: 'I',   accent: '#7c5cff', emoji: '🟢', name: 'Import start.gg', icon: 'import' },
-  { label: 'Réglages', roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Réglages',     icon: 'quill' },
-  { label: 'Horaires', roman: 'III', accent: '#e85a8a', emoji: '🕐', name: 'Horaires',     icon: 'clock' },
-  { label: 'Bot',      roman: 'IV',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',  icon: 'bot' },
+  { label: 'Import',     roman: 'I',   accent: '#7c5cff', emoji: '🟢', name: 'Import start.gg', icon: 'import' },
+  { label: 'Réglages',   roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Réglages',     icon: 'quill' },
+  { label: 'Événements', roman: 'III', accent: '#e85a8a', emoji: '🎮', name: 'Événements',   icon: 'players' },
+  { label: 'Bot',        roman: 'IV',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',  icon: 'bot' },
 ];
 
 let _dcTcActive = 0;

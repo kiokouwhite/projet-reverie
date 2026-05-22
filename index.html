@@ -10,40 +10,169 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Couches de teinte du fond de page, crossfadées selon le logo centré -->
+<div class="page-bg-layer" id="pageBgA"></div>
+<div class="page-bg-layer" id="pageBgB"></div>
 <div class="app">
 
   <header class="header">
-    <div class="header-logo-wrap">
-      <img src="logo-reverie.svg" alt="Projet Reverie" class="header-logo">
-    </div>
-    <nav class="header-nav">
-      <button class="nav-tab nav-tab-active" onclick="liquidSwitchTab('top8')" id="tabTop8">
-        <span class="nav-tab-label">TOP8 GENERATOR</span>
+    <!-- Deux couches de fond superposées : on crossfade leur opacité pour
+         obtenir un fondu de couleur (les gradients CSS ne se transitionnent pas). -->
+    <div class="header-bg-layer" id="headerBgA"></div>
+    <div class="header-bg-layer" id="headerBgB"></div>
+    <nav class="header-nav nav-carousel" id="navCarousel" aria-label="Navigation — fais défiler pour changer d'onglet">
+      <button class="nav-logo nav-logo-accueil" onclick="liquidSwitchTab('accueil')" id="tabAccueil" title="Accueil — Projet Rêverie" aria-label="Accueil">
+        <img src="logo-reverie.svg" alt="Projet Rêverie">
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('discord')" id="tabDiscord">
-        <span class="nav-tab-icon">💬</span>
-        <span class="nav-tab-label">Annonce Discord</span>
-        <span class="nav-wip">WIP</span>
+      <button class="nav-logo nav-logo-top8" onclick="liquidSwitchTab('top8')" id="tabTop8" title="TOP8 Generator" aria-label="TOP8 Generator">
+        <svg id="logo" width="100%" height="100%" viewBox="0 0 529 348" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+          <g transform="matrix(1,0,0,1,-66.3596,-154.447)">
+              <g class="generator-text">
+              <g transform="matrix(1.12422,0,0,0.827083,-22.302,71.4089)">
+                  <path d="M317.429,395.184C319.122,395.197 320.708,396.313 321.693,398.185C322.678,400.056 322.944,402.457 322.406,404.639C320.731,411.445 318.534,420.369 317.196,425.801C316.481,428.708 314.485,430.676 312.23,430.7C293.912,430.893 214.076,431.734 189.408,431.993C187.715,432.011 186.118,430.925 185.115,429.072C184.111,427.219 183.822,424.824 184.337,422.633C186.08,415.218 188.438,405.182 189.836,399.234C190.539,396.245 192.588,394.223 194.896,394.241C213.402,394.383 292.83,394.995 317.429,395.184ZM318.743,407.56C319.28,405.378 319.015,402.977 318.03,401.106C317.044,399.234 315.459,398.118 313.766,398.105C289.966,397.922 215.055,397.345 197.135,397.207C194.827,397.19 192.778,399.212 192.075,402.2C190.979,406.864 189.319,413.928 187.976,419.645C187.46,421.837 187.75,424.231 188.753,426.084C189.757,427.937 191.353,429.024 193.046,429.006C216.921,428.754 292.261,427.961 310.006,427.774C312.261,427.75 314.257,425.782 314.972,422.875C315.993,418.73 317.489,412.651 318.743,407.56Z" style="fill:rgb(195,76,154);"></path>
+              </g>
+              <g transform="matrix(0.854842,0,0,0.854842,-62.3758,60.9545)">
+                  <g transform="matrix(0.8,0,-0.247029,1.07,163.961,-29.4571)">
+                      <g transform="matrix(21.6667,0,0,21.6667,495.358,420.816)">
+                      </g>
+                      <text x="300.038px" y="420.816px" style="font-family:&#39;NeuropolX-Regular&#39;, &#39;Neuropol X&#39;;font-size:21.667px;fill:rgb(201,76,158);">G<tspan x="323.352px 345.062px 368.722px 390.432px 412.624px 430.856px 450.551px 473.583px " y="420.816px 420.816px 420.816px 420.816px 420.816px 420.816px 420.816px 420.816px ">ENERATOR</tspan></text>
+                  </g>
+              </g>
+              </g>
+              <path d="M309.203,262.572L273.56,252.386C269.889,251.336 267.565,247.726 268.13,243.95C268.694,240.173 271.973,237.401 275.791,237.472L450.672,240.713C454.402,240.782 457.736,238.395 458.872,234.841L478.891,172.208C479.811,169.33 482.488,167.379 485.509,167.385C488.53,167.39 491.2,169.351 492.109,172.232L511.976,235.175C513.037,238.538 516.164,240.818 519.691,240.801L586.695,240.477C589.5,240.463 592.026,242.171 593.058,244.78C594.09,247.388 593.416,250.362 591.361,252.272L541.993,298.134C535.13,304.51 533.523,314.755 538.105,322.925L594.441,423.388C596.011,426.187 595.27,429.716 592.707,431.649C590.144,433.581 586.548,433.322 584.288,431.042L526.209,372.448C529.605,366.119 531.34,358.707 531.34,350.17C531.34,341.508 530.973,336.069 530.581,333.838L530.577,333.817C530.125,331.261 529.435,328.769 528.5,326.346C530.471,321.468 531.457,316.268 531.457,310.75L531.457,303.54C531.457,291.056 527.762,281.248 521.475,273.758C513.071,263.744 498.957,257.092 477.946,257.092L453.395,257.092C434.323,257.092 420.909,262.531 412.276,270.975C409.341,268.458 405.888,266.174 401.882,264.157C392.634,259.49 382.512,257.092 371.486,257.092L371.477,257.092L344.465,257.124C343.964,257.125 343.465,257.174 342.973,257.271L340.287,257.8C338.53,257.308 336.672,257.06 334.753,257.095L322.713,257.32C321.253,257.348 319.802,257.542 318.387,257.898C317.976,258.001 317.575,258.138 317.187,258.307L312.018,260.555C311.207,260.907 310.463,261.396 309.816,262L309.203,262.572Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M398.982,356.428L398.979,356.415L398.981,356.415L398.982,356.428Z" style="fill:rgb(101,204,246);"></path>
+              <path id="starA" class="star star--a" d="M407.095,157.312C407.603,155.612 409.166,154.447 410.94,154.447C412.714,154.447 414.278,155.612 414.785,157.312L418.642,170.231L432.022,170.231C433.73,170.231 435.252,171.312 435.812,172.926C436.373,174.54 435.851,176.332 434.511,177.391L423.402,186.175L427.468,199.794C427.969,201.471 427.325,203.28 425.876,204.263C424.427,205.245 422.508,205.175 421.134,204.089L410.94,196.029L400.746,204.089C399.373,205.175 397.454,205.245 396.005,204.263C394.556,203.28 393.911,201.471 394.412,199.794L398.478,186.175L387.37,177.391C386.029,176.332 385.507,174.54 386.068,172.926C386.629,171.312 388.15,170.231 389.858,170.231L403.238,170.231L407.095,157.312Z" style="fill:rgb(101,204,246);"></path>
+              <path id="starB" class="star star--b" d="M335.327,183.565C335.834,181.866 337.398,180.701 339.172,180.701C340.946,180.701 342.509,181.866 343.017,183.565L345.266,191.099L353.442,191.099C355.15,191.099 356.671,192.18 357.232,193.794C357.793,195.408 357.271,197.199 355.931,198.259L349.032,203.714L351.49,211.947C351.991,213.625 351.346,215.433 349.897,216.416C348.448,217.399 346.529,217.329 345.156,216.243L339.172,211.511L333.187,216.243C331.814,217.329 329.895,217.399 328.446,216.416C326.997,215.433 326.352,213.625 326.853,211.947L329.311,203.714L322.412,198.259C321.072,197.199 320.55,195.408 321.111,193.794C321.672,192.18 323.193,191.099 324.901,191.099L333.077,191.099L335.327,183.565Z" style="fill:rgb(101,204,246);"></path>
+              <path class="comet-tail" d="M425.697,390.116L421.793,389.053L421.817,389.067C430.424,394.089 440.374,396.774 451.754,396.774L479.586,396.774C480.97,396.774 482.331,396.736 483.67,396.659C460.691,418.873 435.89,439.592 406.635,454.784C330.792,494.167 240.675,508.062 199.771,499.705C174.074,494.456 152.555,474.748 144.894,456.576C140.337,445.766 141.074,426.299 147.189,409.242C148.94,404.354 151.019,399.599 153.234,395.127C153.986,395.142 154.767,395.151 155.578,395.151C158.509,395.151 161.125,394.836 163.441,394.308C161.339,409.684 162.407,426.848 169.816,436.505C182.636,453.213 194.752,454.266 209.341,456.955C236.477,461.955 284.045,459.069 329.434,437.734C349.964,428.084 384.397,407.196 415.134,384.428C417.154,386.095 419.372,387.635 421.787,389.049L425.711,390.114L425.697,390.116Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M515.292,336.528C515.647,338.526 516.747,340.231 518.276,341.379C516.936,340.441 515.72,338.938 515.292,336.528Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M425.618,390.124C425.25,390.154 423.82,390.186 421.96,389.149C423.08,389.77 424.337,390.106 425.618,390.124Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M425.697,390.116L425.729,390.125L425.618,390.124L425.697,390.116Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M501.756,375.739C501.094,376.131 500.508,376.609 500.006,377.153C500.44,376.651 501.016,376.176 501.756,375.739Z" style="fill:rgb(101,204,246);"></path>
+              <path d="M488.629,326.662L494.585,322.05L494.483,330.978L488.629,326.662Z" style="fill:rgb(101,204,246);"></path>
+              <g transform="matrix(1.11573,0,0,0.982542,-61.6442,7.16189)">
+                  <path class="dot dot--1" d="M494.63,410.243C498.723,410.243 502.045,414.002 502.045,418.633C502.045,423.264 498.723,427.023 494.63,427.023C490.538,427.023 487.215,423.264 487.215,418.633C487.215,414.002 490.538,410.243 494.63,410.243Z" style="fill:rgb(199,73,155);"></path>
+                  <path class="dot dot--2" d="M516.904,410.243C520.996,410.243 524.319,414.002 524.319,418.633C524.319,423.264 520.996,427.023 516.904,427.023C512.812,427.023 509.489,423.264 509.489,418.633C509.489,414.002 512.812,410.243 516.904,410.243Z" style="fill:rgb(199,73,155);"></path>
+                  <path class="dot dot--3" d="M540.073,410.243C544.165,410.243 547.488,414.002 547.488,418.633C547.488,423.264 544.165,427.023 540.073,427.023C535.981,427.023 532.658,423.264 532.658,418.633C532.658,414.002 535.981,410.243 540.073,410.243Z" style="fill:rgb(199,73,155);"></path>
+              </g>
+              <g id="Calque1">
+              </g>
+              <g class="top8-text">
+              <g transform="matrix(8.19552,0,0,8.19552,-2242.48,-1781.4)">
+                  <path d="M299.241,251.386C299.546,251.042 299.914,250.745 300.343,250.492L300.35,250.488C301.246,249.969 302.396,249.679 303.814,249.679L306.266,249.679C307.837,249.679 309.004,249.946 309.784,250.381C310.324,250.681 310.772,251.074 311.117,251.567C311.141,251.428 311.172,251.3 311.21,251.182L311.56,250.502L312.073,250.023L312.703,249.749C312.806,249.723 312.912,249.709 313.018,249.707L314.487,249.679C314.696,249.675 314.895,249.718 315.075,249.797L315.655,249.683L318.951,249.679C320.142,249.679 321.235,249.936 322.234,250.44C323.009,250.83 323.586,251.312 323.978,251.876C324.085,251.699 324.205,251.532 324.337,251.376C325.223,250.325 326.731,249.679 328.945,249.679L331.941,249.679C334.145,249.679 335.645,250.324 336.527,251.374C337.165,252.134 337.523,253.134 337.523,254.4L337.523,255.279C337.523,255.96 337.374,256.592 337.072,257.174C337.245,257.521 337.364,257.883 337.431,258.259L337.431,258.261C337.475,258.51 337.509,259.12 337.509,260.089C337.509,261.874 336.767,263.178 335.329,264.024L335.323,264.028C334.423,264.551 333.365,264.829 332.141,264.829L328.745,264.829C327.539,264.829 326.482,264.55 325.57,264.017L325.567,264.016C324.12,263.168 323.377,261.869 323.377,260.099C323.377,259.709 323.383,259.376 323.392,259.102C323.087,259.408 322.725,259.676 322.309,259.904L322.306,259.906C321.392,260.405 320.251,260.679 318.873,260.679L315.975,260.679L315.976,262.359C315.976,262.969 315.839,263.439 315.642,263.785L315.291,264.245L314.805,264.598C314.795,264.604 314.785,264.609 314.775,264.614C314.53,264.734 314.039,264.861 313.282,264.861L312.826,264.819L312.351,264.67L311.905,264.395L311.546,264.021L311.206,263.347C311.143,263.148 311.098,262.918 311.078,262.657C310.73,263.124 310.278,263.515 309.725,263.833L309.718,263.837C308.819,264.348 307.673,264.631 306.266,264.631L303.814,264.631C302.448,264.631 301.308,264.34 300.381,263.804C298.925,262.964 298.168,261.647 298.168,259.822L298.168,254.647L297.984,254.75L297.512,254.884L297.058,254.922L295.053,254.922L295.103,255.314L293.713,256.759L293.713,256.76L295.105,255.368L295.105,262.406C295.105,262.513 295.093,262.617 295.071,262.716L295.047,262.904L294.892,263.361L294.622,263.791L294.257,264.143L293.591,264.486C293.318,264.576 292.991,264.631 292.606,264.631C291.813,264.631 291.291,264.566 291.035,264.492L291.006,264.483L290.416,264.203L289.9,263.715L289.581,263.089L289.536,262.824C289.495,262.692 289.473,262.552 289.473,262.406L289.473,255.368C289.473,256.137 290.096,256.76 290.865,256.76C290.487,256.76 290.125,256.606 289.863,256.333C289.6,256.06 289.46,255.692 289.475,255.314L289.541,254.922L287.528,254.922L287.074,254.884L286.602,254.751L286.146,254.5L285.76,254.138L285.53,253.8L285.372,253.447C285.271,253.162 285.208,252.818 285.208,252.411C285.208,251.379 285.54,250.695 285.969,250.283L286.322,250.008L286.721,249.815L287.131,249.71L287.528,249.679L297.058,249.679L297.455,249.71L297.866,249.817L298.264,250.011L298.617,250.287C298.88,250.543 299.107,250.903 299.241,251.386ZM290.866,263.798L290.866,263.799L290.891,263.773L290.866,263.798ZM292.258,261.846C292.278,261.846 292.299,261.846 292.32,261.846L292.32,255.928C292.299,255.927 292.278,255.927 292.258,255.927L292.258,261.846ZM293.189,263.697C292.679,263.49 292.32,262.99 292.32,262.406L292.32,262.353C292.306,262.731 292.446,263.099 292.708,263.372C292.845,263.514 293.009,263.624 293.189,263.697ZM315.975,255.436L318.974,255.436C319.201,255.436 319.387,255.438 319.531,255.434L319.531,254.924C319.37,254.923 319.177,254.922 318.967,254.922L315.975,254.922L315.975,255.436ZM319.809,255.399L319.816,255.397C319.814,255.398 319.811,255.398 319.809,255.399ZM303.059,259.353C303.26,259.387 303.552,259.427 303.806,259.427L306.308,259.427C306.622,259.427 306.865,259.43 307.035,259.421L307.035,254.958C306.84,254.924 306.551,254.883 306.301,254.883L303.806,254.883C303.489,254.883 303.24,254.883 303.059,254.896L303.059,259.353ZM326.819,257.233C326.877,257.21 326.937,257.189 327.001,257.168C326.938,257.15 326.877,257.13 326.82,257.109C326.821,257.15 326.821,257.191 326.819,257.233ZM334.002,257.115C333.917,257.144 333.826,257.171 333.728,257.195C333.827,257.222 333.92,257.251 334.007,257.281C334.002,257.226 334.001,257.17 334.002,257.115ZM328.279,260.089C328.279,260.538 328.067,260.937 327.737,261.192C327.986,261.006 328.279,260.685 328.279,260.089ZM327.591,261.291C327.384,261.412 327.143,261.482 326.886,261.482C326.849,261.482 326.812,261.48 326.775,261.478C326.777,261.479 326.778,261.48 326.78,261.481C327.1,261.512 327.368,261.425 327.591,261.291Z" style="fill:rgb(201,76,158);"></path>
+              </g>
+              <g transform="matrix(8.19552,0,0,8.19552,-2242.48,-1781.4)">
+                  <path d="M299.241,251.386C299.546,251.042 299.914,250.745 300.343,250.492L300.35,250.488C301.246,249.969 302.396,249.679 303.814,249.679L306.266,249.679C307.837,249.679 309.004,249.946 309.784,250.381C310.324,250.681 310.772,251.074 311.117,251.567C311.141,251.428 311.172,251.3 311.21,251.182L311.56,250.502L312.073,250.023L312.703,249.749C312.806,249.723 312.912,249.709 313.018,249.707L314.487,249.679C314.696,249.675 314.895,249.718 315.075,249.797L315.655,249.683L315.735,249.679L318.951,249.679C320.142,249.679 321.235,249.936 322.234,250.44C323.009,250.83 323.586,251.312 323.978,251.876C324.085,251.699 324.205,251.532 324.337,251.376C325.223,250.325 326.731,249.679 328.945,249.679L331.941,249.679C334.145,249.679 335.645,250.324 336.527,251.374C337.165,252.134 337.523,253.134 337.523,254.4L337.523,255.279C337.523,255.96 337.374,256.592 337.072,257.174C337.245,257.521 337.364,257.883 337.431,258.259L337.431,258.261C337.475,258.51 337.509,259.12 337.509,260.089C337.509,261.874 336.767,263.178 335.329,264.024L335.323,264.028C334.423,264.551 333.365,264.829 332.141,264.829L328.745,264.829C327.539,264.829 326.482,264.55 325.57,264.017L325.567,264.016C324.12,263.168 323.377,261.869 323.377,260.099C323.377,259.709 323.383,259.376 323.392,259.102C323.087,259.408 322.725,259.676 322.309,259.904L322.306,259.906C321.392,260.405 320.251,260.679 318.873,260.679L315.975,260.679L315.976,262.359C315.976,262.969 315.839,263.439 315.642,263.785L315.291,264.245L314.805,264.598C314.795,264.604 314.785,264.609 314.775,264.614C314.53,264.734 314.039,264.861 313.282,264.861L312.826,264.819L312.351,264.67L311.905,264.395L311.546,264.021L311.206,263.347C311.143,263.148 311.098,262.918 311.078,262.657C310.73,263.124 310.278,263.515 309.725,263.833L309.718,263.837C308.819,264.348 307.673,264.631 306.266,264.631L303.814,264.631C302.448,264.631 301.308,264.34 300.381,263.804C298.925,262.964 298.168,261.647 298.168,259.822L298.168,254.647L297.984,254.75L297.512,254.884L297.058,254.922L295.053,254.922L295.103,255.314L293.713,256.759L293.713,256.76L295.105,255.368L295.105,262.406C295.105,262.513 295.093,262.617 295.071,262.716L295.047,262.904L294.892,263.361L294.622,263.791L294.257,264.143L293.591,264.486C293.318,264.576 292.991,264.631 292.606,264.631C291.813,264.631 291.291,264.566 291.035,264.492L291.006,264.483L290.416,264.203L289.9,263.715L289.581,263.089L289.536,262.824C289.495,262.692 289.473,262.552 289.473,262.406L289.473,255.368C289.473,256.137 290.096,256.76 290.865,256.76C290.487,256.76 290.125,256.606 289.863,256.333C289.6,256.06 289.46,255.692 289.475,255.314L289.541,254.922L287.528,254.922L287.074,254.884L286.602,254.751L286.146,254.5L285.76,254.138L285.53,253.8L285.372,253.447C285.271,253.162 285.208,252.818 285.208,252.411C285.208,251.379 285.54,250.695 285.969,250.283L286.322,250.008L286.721,249.815L287.131,249.71L287.528,249.679L297.058,249.679L297.455,249.71L297.866,249.817L298.264,250.011L298.617,250.287C298.88,250.543 299.107,250.903 299.241,251.386ZM290.866,263.798L290.866,263.799L290.891,263.773L290.866,263.798ZM292.258,261.846C292.278,261.846 292.299,261.846 292.32,261.846L292.32,255.928C292.299,255.927 292.278,255.927 292.258,255.927L292.258,261.846ZM293.189,263.697C292.679,263.49 292.32,262.99 292.32,262.406L292.32,262.353C292.306,262.731 292.446,263.099 292.708,263.372C292.845,263.514 293.009,263.624 293.189,263.697ZM315.975,255.436L318.974,255.436C319.201,255.436 319.387,255.438 319.531,255.434L319.531,254.924C319.37,254.923 319.177,254.922 318.967,254.922L315.975,254.922L315.975,255.436ZM319.809,255.399L319.816,255.397C319.814,255.398 319.811,255.398 319.809,255.399ZM303.059,259.353C303.26,259.387 303.552,259.427 303.806,259.427L306.308,259.427C306.622,259.427 306.865,259.43 307.035,259.421L307.035,254.958C306.84,254.924 306.551,254.883 306.301,254.883L303.806,254.883C303.489,254.883 303.24,254.883 303.059,254.896L303.059,259.353ZM326.819,257.233C326.877,257.21 326.937,257.189 327.001,257.168C326.938,257.15 326.877,257.13 326.82,257.109C326.821,257.15 326.821,257.191 326.819,257.233ZM334.002,257.115C333.917,257.144 333.826,257.171 333.728,257.195C333.827,257.222 333.92,257.251 334.007,257.281C334.002,257.226 334.001,257.17 334.002,257.115ZM328.279,260.089C328.279,260.538 328.067,260.937 327.737,261.192C327.986,261.006 328.279,260.685 328.279,260.089ZM327.591,261.291C327.384,261.412 327.143,261.482 326.886,261.482C326.849,261.482 326.812,261.48 326.775,261.478C326.777,261.479 326.778,261.48 326.78,261.481C327.1,261.512 327.368,261.425 327.591,261.291Z" style="fill:rgb(201,76,158);"></path>
+              </g>
+              <g transform="matrix(8.19552,0,0,8.19552,-2245.48,-1784.4)">
+                  <path d="M290.865,262.406L290.865,255.368L290.866,255.368C290.881,254.981 291.067,254.732 291.423,254.62C291.616,254.564 292.01,254.536 292.606,254.536C293.322,254.536 293.69,254.813 293.712,255.368L293.713,255.368L293.713,262.406L293.712,262.406C293.69,262.961 293.322,263.238 292.606,263.238C292.01,263.238 291.616,263.21 291.423,263.154C291.067,263.042 290.881,262.793 290.866,262.406L290.865,262.406ZM297.058,253.529L287.528,253.529C286.91,253.529 286.601,253.156 286.601,252.411C286.601,251.518 286.91,251.072 287.528,251.072L297.058,251.072C297.671,251.072 297.977,251.518 297.977,252.411C297.977,253.156 297.671,253.529 297.058,253.529ZM314.583,254.023L314.582,257.27L314.583,262.359C314.583,262.882 314.443,263.217 314.161,263.364C314.018,263.434 313.725,263.469 313.282,263.469C312.734,263.469 312.46,263.099 312.46,262.359L312.46,252.181C312.46,251.558 312.654,251.197 313.044,251.099L314.513,251.072L314.583,254.023ZM315.735,253.528C315.288,253.503 315.064,253.186 315.064,252.578C315.064,252.065 315.087,251.726 315.133,251.56C315.224,251.254 315.425,251.091 315.735,251.073L315.735,251.072L318.951,251.072C319.914,251.072 320.8,251.276 321.607,251.684C322.684,252.226 323.223,253.007 323.223,254.027L323.223,255.834C323.223,257.154 322.695,258.103 321.639,258.684C320.903,259.085 319.982,259.286 318.873,259.286L315.735,259.286L315.735,259.284C315.288,259.259 315.064,258.943 315.064,258.334C315.064,257.821 315.087,257.482 315.133,257.317C315.224,257.01 315.425,256.848 315.735,256.83L315.735,256.828L318.974,256.828C319.591,256.828 320.002,256.797 320.209,256.733C320.686,256.593 320.924,256.271 320.924,255.767L320.924,254.18C320.924,253.823 320.655,253.609 320.116,253.539C320.059,253.533 319.676,253.529 318.967,253.529L315.735,253.529L315.735,253.528ZM310.533,259.813C310.533,261.111 310.032,262.049 309.03,262.626C308.312,263.034 307.39,263.238 306.266,263.238L303.814,263.238C302.727,263.238 301.815,263.025 301.078,262.598C300.066,262.015 299.561,261.09 299.561,259.822L299.561,254.534C299.561,253.223 300.057,252.276 301.049,251.693C301.763,251.279 302.684,251.072 303.814,251.072L306.266,251.072C307.532,251.072 308.48,251.247 309.108,251.599C310.058,252.126 310.533,253.104 310.533,254.534L310.533,259.813ZM308.428,259.766L308.428,254.581C308.428,253.854 307.719,253.49 306.301,253.49L303.806,253.49C303.164,253.49 302.729,253.518 302.502,253.575C301.945,253.725 301.666,254.061 301.666,254.581L301.666,259.766C301.666,260.469 302.379,260.82 303.806,260.82L306.308,260.82C306.975,260.82 307.405,260.795 307.598,260.745C308.151,260.607 308.428,260.28 308.428,259.766ZM336.131,255.279C336.131,255.987 335.885,256.615 335.394,257.163C335.752,257.571 335.973,258.017 336.059,258.502C336.097,258.719 336.116,259.248 336.116,260.089C336.116,261.326 335.618,262.238 334.622,262.824C333.921,263.232 333.095,263.436 332.141,263.436L328.745,263.436C327.806,263.436 326.982,263.229 326.272,262.815C325.271,262.228 324.77,261.323 324.77,260.099C324.77,259.283 324.789,258.754 324.827,258.511C324.908,257.97 325.109,257.52 325.428,257.163C324.961,256.653 324.727,256.019 324.727,255.26L324.727,254.409C324.727,252.184 326.133,251.072 328.945,251.072L331.941,251.072C334.734,251.072 336.131,252.181 336.131,254.4L336.131,255.279ZM334,260.07L334,259.076C334,258.617 333.33,258.387 331.991,258.387L328.867,258.387C328.276,258.387 327.897,258.4 327.73,258.425C327.168,258.515 326.886,258.731 326.886,259.076L326.886,260.089C326.886,260.083 326.908,260.115 326.951,260.185C327.294,260.714 327.892,260.979 328.745,260.979L332.141,260.979C333.381,260.979 334,260.676 334,260.07ZM334.014,255.251L334.014,254.4C334.014,253.819 333.323,253.529 331.941,253.529L328.945,253.529C327.549,253.529 326.851,253.823 326.851,254.409L326.851,255.251C326.851,255.601 327.127,255.815 327.68,255.891C327.775,255.91 328.147,255.92 328.795,255.92L332.091,255.92C332.692,255.92 333.061,255.907 333.199,255.882C333.743,255.799 334.014,255.588 334.014,255.251Z" style="fill:rgb(255,255,254);"></path>
+              </g>
+              </g>
+          </g>
+      </svg>
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('horaires')" id="tabHoraires">
-        <span class="nav-tab-icon">📅</span>
-        <span class="nav-tab-label">Horaires</span>
+      <button class="nav-logo nav-logo-discord" onclick="liquidSwitchTab('discord')" id="tabDiscord" title="Annonce Discord" aria-label="Annonce Discord">
+        <img class="layer-bg"    src="logos/Annoncediscord1.svg" alt="">
+        <img class="layer-text"  src="logos/Annoncediscord2.svg" alt="">
+        <img class="layer-comet" src="logos/Annoncediscord3.svg" alt="">
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('startgg')" id="tabStartgg">
-        <span class="nav-tab-icon">🏟️</span>
-        <span class="nav-tab-label">Tournoi start.gg</span>
+      <button class="nav-logo nav-logo-horaires" onclick="liquidSwitchTab('horaires')" id="tabHoraires" title="Horaires" aria-label="Horaires">
+        <img class="layer-back"  src="logos/horaires-background.svg" alt="">
+        <img class="layer-bg"    src="logos/horaires-bg.svg" alt="">
+        <img class="layer-stars" src="logos/horaires-stars.svg" alt="">
+        <svg class="layer-center" viewBox="0 0 2084 2084" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="matrix(4.16667,0,0,4.16667,1039.85,843.956)"><path class="center-star" d="M0,-19.805C-0.75,-12.982 -2.408,-11.169 -9.536,-10.371C-10.049,-10.313 -10.047,-9.44 -9.533,-9.384C-2.401,-8.622 -0.734,-6.817 0.05,0.002C0.114,0.566 0.81,0.564 0.872,-0C1.622,-6.823 3.28,-8.636 10.408,-9.434C10.921,-9.492 10.919,-10.366 10.405,-10.421C3.274,-11.183 1.606,-12.988 0.823,-19.807C0.758,-20.371 0.062,-20.369 0,-19.805Z" fill="rgb(255,142,255)" fill-rule="nonzero"></path></g></svg>
+        <img class="layer-text"  src="logos/horaires-text.svg" alt="">
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('deluxe')" id="tabDeluxe">
-        <span class="nav-tab-icon">🎯</span>
-        <span class="nav-tab-label">start.gg Deluxe</span>
+      <button class="nav-logo nav-logo-startgg" onclick="liquidSwitchTab('startgg')" id="tabStartgg" title="Tournoi start.gg" aria-label="Création Start.gg">
+        <img class="layer-stars" src="logos/startgg-stars.svg" alt="">
+        <img class="layer-arrow" src="logos/startgg-arrow.svg" alt="">
+        <img class="layer-dot dot-tl" src="logos/startgg-dot-tl.svg" alt="">
+        <img class="layer-dot dot-tc" src="logos/startgg-dot-tc.svg" alt="">
+        <img class="layer-dot dot-tr" src="logos/startgg-dot-tr.svg" alt="">
+        <img class="layer-dot dot-bl" src="logos/startgg-dot-bl.svg" alt="">
+        <img class="layer-dot dot-bc" src="logos/startgg-dot-bc.svg" alt="">
+        <img class="layer-dot dot-br" src="logos/startgg-dot-br.svg" alt="">
+        <img class="layer-text" src="logos/startgg-text.svg" alt="">
       </button>
-      <button class="nav-tab" onclick="liquidSwitchTab('config')" id="tabConfig">
-        <span class="nav-tab-icon">⚙️</span>
-        <span class="nav-tab-label">Configuration</span>
+      <button class="nav-logo nav-logo-deluxe" onclick="liquidSwitchTab('deluxe')" id="tabDeluxe" title="start.gg Deluxe" aria-label="Start.gg Deluxe">
+        <img class="layer-deluxe"  src="logos/deluxe-deluxe.svg" alt="">
+        <div class="layer-shimmer" aria-hidden="true"></div>
+        <img class="layer-startgg" src="logos/deluxe-startgg.png" alt="">
+      </button>
+      <button class="nav-logo nav-logo-config" onclick="liquidSwitchTab('config')" id="tabConfig" title="Configuration" aria-label="Config">
+        <div class="logo-content">
+          <img class="frame-1" src="logos/frame-text1.svg" alt="">
+          <img class="frame-2" src="logos/frame-text2.svg" alt="">
+          <img class="frame-3" src="logos/frame-text3.svg" alt="">
+          <img class="frame-4" src="logos/frame-text4.svg" alt="">
+        </div>
       </button>
     </nav>
     <div class="header-right"></div>
   </header>
+
+  <!-- ── PAGE ACCUEIL ── -->
+  <div id="pageAccueil" class="page-section" style="display:none;">
+    <div class="home-wrap">
+      <div class="home-hero">
+        <img src="logo-reverie.svg" alt="Projet Rêverie" class="home-hero-logo">
+        <p class="home-tagline">Ton kit d'outils pour les tournois FGC — choisis un outil</p>
+      </div>
+      <div class="home-grid">
+        <button class="home-tile" onclick="liquidSwitchTab('top8')" aria-label="TOP8 Generator">
+          <div class="home-logo"><img src="top8_generator.svg" alt="TOP8 Generator"></div>
+          <span class="home-label">TOP8 Generator</span>
+          <span class="home-desc">Génère tes visuels de Top 8</span>
+        </button>
+        <button class="home-tile" onclick="liquidSwitchTab('discord')" aria-label="Annonce Discord">
+          <div class="home-logo home-logo-discord">
+            <img src="logos/Annoncediscord1.svg" alt="">
+            <img src="logos/Annoncediscord2.svg" alt="">
+            <img src="logos/Annoncediscord3.svg" alt="">
+          </div>
+          <span class="home-label">Annonce Discord</span>
+          <span class="home-desc">Rédige &amp; programme tes annonces</span>
+        </button>
+        <button class="home-tile" onclick="liquidSwitchTab('horaires')" aria-label="Horaires">
+          <div class="home-logo home-logo-horaires">
+            <img src="logos/horaires-background.svg" alt="">
+            <img src="logos/horaires-bg.svg" alt="">
+            <img src="logos/horaires-stars.svg" alt="">
+            <img src="logos/horaires-text.svg" alt="">
+          </div>
+          <span class="home-label">Horaires</span>
+          <span class="home-desc">Planifie tes sondages hebdo</span>
+        </button>
+        <button class="home-tile" onclick="liquidSwitchTab('startgg')" aria-label="Tournoi start.gg">
+          <div class="home-logo home-logo-startgg">
+            <img src="logos/startgg-stars.svg" alt="">
+            <img src="logos/startgg-arrow.svg" alt="">
+            <img src="logos/startgg-dot-tl.svg" alt="">
+            <img src="logos/startgg-dot-tc.svg" alt="">
+            <img src="logos/startgg-dot-tr.svg" alt="">
+            <img src="logos/startgg-dot-bl.svg" alt="">
+            <img src="logos/startgg-dot-bc.svg" alt="">
+            <img src="logos/startgg-dot-br.svg" alt="">
+            <img src="logos/startgg-text.svg" alt="">
+          </div>
+          <span class="home-label">Tournoi start.gg</span>
+          <span class="home-desc">Crée ton tournoi en un clic</span>
+        </button>
+        <button class="home-tile" onclick="liquidSwitchTab('deluxe')" aria-label="start.gg Deluxe">
+          <div class="home-logo home-logo-deluxe">
+            <img src="logos/deluxe-deluxe.svg" alt="">
+            <img src="logos/deluxe-startgg.png" alt="">
+          </div>
+          <span class="home-label">start.gg Deluxe</span>
+          <span class="home-desc">Import avancé &amp; options pro</span>
+        </button>
+        <button class="home-tile" onclick="liquidSwitchTab('config')" aria-label="Configuration">
+          <div class="home-logo"><img src="logos/frame-text4.svg" alt="Configuration"></div>
+          <span class="home-label">Configuration</span>
+          <span class="home-desc">Bot, secrets &amp; réglages</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── PAGE TOP 8 ── -->
   <div id="pageTop8" class="page-section">
@@ -357,10 +486,10 @@
                 <div id="dcStatus" class="dc-status" style="display:none;"></div>
               </div>
 
-              <!-- Slide 1 : Réglages + Événements -->
+              <!-- Slide 1 : Réglages (Preset + Texte + Horaires) -->
               <div class="left-slide" id="dcSlide1">
                 <div class="section-title" style="margin-top:4px;">⚙️ Preset</div>
-                <select id="dcPresetSelect" class="dc-text-input" onchange="dcApplyPreset(this.value)" style="width:100%;text-align:center;text-align-last:center;">
+                <select id="dcPresetSelect" class="dc-text-input" onchange="dcApplyPreset(this.value)" style="width:100%;text-align:center;text-align-last:center;flex:0 0 auto;">
                   <option value="lorem_smash">Lorem Ipsum — Smash Strasbourg</option>
                   <option value="lorem_strasfighter">Lorem Ipsum — Stras'Fighter</option>
                   <option value="magna">Magna Arena — Stras'Fighters</option>
@@ -378,19 +507,19 @@
                   <label>Phrase de clôture</label>
                   <input type="text" id="dcClosing" class="dc-text-input" value="Venez écrire l'histoire !" oninput="dcGenerate()">
                 </div>
-                <!-- Événements (visibles après fetch) -->
-                <div id="dcEventsBlock" style="display:none;margin-top:14px;">
-                  <div class="section-title" style="margin-top:4px;">🎮 Événements</div>
-                  <div class="dc-events-hint">Coche "Side Event" pour le déplacer dans la section Side Events. Pour pinguer un rôle, clique <strong>🔄 Charger les rôles</strong>.</div>
-                  <button class="dc-add-sched-btn" style="margin-bottom:8px;" onclick="dcLoadRoles()">🔄 Charger les rôles du serveur</button>
-                  <div id="dcEventsWrap"></div>
-                </div>
-              </div>
-
-              <!-- Slide 2 : Horaires -->
-              <div class="left-slide" id="dcSlide2">
+                <div class="section-title" style="margin-top:14px;">🕐 Horaires</div>
                 <div id="dcScheduleWrap"></div>
                 <button class="dc-add-sched-btn" onclick="dcAddSchedule()">+ Ajouter une ligne</button>
+              </div>
+
+              <!-- Slide 2 : Événements (visibles après fetch) -->
+              <div class="left-slide" id="dcSlide2">
+                <div id="dcEventsBlock">
+                  <div id="dcEventsWrap"></div>
+                </div>
+                <div id="dcEventsEmptyHint" class="dc-events-hint" style="text-align:center;padding:30px 16px;color:var(--text-soft);">
+                  Importe un tournoi pour voir les événements ici.
+                </div>
               </div>
 
               <!-- Slide 3 : Bot Discord -->
@@ -400,7 +529,7 @@
                   <input type="text" id="dcBotUrl" oninput="dcSaveBotSettings()">
                   <input type="password" id="dcBotSecret" oninput="dcSaveBotSettings()">
                 </div>
-                <p class="dc-api-hint" style="margin-bottom:10px;">💡 URL bot et secret se configurent dans l'onglet <strong>⚙️ Configuration</strong>.</p>
+                <div class="section-title" style="margin-top:4px;">📨 Poster</div>
                 <div class="dc-field-row" style="align-items:flex-start;">
                   <label style="padding-top:6px;">Salon</label>
                   <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
@@ -424,12 +553,22 @@
                   <div class="dc-schedule-block-title">🕐 Programmer l'envoi</div>
                   <div class="dc-field-row">
                     <label>Date et heure</label>
-                    <input type="datetime-local" id="dcScheduleAt" class="dc-datetime-input">
+                    <div class="dc-dt-combo">
+                      <input type="hidden" id="dcScheduleAt">
+                      <input type="hidden" id="dcScheduleDate">
+                      <button type="button" id="dcScheduleDateBtn" class="dc-dt-time-btn" onclick="dcOpenDatePicker()" style="flex:1;">
+                        <span id="dcScheduleDateLabel">--/--/----</span>
+                        <span class="dc-dt-time-icon">📅</span>
+                      </button>
+                      <button type="button" id="dcScheduleTimeBtn" class="dc-dt-time-btn" onclick="dcOpenTimePicker()">
+                        <span id="dcScheduleTimeLabel">--:--</span>
+                        <span class="dc-dt-time-icon">🕐</span>
+                      </button>
+                    </div>
                   </div>
                   <button id="dcScheduleBtn" class="btn btn-secondary" style="width:100%;margin-top:6px;" onclick="dcSchedule()">🕐 Programmer l'envoi</button>
                   <div id="dcScheduledList" class="dc-scheduled-list"></div>
                 </div>
-                <div class="dc-api-hint" style="margin-top:8px;">💡 Clic droit sur le salon dans Discord → <strong>Copier l'identifiant</strong></div>
               </div>
 
             </div>
@@ -537,7 +676,6 @@
                   <input type="url" id="hrBotUrl" oninput="hrSaveBotSettings()">
                   <input type="password" id="hrBotSecret" oninput="hrSaveBotSettings()">
                 </div>
-                <p class="dc-api-hint" style="margin-bottom:10px;">💡 URL bot et secret se configurent dans l'onglet <strong>⚙️ Configuration</strong>.</p>
 
                 <!-- Choix du salon -->
                 <div class="dc-field-row" style="margin-top:8px;">
@@ -650,6 +788,7 @@
             <button class="btn btn-secondary" onclick="hrCopyPlanning()">📋 Copier</button>
             <button class="btn btn-secondary" id="hrPreviewBtn" onclick="hrTogglePlanningPreview()">👁️ Aperçu</button>
             <button class="btn btn-primary" id="hrPostPlanBtn" onclick="hrPostPlanning()">📨 Poster dans Discord</button>
+            <button class="btn btn-primary" id="hrEditPlanBtn" onclick="hrEditPlanning()" style="display:none;">✏️ Modifier le message</button>
           </div>
           <div id="hrPlanningStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
         </div>
@@ -2121,6 +2260,8 @@ function switchTab(tab) {
   localStorage.setItem('active_tab', tab);
   // Pages
   // Utiliser 'flex' (pas 'block') pour conserver la chaîne flex du viewport-fit
+  const pageAccueilEl = document.getElementById('pageAccueil');
+  if (pageAccueilEl) pageAccueilEl.style.display = tab === 'accueil' ? 'flex' : 'none';
   document.getElementById('pageTop8').style.display      = tab === 'top8'     ? 'flex' : 'none';
   document.getElementById('pageDiscord').style.display   = tab === 'discord'   ? 'flex' : 'none';
   document.getElementById('pageHoraires').style.display  = tab === 'horaires'  ? 'flex' : 'none';
@@ -2130,6 +2271,8 @@ function switchTab(tab) {
   const pageConfigEl = document.getElementById('pageConfig');
   if (pageConfigEl) pageConfigEl.style.display = tab === 'config' ? 'flex' : 'none';
   // Tabs
+  const tabAccueilEl = document.getElementById('tabAccueil');
+  if (tabAccueilEl) tabAccueilEl.classList.toggle('nav-tab-active', tab === 'accueil');
   document.getElementById('tabTop8').classList.toggle('nav-tab-active',     tab === 'top8');
   document.getElementById('tabDiscord').classList.toggle('nav-tab-active',  tab === 'discord');
   document.getElementById('tabHoraires').classList.toggle('nav-tab-active', tab === 'horaires');
@@ -2138,6 +2281,8 @@ function switchTab(tab) {
   if (tabDeluxeEl) tabDeluxeEl.classList.toggle('nav-tab-active', tab === 'deluxe');
   const tabConfigEl = document.getElementById('tabConfig');
   if (tabConfigEl) tabConfigEl.classList.toggle('nav-tab-active', tab === 'config');
+  // Synchroniser le carrousel circulaire sur l'onglet actif
+  if (typeof navCarouselSetTab === 'function') navCarouselSetTab(tab);
   // Init pages on first open
   if (tab === 'top8' && typeof _togglePreviewEmptyState === 'function') {
     // Resync de l'état vide/centré quand on revient sur Top 8
@@ -2156,7 +2301,7 @@ function switchTab(tab) {
 
 // Restaurer le dernier onglet visité — appel SYNC pour éviter le flash visuel
 // des pages au chargement (toggle display:flex/none immédiat).
-switchTab(localStorage.getItem('active_tab') || 'top8');
+switchTab(localStorage.getItem('active_tab') || 'accueil');
 
 // Re-appel post-DOMContentLoaded : les scripts externes (horaires.js,
 // discord.js, startgg.js) sont alors chargés, donc les fonctions hrInit /
@@ -2164,7 +2309,7 @@ switchTab(localStorage.getItem('active_tab') || 'top8');
 // un flag *InitDone pour être idempotents.
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    switchTab(localStorage.getItem('active_tab') || 'top8');
+    switchTab(localStorage.getItem('active_tab') || 'accueil');
   });
 }
 
@@ -2228,9 +2373,38 @@ function liquidSwitchTab(tab) {
     });
   }
 
+  // ── Logo Rêverie flottant sur les vagues ──
+  const liqLogoWrap = document.getElementById('liqLogoWrap');
+  const liqLogoImg  = document.getElementById('liqLogo');
+  let _logoStop = false;
+  function startLogoBob() {
+    if (liqLogoWrap) {
+      liqLogoWrap.style.transition = 'opacity 0.45s ease';
+      liqLogoWrap.style.opacity = '1';
+    }
+    _logoStop = false;
+    const t0 = performance.now();
+    (function bob(now) {
+      if (_logoStop) return;
+      const el  = (now - t0) / 1000;
+      const y   = Math.sin(el * 2.3) * 16;          // tangage vertical (flotte)
+      const rot = Math.sin(el * 1.7) * 4.5;         // roulis doux
+      const sc  = 1 + Math.sin(el * 2.3) * 0.035;   // léger gonflement
+      if (liqLogoImg) liqLogoImg.style.transform =
+        'translateY(' + y.toFixed(1) + 'px) rotate(' + rot.toFixed(2) + 'deg) scale(' + sc.toFixed(3) + ')';
+      requestAnimationFrame(bob);
+    })(performance.now());
+  }
+  function stopLogoBob() {
+    _logoStop = true;
+    if (liqLogoWrap) { liqLogoWrap.style.opacity = '0'; }
+    if (liqLogoImg)  { liqLogoImg.style.transform = ''; }
+  }
+
   async function run() {
     overlay.style.opacity = '1';
     overlay.style.pointerEvents = 'all';
+    startLogoBob();
     let bubTimer = setInterval(spawnBubble, 70);
 
     // Phase 1 — fill
@@ -2267,6 +2441,8 @@ function liquidSwitchTab(tab) {
       ], { duration: 1500, delay: delay, easing: 'cubic-bezier(0.16,0.85,0.3,1)', fill: 'both' });
     });
 
+    // Le logo s'efface en même temps que les vagues se retirent
+    if (liqLogoWrap) liqLogoWrap.style.opacity = '0';
     const dissolveStart = performance.now(), dissolveDur = 1300;
     (function dissolve(now) {
       const t = Math.min(1, (now - dissolveStart) / dissolveDur);
@@ -2290,10 +2466,11 @@ function liquidSwitchTab(tab) {
     svg.style.filter = '';
     waveMain.setAttribute('d', buildWavePath(0, 0, 0));
     waveBack.setAttribute('d', buildWavePath(0, 0, 0));
+    stopLogoBob();
     window._liqAnimating = false;
   }
 
-  run().catch(function() { window._liqAnimating = false; overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none'; });
+  run().catch(function() { window._liqAnimating = false; overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none'; stopLogoBob(); });
 }
 </script>
 <!-- ── LIQUID TRANSITION OVERLAY ── -->
@@ -2321,6 +2498,10 @@ function liquidSwitchTab(tab) {
     </g>
   </svg>
   <div id="liqBubbles" style="position:absolute;inset:0;pointer-events:none;"></div>
+  <!-- Logo Rêverie qui flotte/tangue sur les vagues pendant la transition -->
+  <div id="liqLogoWrap" style="position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);opacity:0;pointer-events:none;will-change:opacity;">
+    <img id="liqLogo" src="logo-reverie.svg" alt="" style="width:min(360px,56vw);height:auto;display:block;filter:drop-shadow(0 10px 28px rgba(70,35,150,0.5));will-change:transform;">
+  </div>
 </div>
 
 <script src="cloud-animation.js"></script>
@@ -2366,6 +2547,217 @@ function liquidSwitchTab(tab) {
 
 <script src="app.js"></script>
 <script src="aquarium-button.js"></script>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- CARROUSEL CIRCULAIRE DU MENU (coverflow en arc)                         -->
+<!-- Scroll = rotation de l'arc ; le logo amené au centre devient l'onglet   -->
+<!-- actif automatiquement quand le défilement se stabilise.                 -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  const ORDER = ['accueil', 'top8', 'discord', 'horaires', 'startgg', 'deluxe', 'config'];
+  const N = ORDER.length;
+
+  // ── THÈMES PAR LOGO ──────────────────────────────────────────────────────
+  // Pour chaque logo centré, on teinte la barre (fond + halo) et le soulignement
+  // avec ses couleurs dominantes, pour le mettre en valeur. Les fonds restent
+  // clairs/translucides (verre dépoli) pour que le logo ressorte.
+  const NAV_THEMES = {
+    accueil:  { bg: 'linear-gradient(100deg, rgba(255,182,221,0.92) 0%, rgba(226,196,255,0.9) 50%, rgba(176,230,255,0.92) 100%)',
+                underline: 'linear-gradient(90deg, #ff5fae, #c45cff, #4fd0ff)', glow: 'rgba(255,95,174,0.6)',
+                pageColor: 'rgba(255,196,226,0.5)' },
+    top8:     { bg: 'linear-gradient(100deg, rgba(168,224,255,0.92) 0%, rgba(200,200,255,0.9) 50%, rgba(255,188,224,0.92) 100%)',
+                underline: 'linear-gradient(90deg, #4fc3ff, #6f8cff, #ff7ec2)', glow: 'rgba(79,195,255,0.6)',
+                pageColor: 'rgba(190,228,255,0.5)' },
+    discord:  { bg: 'linear-gradient(100deg, rgba(201,184,255,0.93) 0%, rgba(211,190,255,0.9) 50%, rgba(190,176,246,0.93) 100%)',
+                underline: 'linear-gradient(90deg, #8f7bff, #a98cff, #c9b6ff)', glow: 'rgba(143,123,255,0.6)',
+                pageColor: 'rgba(206,192,255,0.55)' },
+    horaires: { bg: 'linear-gradient(100deg, rgba(160,235,255,0.92) 0%, rgba(198,230,255,0.9) 50%, rgba(255,188,233,0.92) 100%)',
+                underline: 'linear-gradient(90deg, #2fd4d4, #5fc8ff, #ff7ed0)', glow: 'rgba(47,212,212,0.6)',
+                pageColor: 'rgba(180,236,250,0.5)' },
+    startgg:  { bg: 'linear-gradient(100deg, rgba(170,208,255,0.93) 0%, rgba(184,224,255,0.9) 50%, rgba(168,236,255,0.93) 100%)',
+                underline: 'linear-gradient(90deg, #3a7bd5, #4fb0ff, #46e0d0)', glow: 'rgba(58,123,213,0.6)',
+                pageColor: 'rgba(192,218,255,0.55)' },
+    deluxe:   { bg: 'linear-gradient(100deg, rgba(255,168,204,0.93) 0%, rgba(255,194,212,0.9) 50%, rgba(255,176,232,0.93) 100%)',
+                underline: 'linear-gradient(90deg, #ff5fae, #ff7eb3, #ff5fc8)', glow: 'rgba(255,95,180,0.6)',
+                pageColor: 'rgba(255,190,216,0.5)' },
+    config:   { bg: 'linear-gradient(100deg, rgba(231,178,255,0.92) 0%, rgba(211,190,255,0.9) 50%, rgba(180,230,255,0.92) 100%)',
+                underline: 'linear-gradient(90deg, #c45fe0, #9b7fff, #4fd0ff)', glow: 'rgba(196,95,224,0.6)',
+                pageColor: 'rgba(228,194,255,0.55)' },
+  };
+  let _lastTheme = null;
+  let _hdrToggle = false; // alterne les 2 couches gradient du header (crossfade)
+  function applyNavTheme(tab) {
+    const th = NAV_THEMES[tab];
+    if (!th || _lastTheme === tab) return;
+    _lastTheme = tab;
+    // HEADER : crossfade de deux couches gradient (les gradients ne se
+    // transitionnent pas → on fond l'opacité de la couche entrante sur l'autre).
+    const a = document.getElementById('headerBgA');
+    const b = document.getElementById('headerBgB');
+    if (a && b) {
+      _hdrToggle = !_hdrToggle;
+      const inc = _hdrToggle ? a : b;
+      const out = _hdrToggle ? b : a;
+      inc.style.background = th.bg;
+      inc.style.opacity = '1';
+      out.style.opacity = '0';
+    }
+    // FOND DE PAGE : une seule couche teintée en background-color (couleur unie
+    // semi-transparente) → la couleur se transitionne NATIVEMENT en douceur,
+    // contrairement aux gradients. Le gradient de base du body transparaît.
+    const pageTint = document.getElementById('pageBgA');
+    if (pageTint && th.pageColor) {
+      pageTint.style.backgroundColor = th.pageColor;
+      pageTint.style.opacity = '1';
+    }
+    const hdr = document.querySelector('.header');
+    if (hdr) {
+      // Le box-shadow (halo coloré) se transitionne nativement (interpolation de couleur)
+      hdr.style.boxShadow = '0 4px 32px ' + th.glow.replace('0.6', '0.42')
+        + ', inset 0 1px 0 rgba(255,255,255,0.7)';
+    }
+    const root = document.documentElement.style;
+    root.setProperty('--nav-underline', th.underline);
+    root.setProperty('--nav-glow', th.glow);
+  }
+
+  // Géométrie de l'arc
+  const ANGLE  = 20;   // degrés entre deux logos (espacement horizontal)
+  const DIP    = 0;    // 0 → aucune courbure verticale : les logos sont alignés à plat
+  const BASE_Y = 0;    // décalage vertical du transform laissé à 0 (le décalage
+                       // uniforme vers le haut est fait via `top` en CSS) → le
+                       // logo central a un transform identité et n'est pas coincé
+                       // par la transition. Les côtés montent via l'arc (DIP).
+  // Le rayon horizontal s'adapte à la largeur dispo (étale les logos sur toute
+  // la barre au lieu de les tasser au centre).
+  function arcRadius() {
+    const nav = document.getElementById('navCarousel');
+    const w = nav ? nav.getBoundingClientRect().width : 1000;
+    return Math.max(220, Math.min(540, w * 0.46));
+  }
+
+  let navIndex = 0;
+  let inited = false;
+
+  function items() {
+    return ORDER.map(t => document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)));
+  }
+
+  // Décalage circulaire le plus court d'un index par rapport au centre courant
+  function circOffset(i) {
+    let o = i - navIndex;
+    o = ((o % N) + N) % N;          // 0..N-1
+    if (o > N / 2) o -= N;          // -N/2 .. N/2
+    return o;
+  }
+
+  function navRender() {
+    const RADIUS = arcRadius();
+    const els = items();
+    els.forEach((el, i) => {
+      if (!el) return;
+      const o    = circOffset(i);
+      const dist = Math.abs(o);
+      const ang  = o * ANGLE;
+      const rad  = ang * Math.PI / 180;
+      const x    = Math.sin(rad) * RADIUS;
+      const y    = BASE_Y - (1 - Math.cos(rad)) * DIP; // arc vers le haut : centre en bas, côtés qui montent
+      const scale = Math.max(0.28, 1 - 0.27 * dist); // côtés encore plus petits
+      const rotZ  = 0;                               // pas d'inclinaison : rangée bien à plat
+      // Les logos latéraux sont plus petits et plus transparents (profondeur).
+      const op = Math.max(0.30, 1 - 0.26 * dist);
+
+      const t = `translate(-50%, -50%) translateX(${x.toFixed(1)}px) translateY(${y.toFixed(1)}px) scale(${scale.toFixed(3)}) rotate(${rotZ}deg)`;
+      // 'important' pour battre toute règle .nav-tab-active héritée
+      el.style.setProperty('transform', t, 'important');
+      el.style.opacity = op.toFixed(2);
+      el.style.zIndex  = String(100 - Math.round(dist * 10));
+      el.style.pointerEvents = 'auto';
+      el.classList.toggle('is-center', o === 0);
+    });
+    // Teinte la barre selon le logo centré
+    applyNavTheme(ORDER[navIndex]);
+  }
+
+  // Appelé par liquidSwitchTab pour garder le carrousel synchronisé avec l'onglet actif
+  window.navCarouselSetTab = function (tab) {
+    const idx = ORDER.indexOf(tab);
+    if (idx < 0) return;
+    navIndex = idx;
+    navRender();
+  };
+
+  // Le scroll ne fait QUE faire tourner le carrousel : aucune navigation
+  // automatique. Pour ouvrir une page, l'utilisateur clique sur le logo.
+  function step(dir) {
+    navIndex = ((navIndex + dir) % N + N) % N;
+    navRender();
+  }
+
+  function init() {
+    if (inited) return;
+    const nav = document.getElementById('navCarousel');
+    if (!nav) return;
+    inited = true;
+
+    // Index initial = onglet actif courant
+    const active = document.querySelector('.nav-logo.nav-tab-active');
+    if (active) {
+      const t = active.id.replace('tab', '').toLowerCase();
+      const idx = ORDER.indexOf(t);
+      if (idx >= 0) navIndex = idx;
+    }
+    // Rendu initial SANS transition : on applique les positions instantanément
+    // (sinon le tout premier set de transform, déclenché avant le 1er paint,
+    // reste parfois coincé par la transition et les logos s'empilent au centre).
+    // On réactive la transition juste après pour que le scroll reste fluide.
+    nav.classList.add('nav-noanim');
+    navRender();
+    void nav.offsetWidth; // force reflow → positions appliquées instantanément
+    // Réactive la transition juste après (setTimeout fiable même en arrière-plan,
+    // contrairement à requestAnimationFrame qui peut être gelé).
+    setTimeout(() => { nav.classList.remove('nav-noanim'); }, 60);
+
+    // Molette : 1 cran = 1 logo. On accumule le delta puis on n'avance que
+    // d'UN SEUL logo dès qu'on franchit le seuil (l'accumulateur est ensuite
+    // remis à zéro → jamais de saut multiple sur un même geste, même si la
+    // molette envoie un gros deltaY d'un coup).
+    // stopPropagation : empêche le handler global (qui masque/affiche le
+    // header au scroll) de réagir quand on fait défiler SUR le carrousel.
+    let accum = 0;
+    let lastWheelT = 0;
+    const TH = 40; // seuil (px normalisés) pour avancer d'un cran
+    nav.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Normaliser l'unité du delta (px / lignes / pages selon le navigateur)
+      let d = e.deltaY || e.deltaX;
+      if (e.deltaMode === 1) d *= 16;        // lignes → px
+      else if (e.deltaMode === 2) d *= 100;  // pages → px
+
+      const now = performance.now();
+      if (now - lastWheelT > 180) accum = 0; // nouveau geste → repartir de zéro
+      lastWheelT = now;
+
+      accum += d;
+      if (Math.abs(accum) >= TH) {
+        step(accum > 0 ? 1 : -1);
+        accum = 0; // consommé entièrement : un seul cran par franchissement
+      }
+    }, { passive: false });
+
+    // Re-render au resize (le centre reste calé)
+    window.addEventListener('resize', navRender);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
 
 </body>
 </html>

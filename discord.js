@@ -408,9 +408,6 @@ async function dcFetch() {
       const lieu = t.venueName || t.city || (t.venueAddress ? t.venueAddress.split(',')[0].trim() : '');
       if (lieu) venueEl.value = lieu;
     }
-    // Afficher le bloc events
-    const evBlock = document.getElementById('dcEventsBlock');
-    if (evBlock) evBlock.style.display = 'block';
     dcBuildEventControls();
     // Auto-détection des rôles si preset Stras'Fighters/Magna et rôles chargés
     dcAutoAssignRoles(false);
@@ -462,6 +459,12 @@ function dcStatus(type, msg) {
 
 // ── CONSTRUIRE LES CONTRÔLES D'EVENTS ─────────────────────────────────────────
 function dcBuildEventControls() {
+  // Cacher le hint vide / afficher le bloc events selon que DC.events est rempli.
+  const emptyHint = document.getElementById('dcEventsEmptyHint');
+  const evBlock   = document.getElementById('dcEventsBlock');
+  const hasEvents = DC.events && DC.events.length > 0;
+  if (emptyHint) emptyHint.style.display = hasEvents ? 'none' : 'block';
+  if (evBlock)   evBlock.style.display   = hasEvents ? 'block' : 'none';
   const wrap = document.getElementById('dcEventsWrap');
   if (!wrap) return;
 
@@ -472,15 +475,27 @@ function dcBuildEventControls() {
     .map((_, i) => i)
     .sort((a, b) => Number(DC.events[a].isSide) - Number(DC.events[b].isSide));
 
+  const hasMains = order.some(i => !DC.events[i].isSide);
+  const hasSides = order.some(i =>  DC.events[i].isSide);
+  let lastWasSide = null;
+
   wrap.innerHTML = order.map(i => {
     const ev = DC.events[i];
-    return `
+    // Insère un titre de section quand on bascule main → side, ou au début
+    // de chaque section s'il y a du contenu.
+    let sectionTitle = '';
+    if (!ev.isSide && lastWasSide === null && hasMains) {
+      sectionTitle = `<div class="dc-events-section-title">⚔️ Main Events</div>`;
+    } else if (ev.isSide && lastWasSide === false && hasSides) {
+      sectionTitle = `<div class="dc-events-section-title">🎲 Side Events</div>`;
+    } else if (ev.isSide && lastWasSide === null && hasSides) {
+      // Cas où il n'y a QUE des sides
+      sectionTitle = `<div class="dc-events-section-title">🎲 Side Events</div>`;
+    }
+    lastWasSide = ev.isSide;
+    return `${sectionTitle}
     <div class="dc-event-card" id="dcEvCard${i}">
       <div class="dc-event-card-top">
-        <label class="dc-toggle-side">
-          <input type="checkbox" ${ev.isSide ? 'checked' : ''} onchange="dcToggleSide(${i}, this.checked)">
-          <span class="dc-side-label">Side Event</span>
-        </label>
         <span class="dc-event-name">${escDC(ev.name)}</span>
         <span class="dc-event-game">${escDC(ev.gameName)}</span>
         <button class="dc-event-del-btn" onclick="dcDeleteEvent(${i})"
@@ -501,6 +516,12 @@ function dcBuildEventControls() {
           <textarea class="dc-desc-input" placeholder="Description optionnelle du side event…"
             rows="3" oninput="dcSetDesc(${i}, this.value)">${escDC(ev.description)}</textarea>
         </div>
+      </div>
+      <div class="dc-event-card-bottom">
+        <label class="dc-toggle-side">
+          <input type="checkbox" ${ev.isSide ? 'checked' : ''} onchange="dcToggleSide(${i}, this.checked)">
+          <span class="dc-side-label">Side Event</span>
+        </label>
       </div>
     </div>
   `;
@@ -731,7 +752,7 @@ async function dcLoadRoles(silent = false) {
     // Tentative de chargement des icônes de serveurs (en parallèle, silencieux)
     dcLoadGuildIcons(botUrl, secret);
     // Re-render des events pour peupler les dropdowns
-    if (typeof dcRenderEvents === 'function') dcRenderEvents();
+    if (typeof dcBuildEventControls === 'function') dcBuildEventControls();
     // Auto-détection des rôles maintenant qu'on a la liste (presets ciblés)
     dcAutoAssignRoles(false);
     if (!silent) dcStatus('ok', `✅ ${window._dcRoles.length} rôle(s) chargé(s)`);
@@ -1010,7 +1031,7 @@ function dcAutoAssignRoles(force = false) {
   });
 
   if (changed) {
-    if (typeof dcRenderEvents === 'function') dcRenderEvents();
+    if (typeof dcBuildEventControls === 'function') dcBuildEventControls();
     if (typeof dcGenerate    === 'function') dcGenerate();
   }
 }
@@ -1572,6 +1593,259 @@ window._dcChannelPickerSelectChannel = _dcChannelPickerSelectChannel;
 window._dcChannelPickerSearch = _dcChannelPickerSearch;
 window.renderDcChannelPickerBtn = renderDcChannelPickerBtn;
 
+// ── PICKERS DATE + HEURE custom (panneau Programmer l'envoi) ────────────────
+// Synchronise les inputs cachés (date + heure) vers le hidden datetime-local
+// `dcScheduleAt` (format "YYYY-MM-DDTHH:MM").
+function dcSyncScheduleAt() {
+  const dateInp = document.getElementById('dcScheduleDate');
+  const lbl     = document.getElementById('dcScheduleTimeLabel');
+  const hidden  = document.getElementById('dcScheduleAt');
+  if (!dateInp || !lbl || !hidden) return;
+  const d = dateInp.value;
+  const t = (lbl.textContent || '').trim();
+  if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && t && /^\d{2}:\d{2}$/.test(t)) {
+    hidden.value = `${d}T${t}`;
+  } else {
+    hidden.value = '';
+  }
+}
+
+// Met à jour le label visible "JJ / MM / AAAA" depuis l'input caché.
+function _dcUpdateDateLabel() {
+  const dateInp = document.getElementById('dcScheduleDate');
+  const lbl     = document.getElementById('dcScheduleDateLabel');
+  if (!dateInp || !lbl) return;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateInp.value || '');
+  lbl.textContent = m ? `${m[3]} / ${m[2]} / ${m[1]}` : '--/--/----';
+}
+
+// Initialise les inputs visibles depuis une valeur datetime-local "YYYY-MM-DDTHH:MM"
+function dcSetScheduleAt(value) {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(value || '');
+  const dateInp = document.getElementById('dcScheduleDate');
+  const lbl     = document.getElementById('dcScheduleTimeLabel');
+  if (m && dateInp) dateInp.value = m[1];
+  if (m && lbl)     lbl.textContent = `${m[2]}:${m[3]}`;
+  _dcUpdateDateLabel();
+  dcSyncScheduleAt();
+}
+
+// ── PICKER DE DATE custom (calendrier) ───────────────────────────────────────
+let _dcDpView = { y: 0, mo: 0 }; // mois affiché
+let _dcDpSel  = { y: 0, mo: 0, d: 0 }; // jour sélectionné
+
+function dcOpenDatePicker() {
+  let overlay = document.getElementById('dcDatePickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dcDatePickerOverlay';
+    overlay.className = 'dc-role-picker-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) dcCloseDatePicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') dcCloseDatePicker();
+    });
+    document.body.appendChild(overlay);
+  }
+  // Initialise sur la date courante de l'input ou aujourd'hui
+  const dateInp = document.getElementById('dcScheduleDate');
+  let d;
+  if (dateInp?.value && /^\d{4}-\d{2}-\d{2}$/.test(dateInp.value)) {
+    const [Y, M, D] = dateInp.value.split('-').map(n => parseInt(n));
+    d = new Date(Y, M - 1, D);
+  } else {
+    d = new Date();
+  }
+  _dcDpSel  = { y: d.getFullYear(), mo: d.getMonth(), d: d.getDate() };
+  _dcDpView = { y: d.getFullYear(), mo: d.getMonth() };
+  _renderDcDatePicker();
+  overlay.style.display = 'flex';
+}
+
+function dcCloseDatePicker() {
+  const overlay = document.getElementById('dcDatePickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _dcDpShift(delta) {
+  let m = _dcDpView.mo + delta;
+  let y = _dcDpView.y;
+  while (m < 0)  { m += 12; y--; }
+  while (m > 11) { m -= 12; y++; }
+  _dcDpView = { y, mo: m };
+  _renderDcDatePicker();
+}
+
+function _renderDcDatePicker() {
+  const overlay = document.getElementById('dcDatePickerOverlay');
+  if (!overlay) return;
+  const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const dows   = ['L','M','M','J','V','S','D'];
+  const { y, mo } = _dcDpView;
+  // 1er du mois — getDay() : 0 = dim, on veut 0 = lun
+  const first = new Date(y, mo, 1);
+  let startDow = first.getDay() - 1;
+  if (startDow < 0) startDow = 6;
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  const selKey = `${_dcDpSel.y}-${_dcDpSel.mo}-${_dcDpSel.d}`;
+
+  let cellsHTML = '';
+  // padding début
+  for (let i = 0; i < startDow; i++) cellsHTML += `<div class="dc-dp-cell dc-dp-cell-empty"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = `${y}-${mo}-${day}`;
+    const isToday = key === todayKey;
+    const isSel   = key === selKey;
+    const classes = ['dc-dp-cell'];
+    if (isToday) classes.push('is-today');
+    if (isSel)   classes.push('is-sel');
+    cellsHTML += `<button type="button" class="${classes.join(' ')}" onclick="_dcDpSelectDay(${day})">${day}</button>`;
+  }
+
+  overlay.innerHTML = `
+    <div class="dc-rp-modal" style="width:340px;">
+      <div class="dc-rp-header">
+        <span>Choisir la date</span>
+        <button class="dc-rp-close" onclick="dcCloseDatePicker()">✕</button>
+      </div>
+      <div class="dc-dp-nav">
+        <button type="button" class="dc-dp-nav-btn" onclick="_dcDpShift(-1)">‹</button>
+        <span class="dc-dp-nav-label">${months[mo]} ${y}</span>
+        <button type="button" class="dc-dp-nav-btn" onclick="_dcDpShift(1)">›</button>
+      </div>
+      <div class="dc-dp-dows">${dows.map(d => `<div>${d}</div>`).join('')}</div>
+      <div class="dc-dp-grid">${cellsHTML}</div>
+      <div class="dc-tp-actions">
+        <button class="btn btn-secondary" onclick="dcCloseDatePicker()">Annuler</button>
+        <button class="btn btn-primary" onclick="_dcDpConfirm()">Valider</button>
+      </div>
+    </div>`;
+}
+
+function _dcDpSelectDay(day) {
+  _dcDpSel = { y: _dcDpView.y, mo: _dcDpView.mo, d: day };
+  _renderDcDatePicker();
+}
+
+function _dcDpConfirm() {
+  const pad = n => String(n).padStart(2, '0');
+  const iso = `${_dcDpSel.y}-${pad(_dcDpSel.mo + 1)}-${pad(_dcDpSel.d)}`;
+  const dateInp = document.getElementById('dcScheduleDate');
+  if (dateInp) dateInp.value = iso;
+  _dcUpdateDateLabel();
+  dcSyncScheduleAt();
+  dcCloseDatePicker();
+}
+
+function dcOpenTimePicker() {
+  let overlay = document.getElementById('dcTimePickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dcTimePickerOverlay';
+    overlay.className = 'dc-role-picker-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) dcCloseTimePicker(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && overlay.style.display === 'flex') dcCloseTimePicker();
+    });
+    document.body.appendChild(overlay);
+  }
+  // Lit l'heure actuelle (par défaut maintenant + 1h arrondi)
+  const lbl = document.getElementById('dcScheduleTimeLabel');
+  let [hh, mm] = (lbl?.textContent || '--:--').split(':');
+  if (!/^\d{2}$/.test(hh) || !/^\d{2}$/.test(mm)) {
+    const d = new Date(Date.now() + 60*60*1000);
+    hh = String(d.getHours()).padStart(2, '0');
+    mm = String(d.getMinutes()).padStart(2, '0');
+  }
+  _renderDcTimePicker(parseInt(hh), parseInt(mm));
+  overlay.style.display = 'flex';
+}
+
+function dcCloseTimePicker() {
+  const overlay = document.getElementById('dcTimePickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function _renderDcTimePicker(selectedH, selectedM) {
+  const overlay = document.getElementById('dcTimePickerOverlay');
+  if (!overlay) return;
+  const hours   = Array.from({length: 24}, (_, i) => i);
+  const minutes = Array.from({length: 12}, (_, i) => i * 5); // pas de 5 min
+  const hoursHTML = hours.map(h => `
+    <button type="button" class="dc-tp-cell ${h === selectedH ? 'active' : ''}"
+      onclick="_dcTimePickerSelectHour(${h})">${String(h).padStart(2, '0')}</button>
+  `).join('');
+  const minsHTML = minutes.map(m => `
+    <button type="button" class="dc-tp-cell ${m === selectedM ? 'active' : ''}"
+      onclick="_dcTimePickerSelectMin(${m})">${String(m).padStart(2, '0')}</button>
+  `).join('');
+  overlay.innerHTML = `
+    <div class="dc-rp-modal" style="width:340px;">
+      <div class="dc-rp-header">
+        <span>Choisir l'heure</span>
+        <button class="dc-rp-close" onclick="dcCloseTimePicker()">✕</button>
+      </div>
+      <div class="dc-tp-preview">
+        <span id="dcTpPreviewH">${String(selectedH).padStart(2, '0')}</span>
+        <span class="dc-tp-sep">:</span>
+        <span id="dcTpPreviewM">${String(selectedM).padStart(2, '0')}</span>
+      </div>
+      <div class="dc-tp-grids">
+        <div class="dc-tp-col">
+          <div class="dc-tp-col-label">Heures</div>
+          <div class="dc-tp-grid dc-tp-grid-hours" id="dcTpGridH">${hoursHTML}</div>
+        </div>
+        <div class="dc-tp-col">
+          <div class="dc-tp-col-label">Minutes</div>
+          <div class="dc-tp-grid dc-tp-grid-mins" id="dcTpGridM">${minsHTML}</div>
+        </div>
+      </div>
+      <div class="dc-tp-actions">
+        <button class="btn btn-secondary" onclick="dcCloseTimePicker()">Annuler</button>
+        <button class="btn btn-primary" onclick="_dcTimePickerConfirm()">Valider</button>
+      </div>
+    </div>`;
+  // Scroll auto vers la valeur sélectionnée
+  setTimeout(() => {
+    const activeH = overlay.querySelector('#dcTpGridH .dc-tp-cell.active');
+    const activeM = overlay.querySelector('#dcTpGridM .dc-tp-cell.active');
+    activeH?.scrollIntoView({ block: 'center' });
+    activeM?.scrollIntoView({ block: 'center' });
+  }, 0);
+}
+
+let _dcTpSel = { h: 0, m: 0 };
+
+function _dcTimePickerSelectHour(h) {
+  _dcTpSel.h = h;
+  const overlay = document.getElementById('dcTimePickerOverlay');
+  overlay.querySelectorAll('#dcTpGridH .dc-tp-cell').forEach((b, i) => b.classList.toggle('active', i === h));
+  const prev = document.getElementById('dcTpPreviewH');
+  if (prev) prev.textContent = String(h).padStart(2, '0');
+}
+
+function _dcTimePickerSelectMin(m) {
+  _dcTpSel.m = m;
+  const overlay = document.getElementById('dcTimePickerOverlay');
+  overlay.querySelectorAll('#dcTpGridM .dc-tp-cell').forEach(b => {
+    const v = parseInt(b.textContent);
+    b.classList.toggle('active', v === m);
+  });
+  const prev = document.getElementById('dcTpPreviewM');
+  if (prev) prev.textContent = String(m).padStart(2, '0');
+}
+
+function _dcTimePickerConfirm() {
+  const lbl = document.getElementById('dcScheduleTimeLabel');
+  // Récupère depuis la preview (au cas où l'utilisateur n'a cliqué qu'un seul des deux)
+  const h = parseInt(document.getElementById('dcTpPreviewH')?.textContent || '0');
+  const m = parseInt(document.getElementById('dcTpPreviewM')?.textContent || '0');
+  if (lbl) lbl.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  dcSyncScheduleAt();
+  dcCloseTimePicker();
+}
+
 // ── PROGRAMMER L'ENVOI ───────────────────────────────────────────────────────
 async function dcSchedule() {
   const msg      = window._dcMessage || '';
@@ -1819,6 +2093,9 @@ function dcInit() {
   // l'affichage même si elles persistaient bien en stockage).
   dcLoadPreset();
   dcBuildSchedule();
+  // Reconstruire les listes d'events/images (gère l'empty state quand pas
+  // encore de tournoi importé).
+  dcBuildEventControls();
 
   // Charger automatiquement les rôles du serveur (silent : pas d'erreur si
   // bot pas encore configuré — l'utilisateur peut cliquer 🔄 plus tard).
@@ -1840,9 +2117,10 @@ function dcInit() {
   if (dtInput && !dtInput.value) {
     const d = new Date(Date.now() + 60 * 60 * 1000);
     d.setSeconds(0, 0);
-    // Format: "YYYY-MM-DDTHH:MM" (requis par datetime-local)
     const pad = n => String(n).padStart(2, '0');
-    dtInput.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    if (typeof dcSetScheduleAt === 'function') dcSetScheduleAt(iso);
+    else dtInput.value = iso;
   }
 
   // Charger les envois déjà planifiés (si bot configuré)

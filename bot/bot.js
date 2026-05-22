@@ -632,13 +632,14 @@ app.post('/post-announce', async (req, res) => {
     // réellement les utilisateurs (les mentions dans un embed ne pingent
     // pas, donc ce mode "classique" est nécessaire pour les notifications).
     if (imageFirst && imageAttachment && (contentSub || embedPayload)) {
-      await channel.send({ files: [imageAttachment] });
+      const imgMsg = await channel.send({ files: [imageAttachment] });
       const second = {};
       if (contentSub)   second.content = contentSub;
       if (embedPayload) second.embeds  = embedPayload;
-      await channel.send(second);
+      const contentMsg = await channel.send(second);
       console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) [image puis ${contentSub ? 'content' : ''}${contentSub && embedPayload ? '+' : ''}${embedPayload ? 'embed' : ''}]`);
-      return res.json({ ok: true, channel: channel.name });
+      // On renvoie les IDs pour permettre une édition ultérieure du message.
+      return res.json({ ok: true, channel: channel.name, messageId: contentMsg.id, imageMessageId: imgMsg.id });
     }
 
     // Cas standard : tout dans un seul message
@@ -646,12 +647,86 @@ app.post('/post-announce', async (req, res) => {
     if (contentSub) payload.content = contentSub;
     if (embedPayload) payload.embeds = embedPayload;
     if (imageAttachment) payload.files = [imageAttachment];
-    await channel.send(payload);
+    const sentMsg = await channel.send(payload);
     console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}${image ? ' [+image]' : ''}`);
-    res.json({ ok: true, channel: channel.name });
+    res.json({ ok: true, channel: channel.name, messageId: sentMsg.id, imageMessageId: imageAttachment ? sentMsg.id : null });
 
   } catch (e) {
     console.error('Erreur post-announce :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── ROUTE : Éditer une annonce déjà postée ────────────────────────────────────
+// Permet de corriger un message déjà envoyé (ex : planning où des gens se sont
+// trompés). On fournit les IDs renvoyés par /post-announce :
+//   - messageId       : le message de contenu (texte) à ré-éditer
+//   - imageMessageId  : le message portant l'image (peut être le même que
+//                       messageId si tout est dans un seul message)
+app.post('/edit-announce', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+
+  const { channelId, messageId, message, embeds, image, imageMessageId } = req.body;
+  if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
+  if (!messageId && !imageMessageId) return res.status(400).json({ ok: false, error: 'messageId ou imageMessageId requis' });
+  if (message && message.length > 2000)
+    return res.status(400).json({ ok: false, error: `Message trop long (${message.length}/2000 caractères)` });
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased())
+      return res.status(400).json({ ok: false, error: 'Channel introuvable ou non textuel' });
+
+    const emojiMap = await getAppEmojiMap();
+    const contentSub = (message != null) ? substituteAppEmojis(message, emojiMap) : null;
+    const embedPayload = (Array.isArray(embeds) && embeds.length)
+      ? embeds.map(e => {
+          const out = { ...e };
+          if (out.title)        out.title       = substituteAppEmojis(out.title, emojiMap);
+          if (out.description)  out.description = substituteAppEmojis(out.description, emojiMap);
+          if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
+          return out;
+        })
+      : null;
+
+    // Nouvelle image (optionnelle) → remplace l'attachment existant
+    let imageAttachment = null;
+    if (image && image.dataB64) {
+      const raw = image.dataB64.startsWith('data:') ? image.dataB64.split(',')[1] : image.dataB64;
+      imageAttachment = new AttachmentBuilder(Buffer.from(raw, 'base64'), { name: image.name || 'planning.png' });
+    }
+
+    const sameMsg = messageId && imageMessageId && messageId === imageMessageId;
+
+    if (sameMsg) {
+      // Tout est dans un seul message : on édite contenu + image ensemble.
+      const m = await channel.messages.fetch(messageId);
+      const edit = {};
+      if (contentSub != null) edit.content = contentSub;
+      if (embedPayload)       edit.embeds  = embedPayload;
+      if (imageAttachment)  { edit.files = [imageAttachment]; edit.attachments = []; }
+      await m.edit(edit);
+    } else {
+      // Message de contenu (texte/embed)
+      if (messageId && (contentSub != null || embedPayload)) {
+        const m = await channel.messages.fetch(messageId);
+        const edit = {};
+        if (contentSub != null) edit.content = contentSub;
+        if (embedPayload)       edit.embeds  = embedPayload;
+        await m.edit(edit);
+      }
+      // Message image (séparé) : on remplace l'attachment
+      if (imageMessageId && imageAttachment) {
+        const im = await channel.messages.fetch(imageMessageId);
+        await im.edit({ files: [imageAttachment], attachments: [] });
+      }
+    }
+
+    console.log(`✏️  Annonce éditée dans #${channel.name} (${channelId})`);
+    res.json({ ok: true, channel: channel.name });
+
+  } catch (e) {
+    console.error('Erreur edit-announce :', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
