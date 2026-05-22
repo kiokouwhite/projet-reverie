@@ -1216,6 +1216,13 @@ function hrGetBotUrl()   { return (document.getElementById('hrBotUrl')?.value   
 function hrGetSecret()   { return (document.getElementById('hrBotSecret')?.value || '').trim(); }
 function hrGetChannelId(){ return (document.getElementById('hrChannelId')?.value || '').trim(); }
 
+// Appelé quand un salon est choisi via le picker custom → persiste le choix.
+function hrOnChannelPicked() {
+  const cid = (document.getElementById('hrChannelId')?.value || '').trim();
+  HR.lastChannelId = cid;
+  try { localStorage.setItem('hr_last_channel_id', cid); } catch {}
+}
+
 function hrPostStatus(type, msg) {
   const el = document.getElementById('hrPostStatus');
   if (!el) return;
@@ -1263,6 +1270,15 @@ async function hrLoadChannels(silent = false) {
     if (!data.ok) {
       if (!silent) hrPostStatus('error', `❌ ${data.error}`);
       return;
+    }
+
+    // Partage les salons avec le picker custom (réutilisé depuis l'annonce
+    // Discord) + met à jour le libellé du bouton picker.
+    window._dcChannels = data.channels;
+    const pickerWrap = document.getElementById('hrChannelPickerWrap');
+    const curChan = document.getElementById('hrChannelId')?.value || '';
+    if (pickerWrap && typeof renderDcChannelPickerBtn === 'function') {
+      pickerWrap.innerHTML = renderDcChannelPickerBtn(curChan, 'hrChannelId', 'hrChannelPickerWrap');
     }
 
     const sel = document.getElementById('hrChannelSelect');

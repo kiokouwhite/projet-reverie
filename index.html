@@ -677,13 +677,24 @@
                   <input type="password" id="hrBotSecret" oninput="hrSaveBotSettings()">
                 </div>
 
-                <!-- Choix du salon -->
-                <div class="dc-field-row" style="margin-top:8px;">
-                  <label>Salon</label>
-                  <input type="text" id="hrChannelId" style="display:none;">
+                <!-- Choix du salon : picker custom 2 étapes (serveur → salon),
+                     identique à celui de l'annonce Discord. -->
+                <div class="dc-field-row" style="margin-top:8px;align-items:flex-start;">
+                  <label style="padding-top:6px;">Salon</label>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                    <!-- Input ID caché : source de vérité lue par hrGetChannelId() -->
+                    <input type="text" id="hrChannelId" style="display:none;" onchange="hrOnChannelPicked()">
+                    <div id="hrChannelPickerWrap">
+                      <button type="button" class="dc-role-picker-btn" onclick="openDcChannelPicker('hrChannelId','hrChannelPickerWrap')">
+                        <span class="dc-rp-placeholder">— Choisir un salon —</span>
+                        <span class="dc-rp-arrow">▾</span>
+                      </button>
+                    </div>
+                    <!-- ancien select conservé caché pour compat -->
+                    <select id="hrChannelSelect" style="display:none;"></select>
+                    <button class="dc-add-sched-btn" onclick="hrLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
+                  </div>
                 </div>
-                <select id="hrChannelSelect" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:inherit;font-size:13px;"></select>
-                <button class="dc-add-sched-btn" style="margin-top:8px;" onclick="hrLoadChannels()" title="Recharger la liste">🔄 Rafraîchir les salons</button>
                 <div id="hrChannelStatus" class="dc-status" style="display:none;margin-top:8px;"></div>
 
                 <!-- Programmation hebdomadaire (fusionnée depuis l'ancien slide II) -->
