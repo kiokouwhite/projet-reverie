@@ -1185,6 +1185,40 @@ app.get('/horaires-results', async (req, res) => {
   }
 });
 
+// GET /horaires-latest — retrouver le dernier batch de sondages dans le salon.
+// Scanne les messages récents et renvoie les `count` derniers messages-embed
+// postés par le bot (= les sondages), en ordre chronologique. Permet de charger
+// AUTOMATIQUEMENT les résultats les plus récents même si les sondages ont été
+// postés par le scheduler hebdo (et non depuis l'app dans la session courante).
+app.get('/horaires-latest', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!client.isReady()) return res.status(503).json({ ok: false, error: 'Bot en cours de connexion' });
+
+  const channelId = req.query.channelId || horairesLastChannelId;
+  const count = Math.max(1, Math.min(10, parseInt(req.query.count, 10) || 3));
+  if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased()) return res.status(400).json({ ok: false, error: 'Channel introuvable ou non textuel' });
+
+    // Récupère les ~50 derniers messages, garde ceux du bot avec embed (sondages)
+    const fetched = await channel.messages.fetch({ limit: 50 });
+    const polls = [...fetched.values()]
+      .filter(m => m.author?.id === client.user.id && m.embeds.length > 0)
+      .sort((a, b) => b.createdTimestamp - a.createdTimestamp); // plus récent d'abord
+
+    if (!polls.length) return res.json({ ok: true, messageIds: [], channel: channel.name });
+
+    // Les `count` plus récents, remis en ordre chronologique (Q1, Q2, Q3…)
+    const latest = polls.slice(0, count).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    res.json({ ok: true, messageIds: latest.map(m => m.id), channel: channel.name });
+  } catch(e) {
+    console.error('Erreur horaires-latest :', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // POST /horaires-schedule — activer l'envoi hebdomadaire
 app.post('/horaires-schedule', async (req, res) => {
   if (!checkSecret(req, res)) return;

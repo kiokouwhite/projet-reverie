@@ -84,6 +84,14 @@ function hrInit() {
   }
   // Restaurer l'état du panneau gauche (collapsed / visible) depuis la session précédente
   hrRestoreLeftPanelState();
+
+  // Chargement AUTOMATIQUE des résultats les plus récents (silencieux) :
+  // on cherche le dernier batch de sondages dans le salon et on charge ses
+  // réactions, sans que l'utilisateur ait à cliquer. Léger délai pour laisser
+  // les salons/settings se charger d'abord.
+  setTimeout(() => {
+    if (typeof hrLoadLatestResults === 'function') hrLoadLatestResults(true);
+  }, 800);
 }
 
 // Wrappers Horaires qui réutilisent le système partagé togglePageLeftPanel*
@@ -1413,23 +1421,72 @@ function hrResultsStatus(type, msg) {
   el.style.display = 'block';
 }
 
-async function hrFetchResults() {
+// Retrouve le dernier batch de sondages dans le salon (via le bot) puis charge
+// leurs résultats. Permet de charger les résultats LES PLUS RÉCENTS même si les
+// sondages ont été postés automatiquement (scheduler) hors session.
+// silent=true → pas de message d'erreur si le bot/salon n'est pas configuré
+// (utilisé pour le chargement auto à l'ouverture de l'onglet).
+async function hrLoadLatestResults(silent = false) {
+  const botUrl    = hrGetBotUrl();
+  const secret    = hrGetSecret();
+  const channelId = HR.lastChannelId || hrGetChannelId();
+  if (!botUrl || !secret) { if (!silent) hrResultsStatus('error', '❌ Configure le bot d\'abord'); return; }
+  if (!channelId)         { if (!silent) hrResultsStatus('error', '❌ Aucun salon sélectionné'); return; }
+
+  const count = Array.isArray(HR.questions) ? HR.questions.length : 3;
+  const btn = document.getElementById('hrFetchBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Recherche…'; }
+  if (!silent) hrResultsStatus('loading', '⏳ Recherche des sondages les plus récents…');
+
+  try {
+    const url = `${botUrl}/horaires-latest?channelId=${encodeURIComponent(channelId)}&count=${count}`;
+    const res = await fetch(url, { headers: { 'x-secret': secret } });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(_) {
+      if (!silent) hrResultsStatus('error', res.status === 404
+        ? '❌ Route /horaires-latest introuvable — redémarre le bot.'
+        : `❌ Réponse invalide du bot (HTTP ${res.status})`);
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Charger les résultats récents'; }
+      return;
+    }
+    if (!data.ok) { if (!silent) hrResultsStatus('error', `❌ ${data.error || 'Erreur'}`); if (btn) { btn.disabled = false; btn.textContent = '🔄 Charger les résultats récents'; } return; }
+    if (!data.messageIds || !data.messageIds.length) {
+      if (!silent) hrResultsStatus('error', 'ℹ️ Aucun sondage trouvé dans ce salon.');
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Charger les résultats récents'; }
+      return;
+    }
+    // Mémorise le batch trouvé puis charge ses résultats
+    HR.lastChannelId  = channelId;
+    HR.lastMessageIds = data.messageIds;
+    hrSaveLastMessageIds();
+    if (btn) btn.disabled = false;
+    await hrFetchResults(silent);
+  } catch(e) {
+    if (!silent) hrResultsStatus('error', `❌ ${e.message}`);
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Charger les résultats récents'; }
+  }
+}
+
+async function hrFetchResults(silent = false) {
   const botUrl    = hrGetBotUrl();
   const secret    = hrGetSecret();
   const channelId = HR.lastChannelId || hrGetChannelId();
   const msgIds    = HR.lastMessageIds;
+  // Status guardé : muet en mode silencieux (chargement auto)
+  const st = (t, m) => { if (!silent) hrResultsStatus(t, m); };
 
-  if (!botUrl || !secret) { hrResultsStatus('error', '❌ Configure le bot d\'abord'); return; }
-  if (!channelId)         { hrResultsStatus('error', '❌ Aucun salon connu — poste d\'abord les sondages'); return; }
+  if (!botUrl || !secret) { st('error', '❌ Configure le bot d\'abord'); return; }
+  if (!channelId)         { st('error', '❌ Aucun salon connu — poste d\'abord les sondages'); return; }
   if (!Array.isArray(msgIds) || !msgIds.length) {
-    hrResultsStatus('error', '❌ Aucun message connu — poste d\'abord les sondages');
+    st('error', '❌ Aucun message connu — poste d\'abord les sondages');
     return;
   }
 
   const btn = document.getElementById('hrFetchBtn');
   const originalText = btn ? btn.textContent.trim() : '';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
-  hrResultsStatus('loading', '⏳ Récupération des résultats…');
+  st('loading', '⏳ Récupération des résultats…');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000); // timeout 30 s
@@ -1453,26 +1510,26 @@ async function hrFetchResults() {
     let data;
     try { data = JSON.parse(text); }
     catch(_) {
-      hrResultsStatus('error', `❌ Réponse invalide du bot (HTTP ${res.status}) — vérifie la console`);
+      st('error', `❌ Réponse invalide du bot (HTTP ${res.status}) — vérifie la console`);
       if (btn) { btn.disabled = false; btn.textContent = originalText; }
       return;
     }
 
     if (!data.ok) {
-      hrResultsStatus('error', `❌ ${data.error || 'Erreur inconnue'}`);
+      st('error', `❌ ${data.error || 'Erreur inconnue'}`);
       if (btn) { btn.disabled = false; btn.textContent = originalText; }
       return;
     }
 
     hrRenderResults(data.results);
-    hrResultsStatus('ok', '✅ Résultats mis à jour');
+    st('ok', '✅ Résultats mis à jour');
     if (btn) { btn.textContent = '✅ Résultats chargés'; }
   } catch(e) {
     console.error('[hrFetchResults] erreur:', e);
     if (e.name === 'AbortError') {
-      hrResultsStatus('error', '❌ Délai dépassé (30 s) — l\'endpoint répond trop lentement');
+      st('error', '❌ Délai dépassé (30 s) — l\'endpoint répond trop lentement');
     } else {
-      hrResultsStatus('error', `❌ ${e.message}`);
+      st('error', `❌ ${e.message}`);
     }
     if (btn) btn.textContent = originalText;
   } finally {
