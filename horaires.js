@@ -78,8 +78,7 @@ function hrInit() {
     if (HR_EMOJIS.length) hrBuildQuestions();
   });
   // Charger automatiquement les salons (silent : pas d'erreur si bot non config)
-  const hrSel = document.getElementById('hrChannelSelect');
-  if (hrSel && hrSel.options.length <= 1) {
+  if (!window._dcChannels || !window._dcChannels.length) {
     hrLoadChannels(true);
   }
   // Restaurer l'état du panneau gauche (collapsed / visible) depuis la session précédente
@@ -1281,39 +1280,6 @@ async function hrLoadChannels(silent = false) {
       pickerWrap.innerHTML = renderDcChannelPickerBtn(curChan, 'hrChannelId', 'hrChannelPickerWrap');
     }
 
-    const sel = document.getElementById('hrChannelSelect');
-    const inp = document.getElementById('hrChannelId');
-
-    // Grouper par serveur puis par catégorie (multi-server)
-    const byGuild = new Map();
-    data.channels.forEach(c => {
-      const g = c.guildName || 'Serveur';
-      const cat = c.category || '—';
-      if (!byGuild.has(g)) byGuild.set(g, {});
-      const cats = byGuild.get(g);
-      if (!cats[cat]) cats[cat] = [];
-      cats[cat].push(c);
-    });
-    const multiGuild = byGuild.size > 1;
-    const opts = ['<option value="">— Choisir un salon —</option>'];
-    for (const [guildName, cats] of byGuild) {
-      const catNames = Object.keys(cats).sort((a, b) => {
-        if (a === '—') return 1; if (b === '—') return -1;
-        return a.localeCompare(b);
-      });
-      for (const cat of catNames) {
-        const label = multiGuild ? `${guildName} › ${cat}` : cat;
-        opts.push(`<optgroup label="${escHR(label)}">`);
-        opts.push(...cats[cat].map(c => `<option value="${c.id}">#${escHR(c.name)}</option>`));
-        opts.push(`</optgroup>`);
-      }
-    }
-
-    if (sel) {
-      sel.innerHTML = opts.join('');
-      sel.style.display = 'block';
-      sel.onchange = () => { if (inp) inp.value = sel.value; };
-    }
     if (!silent) {
       hrChannelStatus('ok', `✅ ${data.channels.length} salons chargés`);
       if (btn) btn.textContent = '✅ Salons chargés';
