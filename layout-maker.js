@@ -1092,6 +1092,72 @@ function lmInitChars() {
   });
 }
 
+// Auto-importe les images de personnages depuis les données start.gg déjà
+// chargées (global `players`). Pour chaque joueur du Top, on résout son
+// personnage (players[i].charId) en image d'art via getMuralArtUrl() et on
+// la place dans le slot correspondant.
+function lmAutoImportChars() {
+  const statusEl = document.getElementById('lmAutoImportStatus');
+  const setStatus = (msg, ok = true) => {
+    if (!statusEl) return;
+    statusEl.style.display = 'block';
+    statusEl.textContent = msg;
+    statusEl.style.color = ok ? '#3a9d6a' : '#c0392b';
+  };
+
+  if (typeof players === 'undefined' || !Array.isArray(players) || !players.length) {
+    setStatus('❌ Aucun Top start.gg chargé — importe d\'abord un tournoi.', false);
+    return;
+  }
+  if (typeof getMuralArtUrl !== 'function') {
+    setStatus('❌ Résolution d\'image indisponible.', false);
+    return;
+  }
+
+  let attempted = 0, loaded = 0, pending = 0;
+  const finish = () => {
+    if (pending === 0) {
+      setStatus(loaded > 0
+        ? `✅ ${loaded} personnage(s) importé(s) depuis start.gg.`
+        : 'ℹ️ Aucune image de personnage trouvée pour ce jeu.', loaded > 0);
+    }
+  };
+
+  // On ne traite que les 3 premiers slots (le layout a 3 emplacements).
+  players.slice(0, 3).forEach((p, i) => {
+    if (!p || !p.charId) return;
+    const url = getMuralArtUrl(p.charId, p.costume || 1);
+    if (!url) return;
+    attempted++; pending++;
+    const apply = (img) => {
+      LM.charImgs[i] = img;
+      LM.charDataUrls[i] = null; // image distante/locale, pas un dataURL
+      const thumb = document.getElementById(`lmCharThumb${i}`);
+      if (thumb) { thumb.src = url; thumb.style.display = 'block'; }
+      const hint = document.getElementById(`lmCharHint${i}`);
+      if (hint) hint.style.display = 'none';
+      loaded++;
+      lmRenderPreview();
+      pending--; finish();
+    };
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => apply(img);
+    img.onerror = () => {
+      // Retry sans crossOrigin (visible mais non exportable si CORS bloque)
+      const img2 = new Image();
+      img2.onload  = () => apply(img2);
+      img2.onerror = () => { pending--; finish(); };
+      img2.src = url;
+    };
+    img.src = url;
+  });
+
+  if (attempted === 0) {
+    setStatus('ℹ️ Aucun personnage à importer (pas de perso associé aux joueurs).', false);
+  }
+}
+
 function lmLoadChar(event, idx) {
   const file = event.target.files[0];
   if (!file) return;
