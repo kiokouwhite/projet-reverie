@@ -7579,10 +7579,6 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   box-shadow: 0 12px 28px rgba(124,92,255,0.55);
 }
 .dlx-chat-fab:active { transform: scale(0.96); }
-/* Bulle en état "chat ouvert" : léger anneau pour signaler l'état actif */
-.dlx-chat-fab.dlx-chat-fab-active {
-  box-shadow: 0 6px 18px rgba(124,92,255,0.50), 0 0 0 3px rgba(124,92,255,0.28);
-}
 .dlx-chat-fab-icon { line-height: 1; }
 .dlx-chat-badge {
   position: absolute;
@@ -7608,21 +7604,21 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   50%      { transform: scale(1.12); }
 }
 
-/* Chat : carte flottante façon Messenger. Ancrée en bas à droite, juste
-   au-dessus de la bulle (.dlx-chat-fab), elle "surgit" du coin de la bulle
-   à l'ouverture (transform-origin bas-droite + pop animé). On ne réutilise
-   pas .dlx-win : tout le style est redéfini ici, indépendant du système de
-   fenêtres. */
+/* Chat : carte flottante façon Messenger. Ancrée dans le coin bas-droit,
+   elle "surgit" du coin (transform-origin bas-droite + pop animé) là où se
+   trouvait la bulle lanceur — laquelle est masquée tant que la carte est
+   ouverte. On ne réutilise pas .dlx-win : tout le style est redéfini ici,
+   indépendant du système de fenêtres. */
 .dlx-chat-dock {
   position: fixed;
   right: 16px;
-  bottom: 84px;            /* au-dessus de la bulle (54px + marge) */
+  bottom: 16px;            /* coin bas-droit (la bulle est masquée à l'ouverture) */
   top: auto;
   left: auto;
   width: 360px;
   max-width: calc(100vw - 32px);
   height: 580px;
-  max-height: calc(100vh - 116px);
+  max-height: calc(100vh - 32px);
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -7757,28 +7753,6 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   outline: none;
   border-color: #7c5cff;
   box-shadow: 0 0 0 2px rgba(124,92,255,0.18);
-}
-.dlx-chat-send-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #7c5cff, #e85a8a);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: transform 0.1s ease;
-}
-.dlx-chat-send-btn:hover  { transform: scale(1.06); }
-.dlx-chat-send-btn:active { transform: scale(0.94); }
-.dlx-chat-send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
 }
 
 /* Body du panneau Matchs : padding + scroll vertical */
@@ -9771,13 +9745,13 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 }
 
 .lm-canvas-wrap {
-  background: #111;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 3px solid var(--border);
-  box-shadow: 0 12px 40px rgba(100,50,200,0.3);
-  /* Remplit la hauteur dispo entre les boutons → le canvas carré est contraint
-     par la hauteur réelle (et non par la largeur), donc plus de rognage haut/bas. */
+  /* Conteneur TRANSPARENT qui remplit la zone dispo et centre la carte.
+     Plus de fond #111 ni de cadre ici → aucune bande noire ; le cadre (coins
+     arrondis + ombre) est porté par le canvas lui-même. */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
@@ -9795,11 +9769,13 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
 .lm-canvas-wrap.lm-canvas-panning { cursor: grabbing; }
 .lm-canvas-wrap canvas {
   display: block;
-  /* Tient ENTIÈREMENT dans le wrap (carré centré, letterbox si besoin) */
+  /* La carte (carrée) tient entièrement dans la zone et porte son propre cadre */
   max-width: 100%;
   max-height: 100%;
   width: auto;
   height: auto;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(100,50,200,0.3);
   transform-origin: 0 0;
   will-change: transform;
   transition: transform .15s cubic-bezier(.25, .8, .3, 1);
