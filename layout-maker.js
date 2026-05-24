@@ -311,6 +311,9 @@ function openLayoutMaker(gameName, gameImgUrl) {
   }
   lmGoTo(1);
   document.getElementById('lmModal').style.display = 'flex';
+  // Réinitialise le zoom/pan de la preview (sinon un zoom résiduel d'une
+  // session précédente reste appliqué et l'aperçu paraît "trop zoomé"/rogné).
+  if (typeof lmResetPreviewZoom === 'function') lmResetPreviewZoom();
   lmRenderPreview();
   // Préchauffage : on force plusieurs re-renders consécutifs sur les
   // prochaines frames pour s'assurer que le canvas est COMPLÈTEMENT
@@ -1461,6 +1464,9 @@ async function lmOpenForEdit(layoutId) {
   LM._isTransitioning = false;
   lmGoTo(1);
   document.getElementById('lmModal').style.display = 'flex';
+  // Réinitialise le zoom/pan de la preview (sinon un zoom résiduel d'une
+  // session précédente reste appliqué et l'aperçu paraît "trop zoomé"/rogné).
+  if (typeof lmResetPreviewZoom === 'function') lmResetPreviewZoom();
   lmRenderPreview();
 }
 
