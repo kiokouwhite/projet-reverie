@@ -1466,44 +1466,90 @@ function _sggPickCharImg(images) {
   return primary?.url || null;
 }
 
-// Récupère (et met en cache) la liste des personnages start.gg du jeu courant.
+// Persistance (localStorage) du lien jeu interne → {vgId, slug} start.gg, pour
+// que le picker retrouve la source même après un rechargement de page.
+function _sggMeta() {
+  try { return JSON.parse(localStorage.getItem('top8_sgg_meta') || '{}'); } catch (_) { return {}; }
+}
+function sggSaveGameMeta(gameId, patch) {
+  if (!gameId || !patch) return;
+  try {
+    const m = _sggMeta();
+    m[gameId] = Object.assign({}, m[gameId], patch);
+    localStorage.setItem('top8_sgg_meta', JSON.stringify(m));
+  } catch (_) {}
+}
+
+// Récupère (et met en cache, par gameId) la liste des personnages start.gg du
+// jeu courant. Deux sources, dans l'ordre :
+//   1. videogame.characters (roster complet du jeu) — souvent vide/null.
+//   2. Les personnages effectivement sélectionnés dans les sets de l'event
+//      importé (= ce qu'on voit dans le bracket). Toujours dispo si des persos
+//      ont été reportés, même quand le roster complet n'est pas exposé.
 // Renvoie true si de nouvelles données ont été chargées (→ re-render utile).
 async function sggEnsureRoster(gameId) {
   try {
     if (typeof gqlFetch !== 'function') return false;
     const apiKey = (localStorage.getItem('top8_startgg_key') || '').trim();
     if (!apiKey) return false;
-    let vgId = (window._sggVideogameId || {})[gameId];
-    // Déjà en cache pour ce videogame ?
-    if (vgId && _sggRosterCache[vgId]) return false;
+    if (_sggRosterCache[gameId]) return false;       // déjà chargé pour ce jeu
     if (_sggRosterLoading[gameId]) return false;
     _sggRosterLoading[gameId] = true;
 
-    let chars = null;
+    const meta = _sggMeta()[gameId] || {};
+    let vgId = (window._sggVideogameId || {})[gameId] || meta.vgId || null;
+    const slug = (window._sggEventSlug || {})[gameId] || meta.slug
+      || (typeof selectedEventSlug !== 'undefined' ? selectedEventSlug : null);
+
+    const byName = {};   // normName → {id,name,imgUrl}
+    const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const addChar = (id, name, images) => {
+      if (!name) return;
+      const k = norm(name);
+      if (byName[k]) { if (!byName[k].imgUrl) byName[k].imgUrl = _sggPickCharImg(images); return; }
+      byName[k] = { id: String(id || k), name, imgUrl: _sggPickCharImg(images) };
+    };
+
+    // 1. Roster complet via videogame.characters
     if (vgId) {
-      const d = await gqlFetch(apiKey,
-        `query($id:ID!){ videogame(id:$id){ characters{ id name images{ url type } } } }`,
-        { id: vgId });
-      chars = d?.data?.videogame?.characters;
-    } else if (typeof selectedEventSlug !== 'undefined' && selectedEventSlug) {
-      // Pas d'ID mémorisé → on le dérive de l'event importé.
-      const d = await gqlFetch(apiKey,
-        `query($slug:String!){ event(slug:$slug){ videogame{ id characters{ id name images{ url type } } } } }`,
-        { slug: selectedEventSlug });
-      vgId  = d?.data?.event?.videogame?.id;
-      chars = d?.data?.event?.videogame?.characters;
-      if (vgId) {
-        window._sggVideogameId = window._sggVideogameId || {};
-        window._sggVideogameId[gameId] = vgId;
-      }
+      try {
+        const d = await gqlFetch(apiKey,
+          `query($id:ID!){ videogame(id:$id){ characters{ id name images{ url type } } } }`,
+          { id: vgId });
+        (d?.data?.videogame?.characters || []).forEach(c => addChar(c.id, c.name, c.images));
+      } catch (e) { console.warn('[picker] videogame.characters KO :', e.message); }
     }
+
+    // 2. Fallback / complément : sélections de persos dans les sets de l'event.
+    if (slug) {
+      try {
+        const d = await gqlFetch(apiKey,
+          `query($slug:String!,$p:Int!,$pp:Int!){ event(slug:$slug){
+             videogame{ id }
+             sets(page:$p,perPage:$pp,sortType:STANDARD){ nodes{
+               games{ selections{ character{ id name images{ url type } } } }
+             }}
+           }}`,
+          { slug, p: 1, pp: 50 });
+        if (!vgId && d?.data?.event?.videogame?.id) {
+          vgId = d.data.event.videogame.id;
+          window._sggVideogameId = window._sggVideogameId || {};
+          window._sggVideogameId[gameId] = vgId;
+        }
+        (d?.data?.event?.sets?.nodes || []).forEach(set =>
+          (set.games || []).forEach(g =>
+            (g.selections || []).forEach(sel => {
+              const ch = sel?.character;
+              if (ch?.name) addChar(ch.id, ch.name, ch.images);
+            })));
+      } catch (e) { console.warn('[picker] sets selections KO :', e.message); }
+    }
+
     _sggRosterLoading[gameId] = false;
-    if (!Array.isArray(chars) || !chars.length) return false;
-    const list = chars
-      .map(c => ({ id: String(c.id), name: c.name, imgUrl: _sggPickCharImg(c.images) }))
-      .filter(c => c.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    if (vgId) _sggRosterCache[vgId] = list;
+    const list = Object.values(byName).sort((a, b) => a.name.localeCompare(b.name));
+    if (!list.length) return false;
+    _sggRosterCache[gameId] = list;
+    sggSaveGameMeta(gameId, { vgId: vgId || undefined, slug: slug || undefined });
     return true;
   } catch (e) {
     _sggRosterLoading[gameId] = false;
@@ -1516,8 +1562,7 @@ async function sggEnsureRoster(gameId) {
 // non déjà présents localement (dédoublonnage par nom normalisé).
 function _sggBuildPickerList() {
   const localChars = (GAMES[currentGame]?.chars || []).map(c => ({ ...c, _src: 'local' }));
-  const vgId = (window._sggVideogameId || {})[currentGame];
-  const sggList = vgId ? (_sggRosterCache[vgId] || []) : [];
+  const sggList = _sggRosterCache[currentGame] || [];
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const seen = new Set(localChars.map(c => norm(c.name)));
   const merged = [...localChars];
@@ -1535,9 +1580,16 @@ function renderCharGrid(filter) {
   const chars = _sggBuildPickerList().filter(c => c.name.toLowerCase().includes(f));
   grid.innerHTML = '';
   if (!chars.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;opacity:0.6;padding:18px;text-align:center;">Aucun personnage. ${
-      (localStorage.getItem('top8_startgg_key') ? 'Importe un tournoi start.gg pour ce jeu, ou' : 'Renseigne ta clé API start.gg (onglet Import) puis importe un tournoi, ou')
-    } utilise le bouton d'import d'image sur le slot.</div>`;
+    const hasKey  = !!localStorage.getItem('top8_startgg_key');
+    const hasSrc  = !!((window._sggVideogameId || {})[currentGame]
+                    || (window._sggEventSlug || {})[currentGame]
+                    || (typeof selectedEventSlug !== 'undefined' && selectedEventSlug));
+    const loading = _sggRosterLoading[currentGame] || (hasKey && hasSrc && !_sggRosterCache[currentGame]);
+    grid.innerHTML = loading
+      ? `<div style="grid-column:1/-1;opacity:0.7;padding:18px;text-align:center;">⏳ Chargement des personnages depuis start.gg…</div>`
+      : `<div style="grid-column:1/-1;opacity:0.6;padding:18px;text-align:center;">Aucun personnage. ${
+          hasKey ? 'Importe un tournoi start.gg pour ce jeu, ou' : 'Renseigne ta clé API start.gg (onglet Import) puis importe un tournoi, ou'
+        } utilise le bouton d'import d'image sur le slot.</div>`;
     return;
   }
   chars.forEach(c => {
@@ -1870,6 +1922,13 @@ async function fetchFromStartGG() {
       window._sggVideogameId = window._sggVideogameId || {};
       window._sggVideogameId[currentGame] = event.videogame.id;
     }
+    // Mémorise aussi le slug de l'event → permet de dériver le roster depuis
+    // les sélections des sets si videogame.characters est vide (fréquent).
+    window._sggEventSlug = window._sggEventSlug || {};
+    window._sggEventSlug[currentGame] = slug;
+    // Persiste (survit au rechargement de page).
+    if (typeof sggSaveGameMeta === 'function')
+      sggSaveGameMeta(currentGame, { vgId: event.videogame?.id || undefined, slug });
 
     const tName = event.tournament?.name||'';
     if(tName) {
