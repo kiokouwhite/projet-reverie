@@ -262,7 +262,10 @@ async function importAllEvents() {
           return null;
         });
 
-      const setsP = (!isCustom) ? gqlFetch(apiKey, `
+      // On récupère les sets même pour les jeux custom : on ne mappe pas le
+      // charId (pas de roster local) mais on capture l'image start.gg du perso
+      // (charImgUrl) pour permettre l'auto-import dans le Layout Maker.
+      const setsP = gqlFetch(apiKey, `
         query($slug:String!,$page:Int!,$perPage:Int!) { event(slug:$slug) {
           sets(page:$page,perPage:$perPage,sortType:STANDARD) { nodes {
             games { selections { entrant{id} character{id name images{url type}} } }
@@ -270,7 +273,7 @@ async function importAllEvents() {
         }}`, { slug: ev.slug, page:1, perPage:30 }).catch(e => {
           console.warn(`[MULTI] Sets fetch error pour "${ev.name}" :`, e.message);
           return null;
-        }) : Promise.resolve(null);
+        });
 
       const [sd, setsData] = await Promise.all([standingsP, setsP]);
 
@@ -327,7 +330,7 @@ async function importAllEvents() {
       // On compte aussi l'URL de l'image start.gg par character pour servir de
       // fallback quand le perso n'est pas dans notre mapping STARTGG_TO_ID
       // (ex. Alex, mods, personnages exotiques).
-      if (!isCustom && standingsNodes.length > 0 && setsData) {
+      if (standingsNodes.length > 0 && setsData) {
         const charCount = {};        // entrantId → { charName: count }
         const charImage = {};        // charName → URL start.gg (image principale)
         (setsData?.data?.event?.sets?.nodes||[]).forEach(set => {
@@ -349,7 +352,10 @@ async function importAllEvents() {
           });
         });
         standingsNodes.slice(0, playerCount).forEach((s, i) => {
-          if (evPlayers[i].charId) return;
+          // En custom, charId vaut déjà "lmchar${i}" (placeholder) : on ne le
+          // remappe pas, mais on capture quand même l'image start.gg du perso.
+          const charIdLocked = evPlayers[i].charId && !isCustom;
+          if (charIdLocked) return;
           const counts = charCount[s.entrant?.id];
           const playerName = evPlayers[i].name;
           if (!counts) {
@@ -368,6 +374,8 @@ async function importAllEvents() {
             evPlayers[i].charImgUrl = charImage[topChar];
             evPlayers[i].charNameStartgg = topChar;
           }
+          // En custom on s'arrête là (pas de roster local à mapper).
+          if (isCustom) return;
           // Si mapping local existe → on utilise aussi le mural haute-qualité.
           // findCharIdFromName est tolérant : essaie direct match puis
           // normalisation (lowercase/sans accent/sans ponctuation) puis

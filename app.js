@@ -1769,19 +1769,26 @@ async function fetchFromStartGG() {
     const setsData = await gqlFetch(apiKey, `
       query($slug:String!,$page:Int!,$perPage:Int!) { event(slug:$slug) {
         sets(page:$page,perPage:$perPage,sortType:STANDARD) { nodes {
-          games { selections { entrant{id} character{name} } }
+          games { selections { entrant{id} character{id name images{url type}} } }
         }}
       }}`, {slug, page:1, perPage:30});
 
     const charCount = {};
+    const charImage = {};   // charName → URL image start.gg (fallback persos custom / non mappés)
     (setsData?.data?.event?.sets?.nodes||[]).forEach(set => {
       (set.games||[]).forEach(game => {
         (game.selections||[]).forEach(sel => {
           const eid = sel?.entrant?.id;
-          const cn  = sel?.character?.name;
+          const ch  = sel?.character;
+          const cn  = ch?.name;
           if(!eid||!cn) return;
           if(!charCount[eid]) charCount[eid]={};
           charCount[eid][cn] = (charCount[eid][cn]||0)+1;
+          // Capture l'URL image start.gg du perso (préfère "primary").
+          if(!charImage[cn] && Array.isArray(ch.images) && ch.images.length) {
+            const primary = ch.images.find(img => img.type === 'primary') || ch.images[0];
+            if(primary?.url) charImage[cn] = primary.url;
+          }
         });
       });
     });
@@ -1796,6 +1803,12 @@ async function fetchFromStartGG() {
       // findCharIdFromName : tolérant aux variantes de noms start.gg.
       if(!players[i].charId) {
         const topChar = sorted[0]?.[0];
+        // Toujours stocker l'URL start.gg (sert de fallback ET de source
+        // d'auto-import des persos pour les jeux custom sans art local).
+        if(topChar && charImage[topChar]) {
+          players[i].charImgUrl = charImage[topChar];
+          players[i].charNameStartgg = topChar;
+        }
         const id = topChar && (typeof findCharIdFromName === 'function'
           ? findCharIdFromName(topChar)
           : STARTGG_TO_ID[topChar]);

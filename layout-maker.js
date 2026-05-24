@@ -1109,24 +1109,24 @@ function lmAutoImportChars() {
     setStatus('❌ Aucun Top start.gg chargé — importe d\'abord un tournoi.', false);
     return;
   }
-  if (typeof getMuralArtUrl !== 'function') {
-    setStatus('❌ Résolution d\'image indisponible.', false);
-    return;
-  }
 
   let attempted = 0, loaded = 0, pending = 0;
   const finish = () => {
     if (pending === 0) {
       setStatus(loaded > 0
         ? `✅ ${loaded} personnage(s) importé(s) depuis start.gg.`
-        : 'ℹ️ Aucune image de personnage trouvée pour ce jeu.', loaded > 0);
+        : 'ℹ️ Aucune image de personnage trouvée. Vérifie que les persos sont bien reportés sur start.gg, puis ré-importe le tournoi.', loaded > 0);
     }
   };
 
   // On ne traite que les 3 premiers slots (le layout a 3 emplacements).
   players.slice(0, 3).forEach((p, i) => {
-    if (!p || !p.charId) return;
-    const url = getMuralArtUrl(p.charId, p.costume || 1);
+    if (!p) return;
+    // 1) Art local haute-qualité via le roster interne (jeux supportés).
+    // 2) Fallback : image hébergée par start.gg (jeux custom / persos non mappés).
+    let url = (p.charId && typeof getMuralArtUrl === 'function')
+      ? getMuralArtUrl(p.charId, p.costume || 1) : null;
+    if (!url && p.charImgUrl) url = p.charImgUrl;
     if (!url) return;
     attempted++; pending++;
     const apply = (img) => {
