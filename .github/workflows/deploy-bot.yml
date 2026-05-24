@@ -1,3 +1,4 @@
+# Déploiement automatique du bot sur Azure App Service (reverie-bot-unigames).
 name: Déploiement du bot Discord sur Azure
 
 # Déclenché à chaque push sur main qui touche le bot (ou ce workflow),
