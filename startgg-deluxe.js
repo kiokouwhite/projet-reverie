@@ -4823,10 +4823,10 @@ function dlxChatOpen() {
   const win = document.getElementById('dlxChatWindow');
   if (!win) return;
   win.style.display = 'flex';
-  // La bulle reste visible : la carte s'ouvre au-dessus d'elle (façon
-  // Messenger) et recliquer la bulle referme le chat.
+  // Carte ouverte : on masque la bulle lanceur. La carte se suffit à
+  // elle-même (fermeture via le ✕ de l'en-tête), pas de rond qui dépasse.
   const fab = document.getElementById('dlxChatFab');
-  if (fab) fab.classList.add('dlx-chat-fab-active');
+  if (fab) fab.style.display = 'none';
   dlxChatMarkAllRead();
   // Focus l'input
   setTimeout(() => {
@@ -4839,7 +4839,7 @@ function dlxChatClose() {
   if (!win) return;
   win.style.display = 'none';
   const fab = document.getElementById('dlxChatFab');
-  if (fab) fab.classList.remove('dlx-chat-fab-active');
+  if (fab) fab.style.display = '';
 }
 function dlxChatToggle() {
   const win = document.getElementById('dlxChatWindow');
