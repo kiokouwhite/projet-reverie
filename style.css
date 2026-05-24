@@ -7579,6 +7579,10 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   box-shadow: 0 12px 28px rgba(124,92,255,0.55);
 }
 .dlx-chat-fab:active { transform: scale(0.96); }
+/* Bulle en état "chat ouvert" : léger anneau pour signaler l'état actif */
+.dlx-chat-fab.dlx-chat-fab-active {
+  box-shadow: 0 6px 18px rgba(124,92,255,0.50), 0 0 0 3px rgba(124,92,255,0.28);
+}
 .dlx-chat-fab-icon { line-height: 1; }
 .dlx-chat-badge {
   position: absolute;
@@ -7604,33 +7608,39 @@ body.dlx-resizing-v * { cursor: ns-resize !important; user-select: none !importa
   50%      { transform: scale(1.12); }
 }
 
-/* Chat : panneau ancré au bord droit, pleine hauteur (pas une fenêtre
-   flottante). On ne réutilise pas .dlx-win : tout le style nécessaire est
-   redéfini ici pour rester indépendant du système de fenêtres. */
+/* Chat : carte flottante façon Messenger. Ancrée en bas à droite, juste
+   au-dessus de la bulle (.dlx-chat-fab), elle "surgit" du coin de la bulle
+   à l'ouverture (transform-origin bas-droite + pop animé). On ne réutilise
+   pas .dlx-win : tout le style est redéfini ici, indépendant du système de
+   fenêtres. */
 .dlx-chat-dock {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  right: 16px;
+  bottom: 84px;            /* au-dessus de la bulle (54px + marge) */
+  top: auto;
   left: auto;
   width: 360px;
-  max-width: 92vw;
+  max-width: calc(100vw - 32px);
+  height: 580px;
+  max-height: calc(100vh - 116px);
   background: #fff;
-  border-left: 1px solid var(--border);
-  box-shadow: -10px 0 32px rgba(0,0,0,0.20);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.28);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 9990;
-  animation: dlxChatDockIn 0.22s ease;
+  transform-origin: bottom right;
+  animation: dlxChatPop 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
-@keyframes dlxChatDockIn {
-  from { transform: translateX(100%); opacity: 0.5; }
-  to   { transform: translateX(0);    opacity: 1;   }
+@keyframes dlxChatPop {
+  from { transform: scale(0.2); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
 }
-/* En-tête : plus de drag ni de coins arrondis en mode ancré */
-.dlx-chat-dock .dlx-win-titlebar { cursor: default; border-radius: 0; }
+/* En-tête : plus de drag ; coins arrondis assurés par overflow:hidden de la carte */
+.dlx-chat-dock .dlx-win-titlebar { cursor: default; }
 .dlx-chat-body {
   display: flex;
   flex-direction: column;

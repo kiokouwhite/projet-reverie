@@ -680,7 +680,8 @@ function dlxInstallWindows() {
   dlxInstallWindow('dlxBracketWindow');
   dlxInstallWindow('dlxSggPanel');
   dlxInstallWindow('dlxAideWindow');
-  dlxInstallWindow('dlxChatWindow');
+  // Le chat n'est plus une fenêtre flottante : c'est un panneau ancré à
+  // droite (voir .dlx-chat-dock + dlxChatOpen/Close).
 }
 
 // ── ZOOM ────────────────────────────────────────────────────────────────
@@ -4822,8 +4823,10 @@ function dlxChatOpen() {
   const win = document.getElementById('dlxChatWindow');
   if (!win) return;
   win.style.display = 'flex';
-  win.classList.remove('minimized');
-  if (win._dlxSaveState) win._dlxSaveState();
+  // La bulle reste visible : la carte s'ouvre au-dessus d'elle (façon
+  // Messenger) et recliquer la bulle referme le chat.
+  const fab = document.getElementById('dlxChatFab');
+  if (fab) fab.classList.add('dlx-chat-fab-active');
   dlxChatMarkAllRead();
   // Focus l'input
   setTimeout(() => {
@@ -4835,7 +4838,8 @@ function dlxChatClose() {
   const win = document.getElementById('dlxChatWindow');
   if (!win) return;
   win.style.display = 'none';
-  if (win._dlxSaveState) win._dlxSaveState();
+  const fab = document.getElementById('dlxChatFab');
+  if (fab) fab.classList.remove('dlx-chat-fab-active');
 }
 function dlxChatToggle() {
   const win = document.getElementById('dlxChatWindow');
