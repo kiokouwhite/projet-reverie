@@ -1,0 +1,38 @@
+name: Déploiement du bot Discord sur Azure
+
+# Déclenché à chaque push sur main qui touche le bot (ou ce workflow),
+# et manuellement via le bouton "Run workflow".
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'bot/**'
+      - '.github/workflows/deploy-bot.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      # Le bot vit dans le sous-dossier bot/ → on installe ses dépendances là.
+      - name: Installer les dépendances du bot
+        working-directory: bot
+        run: npm install --omit=dev
+
+      # On déploie UNIQUEMENT le contenu de bot/ (package.json + bot.js +
+      # node_modules) vers la Web App. Azure lance ensuite "npm start"
+      # (= node bot.js) automatiquement.
+      - name: Déployer sur Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: reverie-bot-unigames
+          package: bot
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
