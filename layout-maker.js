@@ -2030,6 +2030,29 @@ function lmDrawBg(ctx, SIZE, bgImg, cfg) {
     }
     ctx.filter = 'none';
     ctx.restore();
+  } else if (cfg.gameImgImg) {
+    // Pas de fond explicite mais une image de jeu dispo (cas d'un jeu qu'on
+    // vient de créer) → on l'utilise comme fond (cover, flouté + assombri)
+    // pour que la carte soit complète par défaut au lieu d'avoir une moitié
+    // droite vide. L'utilisateur peut toujours définir un vrai fond via
+    // "Changer le fond".
+    const img = cfg.gameImgImg;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (iw && ih) {
+      const scale = Math.max(SIZE / iw, SIZE / ih);
+      const sw = iw * scale, sh = ih * scale;
+      const dx = -(sw - SIZE) / 2, dy = -(sh - SIZE) / 2;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, SIZE, SIZE); ctx.clip();
+      const ext = SIZE * 0.03;
+      ctx.filter = `blur(${(SIZE * 0.018).toFixed(1)}px)`;
+      try { ctx.drawImage(img, dx - ext, dy - ext, sw + ext * 2, sh + ext * 2); } catch(e) {}
+      ctx.filter = 'none';
+      // Voile sombre pour la lisibilité du texte/slots par-dessus
+      ctx.fillStyle = 'rgba(12,7,28,0.55)';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+      ctx.restore();
+    }
   } else {
     // Default gradient
     const g = ctx.createLinearGradient(0, 0, SIZE, SIZE);
