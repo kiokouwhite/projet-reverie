@@ -3028,6 +3028,18 @@ function generatePreview() {
       img.onerror = () => resolve();
       img.src = getMuralArtUrl(p.charId2, p.costume2||1);
     }));
+    // Image perso hébergée par start.gg (jeux custom / persos non mappés
+    // localement). Chargée en CORS-clean pour rester exportable (toDataURL).
+    if (p.charImgUrl) toLoad.push(new Promise(resolve => {
+      const sgKey = `__sg__${p.charImgUrl}`;
+      if(imgCache[sgKey]?._loaded) { resolve(); return; }
+      if(!imgCache[sgKey]) imgCache[sgKey] = {_loaded:false, _img:null};
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=img; resolve(); };
+      img.onerror = () => resolve();
+      img.src = p.charImgUrl;
+    }));
   });
 
   Promise.all(toLoad).then(() => {

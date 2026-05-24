@@ -2413,9 +2413,21 @@ function drawCustomLMLayout(ctx, layout, sc, playersParam) {
 
   // 2. Slots (personnages + noms)
   layout.slots.forEach((slot, i) => {
-    const key = `${layout.id}_lmchar${i}_1`;
-    const imgObj = imgCache[key];
-    const img = imgObj?._loaded ? imgObj._img : null;
+    // Priorité au perso RÉEL du joueur importé depuis start.gg (charImgUrl) :
+    // c'est ce qu'on veut sur la vraie carte d'un tournoi. À défaut (pas
+    // d'import / pas de perso reporté), on retombe sur l'échantillon baked
+    // dans le layout.
+    let img = null;
+    const sgUrl = _players[i]?.charImgUrl;
+    if (sgUrl) {
+      const sgObj = imgCache[`__sg__${sgUrl}`];
+      if (sgObj?._loaded) img = sgObj._img;
+    }
+    if (!img) {
+      const key = `${layout.id}_lmchar${i}_1`;
+      const imgObj = imgCache[key];
+      img = imgObj?._loaded ? imgObj._img : null;
+    }
     const name = (_players[i]?.name)
       ? lmFormatPlayerName(_players[i], '')
       : (layout.playerNames?.[i] || `Joueur ${i+1}`);
