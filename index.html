@@ -1084,12 +1084,11 @@
         <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
       </div>
 
-      <!-- Fenêtre Chat -->
-      <div class="dlx-win" id="dlxChatWindow" style="display:none;">
+      <!-- Panneau Chat (ancré à droite, pleine hauteur) -->
+      <div class="dlx-chat-dock" id="dlxChatWindow" style="display:none;">
         <div class="dlx-win-titlebar" id="dlxChatTitlebar">
           <span class="dlx-win-title">💬 Chat TO</span>
           <div class="dlx-win-buttons">
-            <button type="button" class="dlx-win-min" onclick="dlxToggleMinimize('dlxChatWindow')" title="Réduire / restaurer">−</button>
             <button type="button" class="dlx-win-min" onclick="dlxChatClose()" title="Fermer" style="font-size:14px;">✕</button>
           </div>
         </div>
@@ -1110,7 +1109,6 @@
             <button type="submit" class="dlx-chat-send-btn" title="Envoyer">➤</button>
           </form>
         </div>
-        <div class="dlx-win-grip-bl" title="Glisser pour redimensionner"></div>
       </div>
 
       <!-- Bouton flottant Chat (avec badge non-lu) -->
@@ -1429,7 +1427,6 @@
       <!-- ── COLONNE DROITE : PREVIEW ── -->
       <div class="editor-preview-col">
         <div class="editor-preview-header">
-          <div class="editor-preview-label">Aperçu en direct</div>
           <div class="editor-bg-quick">
             <input type="file" id="bgFileEditorQuick" accept="image/*" style="display:none" onchange="loadBgEditor(event)">
             <button class="btn editor-btn-bg" onclick="openBgPicker()">🖼️ Changer le fond</button>
