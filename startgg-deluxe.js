@@ -4804,10 +4804,14 @@ async function dlxChatSend() {
   }
   inp.disabled = true;
   try {
+    // Secret envoyé à la fois en en-tête ET dans le corps : certains proxies
+    // (Azure App Service…) filtrent les en-têtes custom comme x-secret, alors
+    // que le corps (payload POST) passe toujours. Le bot accepte les deux
+    // (checkSecret = req.headers['x-secret'] || req.body.secret).
     const r = await fetch(`${url}/chat/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify({ pseudo, text }),
+      body: JSON.stringify({ pseudo, text, secret }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     inp.value = '';
