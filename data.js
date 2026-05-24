@@ -38,7 +38,7 @@ const STARTGG_TO_ID = {
   "Testament":"testament","Bridget":"bridget","Sin Kiske":"sin",
   "Bedman?":"bedman","Asuka R♯":"asuka","Queen Dizzy":"dizzy",
   "Elphelt Valentine":"elphelt","A.B.A":"aba","Johnny":"johnny",
-  "Venom":"venom",
+  "Venom":"venom","Slayer":"slayer",
 
   // ── 2XKO ─────────────────────────────────────────────────
   "Ahri":"ahri","Darius":"darius","Ekko":"ekko","Illaoi":"illaoi",
@@ -120,6 +120,7 @@ const ICON_BASENAME = {
   jacko:"JackO", happy:"HappyChaos", baiken:"Baiken", testament:"Testament",
   bridget:"Bridget", sin:"Sin", bedman:"Bedman", ggst_asuka:"AsukaR",
   dizzy:"Dizzy", elphelt:"Elphelt", aba:"ABA", johnny:"Johnny", venom:"Venom",
+  slayer:"Slayer",
   // 2XKO
   ahri:"Ahri", darius:"Darius", ekko:"Ekko", illaoi:"Illaoi",
   jinx:"Jinx", katarina:"Katarina", malphite:"Malphite", yasuo:"Yasuo",
@@ -449,7 +450,7 @@ const GAMES = {
       // undefined et la modale d'édition affiche "Aucun personnage").
       {id:"dizzy",name:"Dizzy",icon:"🪽"},{id:"elphelt",name:"Elphelt",icon:"💒"},
       {id:"aba",name:"A.B.A",icon:"🔑"},{id:"johnny",name:"Johnny",icon:"🎩"},
-      {id:"venom",name:"Venom",icon:"🎱"}
+      {id:"venom",name:"Venom",icon:"🎱"},{id:"slayer",name:"Slayer",icon:"🦇"}
     ]
   }
 };
