@@ -348,7 +348,10 @@ client.login(process.env.DISCORD_TOKEN).catch(err => {
 
 // ── HELPER : vérification du secret ──────────────────────────────────────────
 function checkSecret(req, res) {
-  const secret = req.headers['x-secret'] || req.body?.secret;
+  // Secret accepté en en-tête, dans le corps OU en query (?secret=). La couche
+  // CORS/proxy d'Azure peut filtrer les en-têtes custom (x-secret) ; la query,
+  // elle, passe toujours (c'est déjà le canal du SSE via /chat/stream).
+  const secret = req.headers['x-secret'] || req.body?.secret || req.query?.secret;
   if (!secret || secret !== process.env.APP_SECRET) {
     res.status(401).json({ ok: false, error: 'Secret invalide' });
     return false;

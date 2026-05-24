@@ -4729,7 +4729,7 @@ async function dlxChatFetchHistory() {
   const { url, secret } = dlxChatBotConfig();
   if (!url || !secret) return;
   try {
-    const r = await fetch(`${url}/chat/history?limit=100`, { headers: { 'x-secret': secret } });
+    const r = await fetch(`${url}/chat/history?limit=100&secret=${encodeURIComponent(secret)}`, { headers: { 'x-secret': secret } });
     if (!r.ok) throw new Error(r.status);
     const data = await r.json();
     if (data && Array.isArray(data.messages)) {
@@ -4808,7 +4808,7 @@ async function dlxChatSend() {
     // (Azure App Service…) filtrent les en-têtes custom comme x-secret, alors
     // que le corps (payload POST) passe toujours. Le bot accepte les deux
     // (checkSecret = req.headers['x-secret'] || req.body.secret).
-    const r = await fetch(`${url}/chat/send`, {
+    const r = await fetch(`${url}/chat/send?secret=${encodeURIComponent(secret)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
       body: JSON.stringify({ pseudo, text, secret }),
