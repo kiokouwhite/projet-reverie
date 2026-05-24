@@ -1333,7 +1333,7 @@ function renderSlots() {
     // Fallback synthétique : si charId est défini mais pas listé dans
     // GAMES[currentGame].chars (perso pas encore ajouté à la liste interne),
     // on synthétise une entrée minimale → affiche au moins le nom + icon ?
-    if (!char && p.charId) char = { id: p.charId, name: p.charId, icon: '🎮' };
+    if (!char && p.charId) char = { id: p.charId, name: p.charNameStartgg || p.charId, icon: '🎮' };
     if (!char2 && p.charId2 && is2xko) char2 = { id: p.charId2, name: p.charId2, icon: '🎮' };
     const base  = char  ? ICON_BASENAME[char.id]  : null;
     const base2 = char2 ? ICON_BASENAME[char2.id] : null;
@@ -1357,7 +1357,9 @@ function renderSlots() {
           ? `<img src="${stockUrl}" class="char-stock" onerror="this.style.display='none'">`
           : (p.customImgUrl
               ? `<img src="${p.customImgUrl}" class="char-stock" alt="Custom">`
-              : `<div class="char-icon">${char ? char.icon : '?'}</div>`)
+              : (p.charImgUrl
+                  ? `<img src="${p.charImgUrl}" class="char-stock" alt="${escHtml(p.charNameStartgg||'')}" onerror="this.style.display='none'">`
+                  : `<div class="char-icon">${char ? char.icon : '?'}</div>`))
         }
         <span class="char-name">${char ? char.name : (p.customImgUrl ? 'Image custom' : 'Aucun personnage')}</span>
         <button class="btn btn-choose" onclick="openModal(${i},1)">${is2xko ? 'Perso 1' : 'Perso'}</button>
@@ -1440,41 +1442,153 @@ function openModal(idx, charSlot) {
   document.getElementById('charSearch').value = '';
   renderCharGrid('');
   document.getElementById('charModal').style.display = 'flex';
+  // Récupère en tâche de fond le roster start.gg (avec images) pour ce jeu,
+  // puis ré-affiche la grille enrichie. Surtout utile pour les jeux custom
+  // (ex. Vampire Savior) qui n'ont pas de roster local.
+  sggEnsureRoster(currentGame).then(changed => {
+    if (changed && document.getElementById('charModal').style.display !== 'none') {
+      renderCharGrid(document.getElementById('charSearch').value || '');
+    }
+  });
 }
 
 function closeModal(e) {
   if(e.target.id==='charModal') document.getElementById('charModal').style.display='none';
 }
 
+// Cache des rosters start.gg : videogameId → [{id,name,imgUrl}]
+let _sggRosterCache = {};
+let _sggRosterLoading = {};   // gameId → bool (évite les fetchs doublons)
+
+function _sggPickCharImg(images) {
+  if (!Array.isArray(images) || !images.length) return null;
+  const primary = images.find(im => im.type === 'primary') || images[0];
+  return primary?.url || null;
+}
+
+// Récupère (et met en cache) la liste des personnages start.gg du jeu courant.
+// Renvoie true si de nouvelles données ont été chargées (→ re-render utile).
+async function sggEnsureRoster(gameId) {
+  try {
+    if (typeof gqlFetch !== 'function') return false;
+    const apiKey = (localStorage.getItem('top8_startgg_key') || '').trim();
+    if (!apiKey) return false;
+    let vgId = (window._sggVideogameId || {})[gameId];
+    // Déjà en cache pour ce videogame ?
+    if (vgId && _sggRosterCache[vgId]) return false;
+    if (_sggRosterLoading[gameId]) return false;
+    _sggRosterLoading[gameId] = true;
+
+    let chars = null;
+    if (vgId) {
+      const d = await gqlFetch(apiKey,
+        `query($id:ID!){ videogame(id:$id){ characters{ id name images{ url type } } } }`,
+        { id: vgId });
+      chars = d?.data?.videogame?.characters;
+    } else if (typeof selectedEventSlug !== 'undefined' && selectedEventSlug) {
+      // Pas d'ID mémorisé → on le dérive de l'event importé.
+      const d = await gqlFetch(apiKey,
+        `query($slug:String!){ event(slug:$slug){ videogame{ id characters{ id name images{ url type } } } } }`,
+        { slug: selectedEventSlug });
+      vgId  = d?.data?.event?.videogame?.id;
+      chars = d?.data?.event?.videogame?.characters;
+      if (vgId) {
+        window._sggVideogameId = window._sggVideogameId || {};
+        window._sggVideogameId[gameId] = vgId;
+      }
+    }
+    _sggRosterLoading[gameId] = false;
+    if (!Array.isArray(chars) || !chars.length) return false;
+    const list = chars
+      .map(c => ({ id: String(c.id), name: c.name, imgUrl: _sggPickCharImg(c.images) }))
+      .filter(c => c.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (vgId) _sggRosterCache[vgId] = list;
+    return true;
+  } catch (e) {
+    _sggRosterLoading[gameId] = false;
+    console.warn('[picker] roster start.gg indisponible :', e.message);
+    return false;
+  }
+}
+
+// Construit la liste affichée dans le picker = roster local + persos start.gg
+// non déjà présents localement (dédoublonnage par nom normalisé).
+function _sggBuildPickerList() {
+  const localChars = (GAMES[currentGame]?.chars || []).map(c => ({ ...c, _src: 'local' }));
+  const vgId = (window._sggVideogameId || {})[currentGame];
+  const sggList = vgId ? (_sggRosterCache[vgId] || []) : [];
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const seen = new Set(localChars.map(c => norm(c.name)));
+  const merged = [...localChars];
+  sggList.forEach(c => {
+    if (seen.has(norm(c.name))) return;
+    seen.add(norm(c.name));
+    merged.push({ id: 'sgg_' + c.id, name: c.name, imgUrl: c.imgUrl, _src: 'sgg' });
+  });
+  return merged;
+}
+
 function renderCharGrid(filter) {
   const grid = document.getElementById('charGrid');
-  const chars = GAMES[currentGame].chars.filter(c =>
-    c.name.toLowerCase().includes(filter.toLowerCase()));
+  const f = (filter || '').toLowerCase();
+  const chars = _sggBuildPickerList().filter(c => c.name.toLowerCase().includes(f));
   grid.innerHTML = '';
+  if (!chars.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;opacity:0.6;padding:18px;text-align:center;">Aucun personnage. ${
+      (localStorage.getItem('top8_startgg_key') ? 'Importe un tournoi start.gg pour ce jeu, ou' : 'Renseigne ta clé API start.gg (onglet Import) puis importe un tournoi, ou')
+    } utilise le bouton d'import d'image sur le slot.</div>`;
+    return;
+  }
   chars.forEach(c => {
     const btn = document.createElement('button');
     const isSelected = currentCharSlot === 2
       ? players[currentSlotIndex]?.charId2 === c.id
       : players[currentSlotIndex]?.charId  === c.id;
     btn.className = 'char-btn' + (isSelected ? ' selected' : '');
-    btn.innerHTML = `<span class="icon">${c.icon}</span><span>${c.name}</span>`;
+    const visual = c.imgUrl
+      ? `<img src="${c.imgUrl}" class="icon" style="width:34px;height:34px;object-fit:contain;border-radius:6px;" loading="lazy" onerror="this.outerHTML='<span class=&quot;icon&quot;>🎮</span>'">`
+      : `<span class="icon">${c.icon || '🎮'}</span>`;
+    btn.innerHTML = `${visual}<span>${escHtml(c.name)}</span>`;
     btn.onclick = () => {
       const i = currentSlotIndex;
       if (currentCharSlot === 2) {
         players[i].charId2  = c.id;
         players[i].costume2 = 1;
-        preloadMural(c.id, 1);
+        if (c._src !== 'sgg') preloadMural(c.id, 1);
       } else {
         players[i].charId = c.id;
-        // Chercher le costume sauvegardé pour ce joueur + ce perso
-        if (players[i].startggId) {
-          const pref = getPlayerPref(players[i].startggId);
-          players[i].costume = (pref && pref.charId === c.id) ? pref.costume : 1;
+        if (c._src === 'sgg') {
+          // Perso issu de start.gg : on stocke l'image hébergée par start.gg.
+          // L'upload manuel éventuel est effacé (le choix explicite prime).
+          players[i].charImgUrl     = c.imgUrl || null;
+          players[i].charNameStartgg = c.name;
+          players[i].customImgKey   = null;
+          players[i].customImgUrl   = null;
+          players[i].costume        = 1;
+          if (c.imgUrl && typeof imgCache !== 'undefined') {
+            const sgKey = `__sg__${c.imgUrl}`;
+            if (!imgCache[sgKey]) imgCache[sgKey] = { _loaded:false, _img:null };
+            if (!imgCache[sgKey]._loaded) {
+              const im = new Image();
+              im.crossOrigin = 'anonymous';
+              im.onload = () => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=im; generatePreview(); };
+              im.onerror = () => {};
+              im.src = c.imgUrl;
+            }
+          }
         } else {
-          players[i].costume = 1;
+          // Perso du roster local : comportement historique (mural local).
+          players[i].charImgUrl      = null;
+          players[i].charNameStartgg = null;
+          if (players[i].startggId) {
+            const pref = getPlayerPref(players[i].startggId);
+            players[i].costume = (pref && pref.charId === c.id) ? pref.costume : 1;
+          } else {
+            players[i].costume = 1;
+          }
+          preloadMural(c.id, players[i].costume);
         }
-        // Précharger le mural art
-        preloadMural(c.id, players[i].costume);
       }
 
       document.getElementById('charModal').style.display = 'none';
@@ -1715,7 +1829,7 @@ async function fetchFromStartGG() {
     const sd = await gqlFetch(apiKey, `
       query($slug:String!) { event(slug:$slug) {
         id name
-        videogame { name displayName }
+        videogame { id name displayName }
         tournament{name}
         standings(query:{perPage:8,page:1}) { nodes {
           placement
@@ -1748,6 +1862,14 @@ async function fetchFromStartGG() {
         players[i].costume = pref.costume;
       }
     });
+
+    // Mémorise l'ID videogame start.gg pour le jeu courant → permet au
+    // sélecteur de personnages de récupérer le roster complet (avec images)
+    // depuis start.gg, même pour les jeux custom sans roster local.
+    if (event.videogame?.id) {
+      window._sggVideogameId = window._sggVideogameId || {};
+      window._sggVideogameId[currentGame] = event.videogame.id;
+    }
 
     const tName = event.tournament?.name||'';
     if(tName) {

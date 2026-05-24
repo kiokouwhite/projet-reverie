@@ -186,8 +186,17 @@ async function importAllEvents() {
         return;
       }
 
+      // Mémorise l'ID videogame start.gg → roster perso récupérable dans le picker.
+      const _storeVgId = (internalId) => {
+        if (internalId && e.videogame?.id) {
+          window._sggVideogameId = window._sggVideogameId || {};
+          window._sggVideogameId[internalId] = e.videogame.id;
+        }
+      };
+
       if (builtinId && LAYOUTS[builtinId]?.bgFile) {
         // Layout built-in trouvé
+        _storeVgId(builtinId);
         events.push({ ...e, _resolvedGameId: builtinId });
       } else {
         // Chercher dans le coffre de layouts custom
@@ -195,6 +204,7 @@ async function importAllEvents() {
         if (customLayout) {
           // S'assurer que le layout est enregistré dans LAYOUTS/GAMES
           if (typeof lmRegisterLayout === 'function') lmRegisterLayout(customLayout);
+          _storeVgId(customLayout.id);
           events.push({ ...e, _resolvedGameId: customLayout.id, _customLayout: customLayout });
         } else if (isMagnaFormat) {
           // En Magna : on inclut quand même cet event sans layout, avec un
