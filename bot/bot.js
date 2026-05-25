@@ -28,10 +28,13 @@ const client = new Client({
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());               // Autorise les appels depuis ton app web
-// 10MB pour absorber les snapshots PNG du planning Horaires envoyés en base64
-// par l'app web (route /post-announce avec champ `image`). Discord plafonne
-// les uploads à ~10MB côté bot non-boosté donc 12MB côté Express est large.
-app.use(express.json({ limit: '12mb' }));
+// 12MB par défaut pour absorber les snapshots PNG du planning Horaires. La
+// route /backup (sauvegarde complète localStorage + images IndexedDB) peut être
+// bien plus lourde → limite relevée à 64MB uniquement pour elle.
+app.use((req, res, next) => {
+  const limit = req.path === '/backup' ? '64mb' : '12mb';
+  express.json({ limit })(req, res, next);
+});
 
 // ── RELAY DES TWEETS X VERS DISCORD (poller RSS) ─────────────────────────────
 // On poll un flux RSS représentant un compte X (RSSHub par défaut, ou rss.app
@@ -366,6 +369,53 @@ app.get('/', (req, res) => {
     status: 'Bot en ligne',
     bot:    client.user?.tag || 'Connexion en cours...',
   });
+});
+
+// ── SAUVEGARDE / RESTAURATION DES DONNÉES DE L'APP ────────────────────────────
+// L'app web pousse ici un blob JSON (localStorage + images IndexedDB du coffre)
+// pour survivre au changement de navigateur/PC et aux redéploiements. On stocke
+// HORS de wwwroot — dans /home sur Azure (process.env.HOME) — car wwwroot est
+// remplacé à chaque déploiement, alors que /home est persistant.
+const PERSIST_DIR = process.env.HOME
+  ? path.join(process.env.HOME, 'reverie-data')
+  : path.join(__dirname, 'reverie-data');
+try { fs.mkdirSync(PERSIST_DIR, { recursive: true }); } catch (_) {}
+function backupFilePath(profile) {
+  const safe = String(profile || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'default';
+  return path.join(PERSIST_DIR, `backup-${safe}.json`);
+}
+
+// GET /backup?profile=default → renvoie le dernier blob sauvegardé.
+app.get('/backup', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  try {
+    const fp = backupFilePath(req.query.profile);
+    if (!fs.existsSync(fp)) return res.json({ ok: true, empty: true });
+    const data = JSON.parse(fs.readFileSync(fp, 'utf8'));
+    res.json({ ok: true, empty: false, savedAt: data.savedAt || null, blob: data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /backup → enregistre le blob. Corps : { profile?, blob }
+// Écriture atomique (tmp + rename) pour ne jamais corrompre le fichier.
+app.post('/backup', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  try {
+    const blob = req.body?.blob;
+    if (!blob || typeof blob !== 'object') {
+      return res.status(400).json({ ok: false, error: 'blob manquant ou invalide' });
+    }
+    blob.savedAt = new Date().toISOString();
+    const fp  = backupFilePath(req.body.profile);
+    const tmp = fp + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(blob));
+    fs.renameSync(tmp, fp);
+    res.json({ ok: true, savedAt: blob.savedAt, bytes: fs.statSync(fp).size });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── DÉTECTION TOURNOIS START.GG ─────────────────────────────────────────────

@@ -1218,6 +1218,23 @@
         </div>
       </div>
 
+      <!-- ── Sauvegarde des données (sync auto via le bot Azure) ──────────── -->
+      <div class="cfg-card">
+        <div class="cfg-card-title">💾 Sauvegarde des données</div>
+        <p class="cfg-card-desc" style="font-size:12px;color:var(--text-soft);margin:0 0 12px;">
+          Tes layouts du coffre, presets Discord, préférences de persos et configs sont
+          sauvegardés automatiquement sur le bot (stockage persistant Azure) à chaque
+          changement. Sur un nouvel appareil/navigateur vierge, ils sont restaurés
+          automatiquement. Nécessite l'URL du bot + le secret renseignés ci-dessus.
+        </p>
+        <div id="backupSyncStatus" style="font-size:13px;margin-bottom:10px;">Chargement…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn" onclick="backupPushNow()">💾 Sauvegarder maintenant</button>
+          <button type="button" class="btn" onclick="backupRestoreNow()">📥 Restaurer depuis le bot</button>
+        </div>
+        <small style="display:block;margin-top:8px;color:var(--text-soft);">La restauration remplace/complète les données de cet appareil avec celles du bot, puis recharge la page.</small>
+      </div>
+
       <!-- ── Détection de tournois start.gg ─────────────────────────────────
            Le bot surveille les channels listés. Quand un message contient
            un lien start.gg dont le slug match un des mots-clés (Lorem,
@@ -2527,6 +2544,7 @@ function liquidSwitchTab(tab) {
 <script src="lm-icons.js"></script>
 <script src="layout-maker.js"></script>
 <script src="config.js"></script>
+<script src="backup-sync.js"></script>
 <script src="tournament-watch.js"></script>
 <script src="startgg-deluxe.js?v=20260525b"></script>
 <!-- Modal : Emojis customs (Application emojis du bot) -->
