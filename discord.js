@@ -1306,7 +1306,7 @@ async function dcPost() {
   const chanId   = (document.getElementById('dcChannelId')?.value || '').trim();
 
   if (!msg)    { dcPostStatus('error', '❌ Génère d\'abord le message'); return; }
-  if (!botUrl) { dcPostStatus('error', '❌ Entre l\'URL du bot Railway'); return; }
+  if (!botUrl) { dcPostStatus('error', '❌ Configure l\'URL du bot Azure dans l\'onglet ⚙️ Configuration'); return; }
   if (!secret) { dcPostStatus('error', '❌ Entre le secret');             return; }
   if (!chanId) { dcPostStatus('error', '❌ Entre l\'ID du salon Discord'); return; }
 
@@ -1855,7 +1855,7 @@ async function dcSchedule() {
   const dtInput  = document.getElementById('dcScheduleAt');
 
   if (!msg)    { dcPostStatus('error', '❌ Génère d\'abord le message'); return; }
-  if (!botUrl) { dcPostStatus('error', '❌ Entre l\'URL du bot Railway'); return; }
+  if (!botUrl) { dcPostStatus('error', '❌ Configure l\'URL du bot Azure dans l\'onglet ⚙️ Configuration'); return; }
   if (!secret) { dcPostStatus('error', '❌ Entre le secret');             return; }
   if (!chanId) { dcPostStatus('error', '❌ Sélectionne un salon Discord'); return; }
   if (!dtInput?.value) { dcPostStatus('error', '❌ Choisis une date/heure d\'envoi'); return; }
@@ -2166,7 +2166,12 @@ async function dcLoadAppEmojis(silent = false) {
     // Re-render la preview pour que les `:name:` deviennent des images
     if (typeof dcRenderDiscordPreview === 'function') dcRenderDiscordPreview();
   } catch(e) {
-    if (!silent && status) status.textContent = `❌ Erreur : ${e.message}`;
+    // TypeError « Failed to fetch » = le bot est injoignable à cette URL
+    // (mauvaise URL Azure, bot arrêté, ou suffixe aléatoire manquant).
+    const netErr = (e instanceof TypeError) || /fetch|network|load failed/i.test(e.message || '');
+    if (!silent && status) status.textContent = netErr
+      ? '❌ Bot injoignable à cette URL. Vérifie l\'URL Azure dans ⚙️ Configuration (elle contient un suffixe aléatoire + la région, ex. ...-a1b2.francecentral-01.azurewebsites.net).'
+      : `❌ Erreur : ${e.message}`;
   }
 }
 

@@ -1194,15 +1194,16 @@
       </div>
 
       <div class="cfg-card">
-        <div class="cfg-card-title">🤖 Bot Discord (Railway)</div>
+        <div class="cfg-card-title">🤖 Bot Discord (Azure)</div>
         <div class="cfg-field">
           <label for="cfgBotUrl">URL du bot</label>
-          <input type="text" id="cfgBotUrl" autocomplete="off" oninput="cfgSaveAll()" placeholder="https://projet-reverie-production.up.railway.app">
+          <input type="text" id="cfgBotUrl" autocomplete="off" oninput="cfgSaveAll()" placeholder="https://reverie-bot-unigames-xxxx.francecentral-01.azurewebsites.net">
+          <small>⚠️ Azure ajoute un suffixe aléatoire + la région au nom : copie l'URL EXACTE affichée dans le portail Azure → ton App Service → page <strong>Vue d'ensemble</strong> → <strong>Domaine par défaut</strong> (ex. <code>reverie-bot-unigames-a1b2.francecentral-01.azurewebsites.net</code>). Pas de <code>/</code> à la fin.</small>
         </div>
         <div class="cfg-field">
           <label for="cfgBotSecret">Mot secret (APP_SECRET)</label>
           <input type="password" id="cfgBotSecret" autocomplete="off" oninput="cfgSaveAll()">
-          <small>Ce que tu as défini comme variable <code>APP_SECRET</code> sur Railway. Utilisé pour authentifier l'app web auprès du bot.</small>
+          <small>Ce que tu as défini comme variable <code>APP_SECRET</code> sur Azure (App Service → Paramètres → Variables d'environnement). Utilisé pour authentifier l'app web auprès du bot.</small>
         </div>
         <div class="cfg-field">
           <label>Salon de log Rêverie</label>
