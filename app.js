@@ -4927,6 +4927,32 @@ function initEyeDroppers() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
+// ── Molette sur les sliders de l'Éditeur = ajustement précis (1 pas / cran) ──
+// Délégation sur document (les sliders sont re-rendus dynamiquement), scopée à
+// #editorModal. On modifie la valeur d'un pas par cran de molette puis on
+// redéclenche l'événement 'input' natif → l'oninput existant (sync du champ
+// numérique + syncSlot/syncTitle + re-rendu) tourne sans changement.
+(function initEditorSliderWheel() {
+  document.addEventListener('wheel', function (e) {
+    const el = e.target;
+    if (!el || el.tagName !== 'INPUT' || el.type !== 'range' || el.disabled) return;
+    if (!el.closest || !el.closest('#editorModal')) return;
+    e.preventDefault(); // empêche le scroll du panneau pendant l'ajustement
+    const step = parseFloat(el.step) || 1;
+    const min  = el.min !== '' ? parseFloat(el.min) : -Infinity;
+    const max  = el.max !== '' ? parseFloat(el.max) :  Infinity;
+    const dir  = e.deltaY < 0 ? 1 : -1; // molette vers le haut = +
+    let v = (parseFloat(el.value) || 0) + dir * step;
+    v = Math.min(max, Math.max(min, v));
+    // Arrondi propre (évite 0.1+0.2=0.30000004 sur les pas décimaux).
+    const decimals = (String(step).split('.')[1] || '').length;
+    if (decimals) v = parseFloat(v.toFixed(decimals));
+    if (String(v) === String(el.value)) return;
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, { passive: false });
+})();
+
 function downloadImage() {
   const toLoad = players.filter(p=>p.charId).map(p => new Promise(resolve => {
     const key=`${currentGame}_${p.charId}_${p.costume}`;
