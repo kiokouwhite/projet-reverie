@@ -504,7 +504,12 @@ function lmGoTo(step) {
   // même zone. Étendre le stage au viewport casse l'alignement des
   // effets calés sur le centre du stage (Iris, Onde, Liquide, etc.).
   const panelHost   = fromPanel?.parentElement || toPanel?.parentElement;
-  const playTx      = !!(fromPanel && toPanel && typeof window.lmPlayTransition === 'function');
+  // Transitions oniriques DÉSACTIVÉES : elles ralentissaient la navigation
+  // (1200-1600ms de blocage + snapshot toDataURL du canvas coûteux à chaque
+  // étape). On force le switch instantané. Pour les réactiver, remettre :
+  //   !!(fromPanel && toPanel && typeof window.lmPlayTransition === 'function')
+  // et ré-inclure lm-transitions.js dans index.html.
+  const playTx      = false;
 
   LM.step = targetStep;
   // Mémoriser le step max atteint pour garder visibles les étapes déjà visitées
