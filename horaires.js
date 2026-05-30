@@ -142,11 +142,6 @@ async function hrPreloadEmojis() {
 // à gauche, et auto-switch vers 'results' quand des résultats arrivent.
 HR.viewMode = 'questions';
 
-function hrToggleView() {
-  HR.viewMode = HR.viewMode === 'questions' ? 'results' : 'questions';
-  hrApplyViewMode();
-}
-
 function hrApplyViewMode() {
   const questionsEl = document.getElementById('hrQuestionsRightHome');
   const resultsEl   = document.querySelector('.hr-results-section');
@@ -2265,12 +2260,6 @@ function hrMiiFlashError(roleId) {
   setTimeout(() => el.classList.remove('hr-plan-error'), 500);
 }
 
-// ── Anciens wrappers DnD HTML5 conservés au cas où du code legacy les appelle ─
-function hrPlanDragStart(e, name, fromRoleId) { /* noop : remplacé par pointer */ }
-function hrPlanDragOver(e, el) { e.preventDefault?.(); }
-function hrPlanDragLeave(el) {}
-function hrPlanDrop(e, el, toRoleId) {}
-
 // Retirer un utilisateur d'un rôle
 // ── Gestion dynamique des slots Régie ───────────────────────────────────────
 // L'utilisateur peut ajouter / supprimer / renommer des plages horaires de
@@ -2351,61 +2340,9 @@ function hrPlanRemoveUser(roleId, username) {
   hrRenderPlanningRoles();
 }
 
-// Ajouter un utilisateur à un rôle
-function hrPlanAddUser(roleId) {
-  const input = document.getElementById(`hrPlanAdd_${roleId}`);
-  if (!input) return;
-  const name = input.value.trim();
-  if (!name) return;
-  const role = HR.planRoles.find(r => r.id === roleId);
-  if (!role) return;
-  if (role.users.some(u => (u.name || u) === name)) { input.value = ''; return; }
-  // Chercher l'ID dans la liste des votants connus
-  const known = hrGetAllVoters().find(v => v.name === name);
-  role.users.push(known || { id: null, name });
-  input.value = '';
-  hrRenderPlanningRoles();
-}
-
 // Helper : génère une mention Discord (<@id> ou @nom fallback)
 function hrMention(users) {
   return users.map(u => u.id ? `<@${u.id}>` : `@${u.name || u}`).join(' ');
-}
-
-// Construit la structure d'embed Discord à partir de HR.planRoles
-// Retourne un seul embed avec un field par catégorie remplie.
-function hrBuildPlanningEmbed() {
-  const byId = {};
-  HR.planRoles.forEach(r => { byId[r.id] = r; });
-
-  const fields = [];
-  if (byId.install?.users?.length) {
-    fields.push({ name: '🚀 Installation', value: hrMention(byId.install.users), inline: false });
-  }
-  const accLines = [];
-  if (byId.acc1?.users?.length) accLines.push(`**17h30-18h30** : ${hrMention(byId.acc1.users)}`);
-  if (byId.acc2?.users?.length) accLines.push(`**18h30-19h30** : ${hrMention(byId.acc2.users)}`);
-  if (accLines.length) {
-    fields.push({ name: '🏠 Accueil', value: accLines.join('\n'), inline: false });
-  }
-  if (byId.regie?.users?.length) {
-    fields.push({ name: '💻 Régie · 19h30-fin', value: hrMention(byId.regie.users), inline: false });
-  }
-  if (byId.seeding?.users?.length) {
-    fields.push({ name: '🌱 Seeding', value: hrMention(byId.seeding.users), inline: false });
-  }
-  if (byId.rangement?.users?.length) {
-    fields.push({ name: '🧹 Rangement · A la fermeture', value: hrMention(byId.rangement.users), inline: false });
-  }
-
-  if (!fields.length) return null;
-
-  return {
-    title: '📋 Planning',
-    color: 0x9b7fb8, // violet projet rêverie
-    fields,
-    timestamp: new Date().toISOString(),
-  };
 }
 
 // Génère et met à jour la textarea Discord (version texte brut)

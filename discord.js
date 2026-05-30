@@ -700,39 +700,6 @@ window._dcRolePickerSelectGuild = _dcRolePickerSelectGuild;
 window._dcRolePickerSelectRole = _dcRolePickerSelectRole;
 window._dcRolePickerSearch = _dcRolePickerSearch;
 
-// (Ancienne fonction <select> conservée pour compat — peut être supprimée)
-function dcRolesOptionsHTML(selectedId) {
-  const roles = window._dcRoles || [];
-  let html = `<option value="">— Aucun —</option>`;
-  if (!roles.length) {
-    html += `<option value="" disabled>(clique 🔄 ci-dessous pour charger)</option>`;
-    return html;
-  }
-  // Grouper par guildName
-  const byGuild = new Map(); // guildName → role[]
-  roles.forEach(r => {
-    const g = r.guildName || 'Serveur';
-    if (!byGuild.has(g)) byGuild.set(g, []);
-    byGuild.get(g).push(r);
-  });
-  // Si un seul serveur, pas besoin d'optgroup
-  if (byGuild.size === 1) {
-    html += roles.map(r =>
-      `<option value="${escDC(r.id)}" ${r.id === selectedId ? 'selected' : ''}>${escDC(r.name)}</option>`
-    ).join('');
-    return html;
-  }
-  // Sinon : un <optgroup> par serveur
-  for (const [guildName, list] of byGuild) {
-    html += `<optgroup label="${escDC(guildName)}">`;
-    html += list.map(r =>
-      `<option value="${escDC(r.id)}" ${r.id === selectedId ? 'selected' : ''}>${escDC(r.name)}</option>`
-    ).join('');
-    html += `</optgroup>`;
-  }
-  return html;
-}
-
 // Charge les rôles du serveur via le bot. Cache en window._dcRoles.
 // Mode "silent" : pas de status d'erreur si bot pas configuré (utile pour
 // l'auto-load au démarrage de l'onglet quand le user n'a peut-être pas

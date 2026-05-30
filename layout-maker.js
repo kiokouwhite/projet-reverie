@@ -1722,11 +1722,6 @@ function lmFireConfetti() {
 }
 
 // ── COFFRE ─────────────────────────────────────────────────────────────────────
-function openCoffre() {
-  lmRenderCoffreGrid();
-  document.getElementById('coffreModal').style.display = 'flex';
-}
-
 function closeCoffre() {
   document.getElementById('coffreModal').style.display = 'none';
 }
@@ -1765,7 +1760,7 @@ async function lmRenderCoffreGrid() {
   }));
 
   // Modal : cartes pleine taille (fallback retro-compat — appelée depuis la
-  // popup de célébration et openCoffre).
+  // popup de célébration).
   if (grid) {
     grid.innerHTML = coffre.map((l, idx) => `
       <div class="coffre-card" tabindex="0">

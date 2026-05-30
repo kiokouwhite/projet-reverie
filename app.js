@@ -154,17 +154,6 @@ let _tcLocked = false;
 // backward-compat alias
 Object.defineProperty(window, '_leftPanelIdx', { get: () => _tcActive, set: v => { _tcActive = v; } });
 
-function _tcSymHTML(idx, size, stroke) {
-  const fns = [
-    (s, c) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><circle cx="50" cy="50" r="44" stroke-opacity="0.25" stroke-dasharray="2 4"/><path d="M38 42 Q 28 42 28 52 Q 28 62 38 62 L 46 62"/><path d="M62 38 Q 72 38 72 48 Q 72 58 62 58 L 54 58"/><path d="M40 50 L 60 50"/></svg>`,
-    (s, c) => { const r=[...Array(8)].map((_,i)=>{const a=(i*45)*Math.PI/180,x1=50+Math.cos(a)*24,y1=50+Math.sin(a)*24,x2=50+Math.cos(a)*32,y2=50+Math.sin(a)*32;return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;}).join(''); return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><circle cx="50" cy="50" r="44" stroke-opacity="0.25" stroke-dasharray="2 4"/>${r}<circle cx="50" cy="50" r="18"/><circle cx="50" cy="50" r="6" fill="${c}" stroke="none"/></svg>`; },
-    (s, c) => { const r=[...Array(12)].map((_,i)=>{const a=(i*30)*Math.PI/180,r2=i%2===0?32:28,x1=50+Math.cos(a)*22,y1=50+Math.sin(a)*22,x2=50+Math.cos(a)*r2,y2=50+Math.sin(a)*r2;return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;}).join(''); return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><circle cx="50" cy="50" r="44" stroke-opacity="0.25" stroke-dasharray="2 4"/><circle cx="50" cy="50" r="14"/>${r}</svg>`; },
-    (s, c) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round"><circle cx="50" cy="50" r="44" stroke-opacity="0.25" stroke-dasharray="2 4"/><circle cx="38" cy="40" r="7"/><path d="M28 62 Q 28 50 38 50 Q 48 50 48 62"/><circle cx="62" cy="40" r="7"/><path d="M52 62 Q 52 50 62 50 Q 72 50 72 62"/><path d="M44 70 L 56 70" stroke-opacity="0.5"/></svg>`,
-    (s, c) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="50" cy="50" r="44" stroke-opacity="0.25" stroke-dasharray="2 4"/><path d="M62 30 A 22 22 0 1 0 62 70 A 16 16 0 1 1 62 30 Z"/><circle cx="36" cy="36" r="1.5" fill="${c}"/><circle cx="32" cy="48" r="1" fill="${c}"/><circle cx="40" cy="60" r="1.2" fill="${c}"/></svg>`,
-  ];
-  return fns[idx](size, stroke);
-}
-
 function _tcDiamond() {
   return `<svg width="5" height="5" viewBox="0 0 10 10"><path d="M5 0 L 10 5 L 5 10 L 0 5 Z" fill="#d4b66a"/></svg>`;
 }
@@ -361,21 +350,6 @@ function togglePageLeftPanelFromBtn(btn) {
 function restorePageLeftPanel(_pageEl, _storageKey) {
   // intentionnellement vide
 }
-
-// backward-compat — keep old names working (used elsewhere in the codebase)
-function setLeftPanel(idx) {
-  if (idx === _tcActive) return;
-  _tcSetSlide(_tcActive, false);
-  _tcSetSlide(idx, true);
-  const mainCard = document.getElementById('tcMainCard');
-  if (mainCard) _tcUpdateCornersOn(mainCard, idx);
-  _tcUpdateSigil(idx, false);
-  _tcUpdateTabs(idx);
-  _tcActive = idx;
-  _tcUpdateArrows();
-}
-function prevLeftPanel() { tcGo(_tcActive - 1); }
-function nextLeftPanel() { tcGo(_tcActive + 1); }
 
 // ── TAROT CAROUSEL — DISCORD (dcTc*) ──────────────────────────────────────────
 // Même mécanique que le carousel Top8, mais pour le panneau dc-left.
@@ -1709,10 +1683,6 @@ function detectGameFromStartGG(gameName) {
   if (lower.includes('dragon ball') || lower.includes('fighterz')) return 'dbfz';
   return null;
 }
-function toggleKey() {
-  const inp = document.getElementById('apiKey');
-  inp.type = inp.type==='password' ? 'text' : 'password';
-}
 
 function saveApiKey() {
   const val = document.getElementById('apiKey').value;
@@ -1728,11 +1698,6 @@ function loadApiKey() {
 function showStatus(type, msg) {
   const el = document.getElementById('fetchStatus');
   el.style.display='block'; el.className='status-msg '+type; el.textContent=msg;
-}
-
-function parseStartGGUrl(url) {
-  const m = url.match(/start\.gg\/tournament\/([^/?#]+)\/event\/([^/?#]+)/);
-  return m ? {tournament:m[1], event:m[2]} : null;
 }
 
 async function gqlFetch(apiKey, query, variables) {
@@ -3378,11 +3343,6 @@ function renderEditorCanvas() {
   renderCanvas(c, 700);
 }
 
-function toggleTitleEditor() {
-  // conservé pour compatibilité (multi.js peut l'appeler)
-  openEditorModal();
-}
-
 function initTitleEditor() {
   const fields = [
     ['t1x', CONFIG.T1.x], ['t1y', CONFIG.T1.y], ['t1s', CONFIG.T1.s], ['t1l', CONFIG.T1.l],
@@ -3872,10 +3832,6 @@ function savePlayerNameCfg(i, data) {
   while (_nameCfgsMem[currentGame].players.length <= i)
     _nameCfgsMem[currentGame].players.push(null);
   _nameCfgsMem[currentGame].players[i] = { ...getPlayerNameCfg(i), ...data };
-  _saveNameCfgsToStorage();
-}
-function resetAllPlayerNameCfgs() {
-  delete _nameCfgsMem[currentGame];
   _saveNameCfgsToStorage();
 }
 function loadNameConfig() { /* no-op — per-player now */ }
@@ -4451,42 +4407,6 @@ function updateTweet() {
     buildTweetText(name, game, players, 0, 1);
 }
 
-
-
-function triggerDownload() {
-  // Essaye d'abord depuis le canvas preview déjà rendu (évite les erreurs CORS)
-  try {
-    const preview = document.getElementById('previewCanvas');
-    if (preview && preview.width > 0) {
-      const dataUrl = preview.toDataURL('image/png');
-      const name = (document.getElementById('tournamentName') || {}).value || 'tournoi';
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = 'top8_' + currentGame + '_' + name.replace(/\s/g, '_') + '.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return true;
-    }
-  } catch(e) {}
-
-  // Fallback : créer un nouveau canvas (peut échouer en file://)
-  try {
-    const canvas = document.createElement('canvas');
-    renderCanvas(canvas, 700);
-    const name = (document.getElementById('tournamentName') || {}).value || 'tournoi';
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = 'top8_' + currentGame + '_' + name.replace(/\s/g, '_') + '.png';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    return true;
-  } catch(e) {
-    alert('Impossible de télécharger : ' + e.message + '\n\nAstuce : utilise le bouton ⬇ Télécharger à la place.');
-    return false;
-  }
-}
 // ── THREAD MODAL ─────────────────────────────────────────────────────────────
 
 function closeThreadModal() {
@@ -4758,16 +4678,6 @@ function resetTweetTemplate() {
   applyTweetTemplateFromEditor();
 }
 
-// Télécharge un canvas en PNG et retourne le nom de fichier
-function downloadCanvas(canvas, filename) {
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  return filename;
-}
 
 // Précharge les images murals pour un jeu+joueurs donné
 function preloadMurals(gameId, playersList) {
