@@ -917,10 +917,6 @@ function showNoLayoutSection(events) {
     return `
       <div class="nolayout-item">
         <button class="btn-tv-create" onclick="openLayoutMakerForEvent('${safeSlug}','${safeGame}','${gameImg ? gameImg.url.replace(/'/g,"\\'") : ''}')">
-          <div class="tv-antenna">
-            <span class="tv-ant tv-ant-l"></span>
-            <span class="tv-ant tv-ant-r"></span>
-          </div>
           <div class="tv-body">
             <div class="tv-screen tv-screen-game">
               ${imgHtml}
@@ -930,15 +926,6 @@ function showNoLayoutSection(events) {
               </div>
               <div class="tv-screen-overlay">✨ Créer</div>
             </div>
-            <div class="tv-side-btns">
-              <span class="tv-side-btn"></span>
-              <span class="tv-side-btn"></span>
-              <span class="tv-side-btn"></span>
-            </div>
-          </div>
-          <div class="tv-legs">
-            <span class="tv-leg"></span>
-            <span class="tv-leg"></span>
           </div>
           <div class="tv-game-label">${gameName}</div>
         </button>
