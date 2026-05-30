@@ -427,8 +427,27 @@ app.post('/backup', (req, res) => {
 // survivre aux redéploiements Railway (best-effort).
 const fs = require('fs');
 const path = require('path');
-const TW_CONFIG_FILE     = path.join(__dirname, 'tournament-watch-config.json');
-const TW_REGISTERED_FILE = path.join(__dirname, 'tournament-watch-registered.json');
+// Migration : les anciennes versions stockaient ces fichiers dans __dirname
+// (= /home/site/wwwroot/ sur Azure), qui est ÉCRASÉ à chaque déploiement →
+// la config était perdue à chaque push. On les déplace désormais vers
+// PERSIST_DIR (/home/reverie-data, persistant à travers les deploys). Si un
+// ancien fichier existe encore dans wwwroot, on le rapatrie une fois.
+function migrateFromWwwroot(filename) {
+  try {
+    const oldP = path.join(__dirname, filename);
+    const newP = path.join(PERSIST_DIR, filename);
+    if (fs.existsSync(oldP) && !fs.existsSync(newP)) {
+      fs.copyFileSync(oldP, newP);
+      console.log(`🔄 Migration : ${filename} déplacé vers /home (survit désormais aux deploys)`);
+    }
+  } catch (e) {
+    console.warn(`Migration ${filename} échouée :`, e.message);
+  }
+}
+migrateFromWwwroot('tournament-watch-config.json');
+migrateFromWwwroot('tournament-watch-registered.json');
+const TW_CONFIG_FILE     = path.join(PERSIST_DIR, 'tournament-watch-config.json');
+const TW_REGISTERED_FILE = path.join(PERSIST_DIR, 'tournament-watch-registered.json');
 let tournamentWatchConfig = { channels: [], keywords: ['Lorem', 'Magna'], startggKey: '' };
 const tournamentRegistered = new Map(); // slug → { slug, channelId, registeredAt, endAt, ... }
 const tournamentTimers     = new Map(); // slug → setTimeout id (pour clear si besoin)
@@ -1043,6 +1062,67 @@ let horairesLastMessageIds = [];
 let horairesWeeklyConfig = null;
 let horairesWeeklyInterval = null;
 
+// ── Persistance de la programmation hebdomadaire ─────────────────────────────
+// Fichier stocké dans PERSIST_DIR (/home/reverie-data) → survit aux restarts
+// ET aux redéploiements Azure. Avant ce fix, la config vivait en mémoire et
+// disparaissait à chaque push sur bot/**.
+const HORAIRES_SCHED_FILE = path.join(PERSIST_DIR, 'horaires-schedule.json');
+
+function saveHorairesSchedule() {
+  try {
+    if (horairesWeeklyConfig) {
+      fs.writeFileSync(HORAIRES_SCHED_FILE, JSON.stringify(horairesWeeklyConfig, null, 2), 'utf8');
+    } else if (fs.existsSync(HORAIRES_SCHED_FILE)) {
+      fs.unlinkSync(HORAIRES_SCHED_FILE);
+    }
+  } catch (e) {
+    console.warn('📅 [HORAIRES] Écriture schedule échouée :', e.message);
+  }
+}
+
+// (Re)crée le setInterval qui vérifie chaque minute si on doit poster.
+// Utilisé par POST /horaires-schedule ET par la restauration au démarrage.
+function armHorairesInterval() {
+  if (horairesWeeklyInterval) { clearInterval(horairesWeeklyInterval); horairesWeeklyInterval = null; }
+  if (!horairesWeeklyConfig) return;
+  horairesWeeklyInterval = setInterval(async () => {
+    const cfg = horairesWeeklyConfig;
+    if (!cfg) return;
+    const now = new Date();
+    if (now.getDay() === cfg.dayOfWeek && now.getHours() === cfg.hour && now.getMinutes() === cfg.minute) {
+      try {
+        const ids = await postHorairesMessages(cfg.channelId, cfg.questions);
+        horairesLastChannelId  = cfg.channelId;
+        horairesLastMessageIds = ids;
+        console.log(`📅 [HEBDO] Sondages postés automatiquement`);
+      } catch (e) {
+        console.error('Erreur schedule horaires :', e.message);
+      }
+    }
+  }, 60000);
+}
+
+// Recharge la config depuis le disque et ré-arme le timer (appelé au boot).
+function loadHorairesSchedule() {
+  try {
+    if (!fs.existsSync(HORAIRES_SCHED_FILE)) {
+      console.log('📅 [HORAIRES] Aucune programmation hebdo enregistrée.');
+      return;
+    }
+    const cfg = JSON.parse(fs.readFileSync(HORAIRES_SCHED_FILE, 'utf8'));
+    if (!cfg || !cfg.channelId) return;
+    horairesWeeklyConfig = cfg;
+    armHorairesInterval();
+    const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    console.log(`📅 [HORAIRES] Programmation hebdo restaurée : ${days[cfg.dayOfWeek]} à ${cfg.hour}h${String(cfg.minute).padStart(2,'0')} (salon ${cfg.channelId})`);
+  } catch (e) {
+    console.warn('📅 [HORAIRES] Lecture schedule échouée :', e.message);
+  }
+}
+// Restauration au démarrage — pas besoin d'attendre Discord (le setInterval
+// patientera jusqu'à la minute prévue ; à ce moment-là le client est ready).
+loadHorairesSchedule();
+
 // Couleurs des embeds par question
 const EMBED_COLORS = [0x9b59b6, 0x3498db, 0xe91e8c];
 
@@ -1278,32 +1358,9 @@ app.post('/horaires-schedule', async (req, res) => {
   const { channelId, questions, dayOfWeek, hour, minute } = req.body;
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
 
-  // Annuler l'ancien schedule si existant
-  if (horairesWeeklyInterval) clearInterval(horairesWeeklyInterval);
-
   horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute };
-
-  // Vérifier chaque minute
-  horairesWeeklyInterval = setInterval(async () => {
-    const now = new Date();
-    if (
-      now.getDay()     === horairesWeeklyConfig.dayOfWeek &&
-      now.getHours()   === horairesWeeklyConfig.hour &&
-      now.getMinutes() === horairesWeeklyConfig.minute
-    ) {
-      try {
-        const ids = await postHorairesMessages(
-          horairesWeeklyConfig.channelId,
-          horairesWeeklyConfig.questions
-        );
-        horairesLastChannelId  = horairesWeeklyConfig.channelId;
-        horairesLastMessageIds = ids;
-        console.log(`📅 [HEBDO] Sondages postés automatiquement`);
-      } catch(e) {
-        console.error('Erreur schedule horaires :', e.message);
-      }
-    }
-  }, 60000);
+  armHorairesInterval();         // (re)arme le timer (annule l'ancien si besoin)
+  saveHorairesSchedule();        // persiste sur disque → survit au prochain restart/deploy
 
   const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
   console.log(`🗓️ Sondages programmés chaque ${days[dayOfWeek]} à ${hour}h${String(minute).padStart(2,'0')}`);
@@ -1313,11 +1370,10 @@ app.post('/horaires-schedule', async (req, res) => {
 // DELETE /horaires-schedule — désactiver l'envoi hebdomadaire
 app.delete('/horaires-schedule', (req, res) => {
   if (!checkSecret(req, res)) return;
-  if (horairesWeeklyInterval) {
-    clearInterval(horairesWeeklyInterval);
-    horairesWeeklyInterval = null;
-    horairesWeeklyConfig   = null;
-  }
+  if (horairesWeeklyInterval) clearInterval(horairesWeeklyInterval);
+  horairesWeeklyInterval = null;
+  horairesWeeklyConfig   = null;
+  saveHorairesSchedule();        // supprime le fichier → reste désactivé après restart
   res.json({ ok: true });
 });
 
