@@ -3188,7 +3188,14 @@ function generatePreview() {
     }));
   });
 
-  Promise.all(toLoad).then(() => {
+  // On attend les IMAGES *et* les POLICES avant de dessiner. Sans l'attente
+  // des polices, un rendu déclenché avant le chargement de Montserrat (cas du
+  // tout premier affichage, cache froid — SSBU étant le jeu par défaut) mesure
+  // le texte avec la police de secours : les noms sont auto-ajustés/centrés
+  // avec de mauvaises largeurs, puis « se déplacent » au re-rendu une fois la
+  // police chargée. document.fonts.ready est instantané si déjà chargées.
+  const fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  Promise.all([Promise.all(toLoad), fontsReady]).then(() => {
     loadTitleConfig(); // garantit que CONFIG est à jour au moment du rendu (résolution async)
     renderCanvas(document.getElementById('previewCanvas'), 1400);
     renderEditorCanvas();
@@ -4931,7 +4938,8 @@ function downloadImage() {
     img.onerror=()=>resolve();
     img.src=getMuralArtUrl(p.charId,p.costume,currentGame);
   }));
-  Promise.all(toLoad).then(()=>{
+  const fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  Promise.all([Promise.all(toLoad), fontsReady]).then(()=>{
     const canvas=document.createElement('canvas');
     renderCanvas(canvas,1400);
     const name=document.getElementById('tournamentName').value||'tournoi';
