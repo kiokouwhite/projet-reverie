@@ -147,10 +147,14 @@ const TC_PANELS = [
   { label: 'Réglages', roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Paramètres',            icon: 'settings' },
   { label: 'Joueurs',  roman: 'III', accent: '#46d18f', emoji: '👥', name: 'Joueurs & Personnages', icon: 'players' },
   { label: 'Layouts',  roman: 'IV',  accent: '#9a7aff', emoji: '🎨', name: 'Layouts Custom',        icon: 'layouts' },
+  { label: 'Sans layout', roman: 'V', accent: '#ff5c8a', emoji: '⚠️', name: 'Jeux sans layout',     icon: 'nolayout' },
 ];
 
 let _tcActive = 0;
 let _tcLocked = false;
+// Nombre de jeux importés sans layout (alimenté par showNoLayoutSection dans
+// multi.js). Pilote l'apparition + le clignotement de l'onglet "Sans layout".
+window._noLayoutCount = window._noLayoutCount || 0;
 // backward-compat alias
 Object.defineProperty(window, '_leftPanelIdx', { get: () => _tcActive, set: v => { _tcActive = v; } });
 
@@ -208,11 +212,21 @@ function _tcUpdateTabs(idx) {
   });
 }
 
+// Dernier onglet navigable : exclut "Sans layout" (dernier panneau) tant qu'il
+// est masqué (aucun jeu sans layout) — sinon les flèches mèneraient à un slide vide.
+function _tcMaxIndex() {
+  const last = TC_PANELS.length - 1;
+  if (TC_PANELS[last] && TC_PANELS[last].icon === 'nolayout' && !(window._noLayoutCount > 0)) {
+    return last - 1;
+  }
+  return last;
+}
+
 function _tcUpdateArrows() {
   const prev = document.getElementById('tcPrev');
   const next = document.getElementById('tcNext');
   if (prev) prev.disabled = _tcActive === 0;
-  if (next) next.disabled = _tcActive === TC_PANELS.length - 1;
+  if (next) next.disabled = _tcActive >= _tcMaxIndex();
 }
 
 // Avant qu'un tournoi soit importé, on cache toutes les options sauf
@@ -229,13 +243,19 @@ function _tcRenderTabs() {
   const tabs = document.getElementById('tcTabs');
   if (!tabs) return;
   const hasImport = _tcHasAnyImport();
+  const noLayoutN = (window._noLayoutCount > 0) ? window._noLayoutCount : 0;
   tabs.innerHTML = TC_PANELS.map((p, i) => {
-    const isActive = i === _tcActive;
-    const hidden   = !hasImport && i !== 0;
+    const isActive   = i === _tcActive;
+    const isNoLayout = p.icon === 'nolayout';
+    // L'onglet "Sans layout" n'apparaît QUE s'il y a des jeux sans layout
+    // (sinon il serait vide), et il clignote pour inviter à les créer.
+    const hidden   = isNoLayout ? (noLayoutN <= 0) : (!hasImport && i !== 0);
     const hideCss  = hidden ? 'display:none;' : '';
+    const blinkCls = (isNoLayout && noLayoutN > 0) ? ' tc-tab-blink' : '';
     const accent   = isActive ? `border-color:${p.accent};box-shadow:0 2px 8px ${p.accent}33;` : '';
-    return `<button class="tc-tab-btn${isActive?' active':''}" data-idx="${i}" onclick="tcGo(${i})" title="${p.name}"
-        style="${hideCss}${accent}"><div style="width:28px;height:28px">${_iconSvgs[p.icon]||p.emoji}</div></button>`;
+    const badge    = (isNoLayout && noLayoutN > 0) ? `<span class="tc-tab-badge">${noLayoutN}</span>` : '';
+    return `<button class="tc-tab-btn${isActive?' active':''}${blinkCls}" data-idx="${i}" onclick="tcGo(${i})" title="${p.name}"
+        style="${hideCss}${accent}"><div style="width:28px;height:28px">${_iconSvgs[p.icon]||p.emoji}</div>${badge}</button>`;
   }).join('');
   // Les flèches prev/next n'ont aucun sens tant qu'on n'a qu'un seul panneau
   const prev = document.getElementById('tcPrev');
@@ -256,7 +276,7 @@ function tcInit() {
 }
 
 function tcGo(target) {
-  if (_tcLocked || target === _tcActive || target < 0 || target >= TC_PANELS.length) return;
+  if (_tcLocked || target === _tcActive || target < 0 || target > _tcMaxIndex()) return;
   const dir = target > _tcActive ? 'right' : 'left';
   _tcLocked = true;
 

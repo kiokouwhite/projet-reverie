@@ -291,11 +291,6 @@
                 </optgroup>
                 <optgroup label="🎨 Mes layouts" id="lmCustomOptGroup"></optgroup>
               </select>
-              <div id="noLayoutSection" class="nolayout-section" style="display:none;margin-bottom:12px;">
-                <div class="section-title" style="font-size:11px;">⚠️ Jeux sans layout</div>
-                <div class="nolayout-warning">Ces jeux ne comportent pas encore de layout. Crée un layout custom pour les utiliser !</div>
-                <div id="noLayoutList" class="nolayout-list"></div>
-              </div>
             </div>
 
             <!-- Slide Fond retiré : le fond est éditable via l'éditeur de
@@ -320,6 +315,16 @@
               <div class="lm-inline-layouts-wrap">
                 <button class="btn btn-primary lm-inline-new-btn" onclick="openLayoutMaker()">✨ Nouveau layout</button>
                 <div id="lmInlineLayoutsGrid" class="lm-inline-layouts-grid"></div>
+              </div>
+            </div>
+
+            <!-- Slide 4 : Jeux sans layout — onglet d'alerte qui clignote quand
+                 un import multi-jeux contient des jeux sans layout à créer. -->
+            <div class="left-slide" id="leftSlide4">
+              <div id="noLayoutSection" class="nolayout-section" style="display:none;margin-bottom:12px;">
+                <div class="section-title" style="font-size:11px;">⚠️ Jeux sans layout</div>
+                <div class="nolayout-warning">Ces jeux ne comportent pas encore de layout. Crée un layout custom pour les utiliser !</div>
+                <div id="noLayoutList" class="nolayout-list"></div>
               </div>
             </div>
 

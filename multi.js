@@ -884,13 +884,22 @@ function showNoLayoutSection(events) {
   // En format Magna : on n'a pas besoin de layout per-game, Magna utilise
   // son propre rendu unifié pour tous les jeux. On masque la section
   // "Jeux sans layout" peu importe les events détectés.
+  // Met à jour le compteur global + rafraîchit l'onglet "Sans layout"
+  // (apparition + clignotement) du carrousel de gauche.
+  const _refreshNoLayoutTab = (n) => {
+    window._noLayoutCount = n;
+    if (typeof _tcRenderTabs === 'function') _tcRenderTabs();
+  };
+
   if (typeof currentFormat !== 'undefined' && currentFormat === 'magna') {
     wrap.style.cssText = 'display:none !important';
+    _refreshNoLayoutTab(0);
     return;
   }
 
   if (!events || events.length === 0) {
     wrap.style.cssText = 'display:none !important';
+    _refreshNoLayoutTab(0);
     return;
   }
 
@@ -940,5 +949,6 @@ function showNoLayoutSection(events) {
   // Force visible
   wrap.removeAttribute('style');
   wrap.style.display = 'block';
+  _refreshNoLayoutTab(events.length);
   console.log('[showNoLayoutSection] section shown, display:', wrap.style.display);
 }
