@@ -1845,6 +1845,7 @@
             <div class="title-row"><span>Couleur</span><input type="color" id="lmShapeStrokeColor" value="#7769DD" oninput="lmSyncShape()" class="color-pick"></div>
             <div class="title-row"><span>Épaisseur</span><input type="range" min="0" max="20" step="0.5" id="lmShapeStrokeWidth" value="5" oninput="lmSyncShape()"><input type="number" min="0" max="20" step="0.5" value="5" style="width:52px;" oninput="document.getElementById('lmShapeStrokeWidth').value=this.value;lmSyncShape()"></div>
             <div class="title-row"><span>Fond carte</span><input type="color" id="lmShapeFillColor" value="#00000050" oninput="lmSyncShape()" class="color-pick"></div>
+            <div class="title-row"><span title="Jeux d'équipe : trait de séparation entre les persos d'un joueur + numéro (1, 2, 3) sur chaque zone.">Découper les persos</span><input type="checkbox" id="lmCharSplit" checked oninput="lmSyncShape()" style="margin-left:auto;width:18px;height:18px;cursor:pointer;accent-color:#7c5cff;"></div>
           </div>
           <!-- Conditional controls -->
           <div class="lm-block" id="lmCtrlRadius" style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">

@@ -228,6 +228,7 @@ const LM = {
   charsPerPlayer: 1,
   charImgsMulti: [[], [], []],   // images chargées (runtime) par slot
   charUrlsMulti: [[], [], []],   // URLs/dataURLs par slot (persisté)
+  charSplit: true,               // multi-persos : trait de séparation + n° par perso
 
   // Step 6 — Noms
   playerNames: ['','',''],
@@ -991,6 +992,9 @@ function lmSyncTitle(t) {
 // ── STEP 4 — FORME ─────────────────────────────────────────────────────────────
 function lmInitShapes() {
   lmInitSlotPositions();
+  // Reflète le toggle "découper les persos" à chaque entrée sur l'étape.
+  const cs = document.getElementById('lmCharSplit');
+  if (cs) cs.checked = LM.charSplit !== false;
   const grid = document.getElementById('lmShapeGrid');
   if (!grid || grid.dataset.ready) return;
   grid.dataset.ready = '1';
@@ -1135,6 +1139,8 @@ function lmSyncShape() {
   LM.strokeColor = getStr('lmShapeStrokeColor') || '#7769DD';
   LM.strokeWidth = syncRange('lmShapeStrokeWidth');
   LM.fillColor   = getStr('lmShapeFillColor') || 'transparent';
+  const splitEl = document.getElementById('lmCharSplit');
+  if (splitEl) LM.charSplit = splitEl.checked;
   lmRenderPreview();
 }
 
@@ -1582,6 +1588,7 @@ async function lmOpenForEdit(layoutId) {
   LM.charCrops     = (layout.charCrops || [{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2}]).map(c => ({...c}));
   // Multi-personnages : restaure le nombre + les URLs, puis recharge les images.
   LM.charsPerPlayer = layout.charsPerPlayer || 1;
+  LM.charSplit      = layout.charSplit !== false;
   LM.charUrlsMulti  = (layout.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]);
   LM.charImgsMulti  = [[], [], []];
   LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -1745,6 +1752,7 @@ async function lmFinishAndSave(silent, keepEdit) {
     charCrops:   LM.charCrops.map(c => ({...c})),
     charsPerPlayer: LM.charsPerPlayer || 1,
     charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
+    charSplit:      LM.charSplit !== false,
     nameStyle: {...LM.nameStyle},
     nameColors: [...LM.nameColors],
     playerNames: [...LM.playerNames],
@@ -2662,6 +2670,33 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       ctx.drawImage(im, left + k*stripW + (stripW - drawW)/2, top + (h - drawH)*0.25, drawW, drawH);
       ctx.restore();
     });
+    // Découpage : trait de séparation entre les persos + numéro du perso (1..n)
+    // centré en bas de chaque bande. Désactivable via cfg.charSplit.
+    if (n > 1 && cfg.charSplit !== false) {
+      ctx.save();
+      lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
+      // diviseurs verticaux
+      ctx.strokeStyle = cfg.strokeColor || '#7769DD';
+      ctx.lineWidth = Math.max(2, (cfg.strokeWidth || 4) * sc);
+      ctx.lineCap = 'round';
+      for (let k = 1; k < n; k++) {
+        const xd = left + k*stripW;
+        ctx.beginPath(); ctx.moveTo(xd, top); ctx.lineTo(xd, top + h); ctx.stroke();
+      }
+      // numéro du perso, centré en bas de chaque bande
+      const numSize = Math.min(stripW * 0.5, h * 0.3);
+      ctx.font = `900 ${Math.round(numSize)}px ${cfg.font || 'Montserrat'}, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.lineJoin = 'round';
+      for (let k = 0; k < n; k++) {
+        const xc = left + k*stripW + stripW/2, yc = top + h*0.93;
+        ctx.lineWidth = numSize * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+        ctx.strokeText(String(k+1), xc, yc);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(String(k+1), xc, yc);
+      }
+      ctx.restore();
+    }
   } else if (img) {
     ctx.save();
     lmMakeShapePath(ctx, slot, sc, cfg);
