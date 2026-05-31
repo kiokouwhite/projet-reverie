@@ -763,15 +763,11 @@ body.top8-no-import #pageTop8 #topPage {
    - Demi-largeur visible : 190px à partir du centre.
    - On colle le bouton juste à droite de ce bord visible : 190 + 8 = 198px.
    z-index 5 pour qu'il passe par-dessus le panel au lieu de rester tucké. */
-body.top8-no-import #topPage.main:not(.left-collapsed) .page-collapse-btn,
-body.top8-no-import #topPage:not(.left-collapsed) .page-collapse-btn {
-  left: calc(50% + 198px);
-  /* z-index 1 (au lieu de 5) : le bouton reste TUCKÉ derrière la carte
-     tarot — seule la partie qui dépasse à droite reste visible. Sinon
-     le bouton flotte au-dessus de la carte (vu sur top8-no-import).
-     :not(.left-collapsed) : en mode collapsed, on garde z-index 30
-     défini plus bas pour conserver la cliquabilité au bord gauche. */
-  z-index: 1;
+/* Avant tout import (empty state), on CACHE le bouton "replier le menu" : il
+   n'y a pas encore d'aperçu à révéler, donc replier n'aurait aucun sens.
+   Il réapparaît dès qu'un tournoi est importé (classe top8-no-import retirée). */
+body.top8-no-import #topPage .page-collapse-btn {
+  display: none !important;
 }
 
 /* ── TAROT CAROUSEL ─────────────────────────────────────── */
