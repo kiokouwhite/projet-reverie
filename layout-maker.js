@@ -229,6 +229,7 @@ const LM = {
   charImgsMulti: [[], [], []],   // images chargées (runtime) par slot
   charUrlsMulti: [[], [], []],   // URLs/dataURLs par slot (persisté)
   charSplit: true,               // multi-persos : trait de séparation + n° par perso
+  cuts: [],                      // découpe manuelle : lignes {x1,y1,x2,y2} en coords carte 0-1
 
   // Step 6 — Noms
   playerNames: ['','',''],
@@ -1589,6 +1590,7 @@ async function lmOpenForEdit(layoutId) {
   // Multi-personnages : restaure le nombre + les URLs, puis recharge les images.
   LM.charsPerPlayer = layout.charsPerPlayer || 1;
   LM.charSplit      = layout.charSplit !== false;
+  LM.cuts           = (layout.cuts || []).map(c => ({...c}));
   LM.charUrlsMulti  = (layout.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]);
   LM.charImgsMulti  = [[], [], []];
   LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -1753,6 +1755,7 @@ async function lmFinishAndSave(silent, keepEdit) {
     charsPerPlayer: LM.charsPerPlayer || 1,
     charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
     charSplit:      LM.charSplit !== false,
+    cuts:           (LM.cuts || []).map(c => ({...c})),
     nameStyle: {...LM.nameStyle},
     nameColors: [...LM.nameColors],
     playerNames: [...LM.playerNames],
@@ -2655,47 +2658,83 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   const _multiImgs = (cfg.charsPerPlayer > 1 && Array.isArray(cfg.charImgsMulti))
     ? (cfg.charImgsMulti[idx] || []).filter(Boolean) : [];
   if (_multiImgs.length) {
-    // Jeu d'ÉQUIPE : persos CÔTE À CÔTE. Chaque perso couvre sa bande verticale,
-    // découpé à la fois à sa bande ET à la forme de la carte (pas de débordement
-    // sur le voisin).
     const n = _multiImgs.length;
-    const left = cx - w/2, top = cy - h/2, stripW = w / n;
-    _multiImgs.forEach((im, k) => {
-      ctx.save();
-      lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();                 // forme de la carte
-      ctx.beginPath(); ctx.rect(left + k*stripW, top, stripW, h); ctx.clip(); // bande du perso
-      const scale = Math.max(stripW / im.naturalWidth, h / im.naturalHeight);
-      const drawW = im.naturalWidth * scale, drawH = im.naturalHeight * scale;
-      // centré horizontalement dans sa bande, biais vers le haut (visages).
-      ctx.drawImage(im, left + k*stripW + (stripW - drawW)/2, top + (h - drawH)*0.25, drawW, drawH);
-      ctx.restore();
-    });
-    // Découpage : trait de séparation entre les persos + numéro du perso (1..n)
-    // centré en bas de chaque bande. Désactivable via cfg.charSplit.
-    if (n > 1 && cfg.charSplit !== false) {
-      ctx.save();
-      lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
-      // diviseurs verticaux
-      ctx.strokeStyle = cfg.strokeColor || '#7769DD';
-      ctx.lineWidth = Math.max(2, (cfg.strokeWidth || 4) * sc);
-      ctx.lineCap = 'round';
-      for (let k = 1; k < n; k++) {
-        const xd = left + k*stripW;
-        ctx.beginPath(); ctx.moveTo(xd, top); ctx.lineTo(xd, top + h); ctx.stroke();
+    const left = cx - w/2, top = cy - h/2;
+    const cuts = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean) : []).slice(0, Math.max(0, n - 1));
+    if (cuts.length) {
+      // ── Découpe MANUELLE : lignes de coupe cliquées (coords carte 0-1) ──
+      const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
+      const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
+      // clip au demi-plan cross>0 (n=(-dy,dx)) d'une coupe (px).
+      const clipSidePos = (c) => {
+        const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
+        const ux=dx/len, uy=dy/len, nx=-uy, ny=ux, L=(Math.abs(w)+Math.abs(h))*4;
+        const ax=c.x1-ux*L, ay=c.y1-uy*L, bx=c.x2+ux*L, by=c.y2+uy*L;
+        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
+        ctx.lineTo(bx+nx*L, by+ny*L); ctx.lineTo(ax+nx*L, ay+ny*L); ctx.closePath(); ctx.clip();
+      };
+      // Persos en COUCHES : char k visible côté cross>0 de cut[k-1], recouvert par k+1.
+      _multiImgs.forEach((im, k) => {
+        ctx.save();
+        lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
+        if (k > 0 && cuts[k-1]) clipSidePos(cutPx(cuts[k-1]));
+        const scale = Math.max(w / im.naturalWidth, h / im.naturalHeight);
+        const dW = im.naturalWidth*scale, dH = im.naturalHeight*scale;
+        ctx.drawImage(im, cx - dW/2, top + (h - dH)*0.25, dW, dH);
+        ctx.restore();
+      });
+      if (cfg.charSplit !== false) {
+        // traits de coupe + numéros au centroïde de chaque région
+        ctx.save(); lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
+        ctx.strokeStyle = cfg.strokeColor || '#7769DD';
+        ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round';
+        const L=(Math.abs(w)+Math.abs(h))*4;
+        cuts.forEach(cu => { const c=cutPx(cu), dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
+          ctx.beginPath(); ctx.moveTo(c.x1-dx/len*L, c.y1-dy/len*L); ctx.lineTo(c.x2+dx/len*L, c.y2+dy/len*L); ctx.stroke(); });
+        const GS=18, sumX=new Array(n).fill(0), sumY=new Array(n).fill(0), cnt=new Array(n).fill(0);
+        const cpx = cuts.map(cutPx);
+        for (let gy=0; gy<GS; gy++) for (let gx=0; gx<GS; gx++) {
+          const px=left+(gx+0.5)/GS*w, py=top+(gy+0.5)/GS*h;
+          let vis=0; for (let k=1;k<n;k++) if (cpx[k-1] && crossPx(cpx[k-1],px,py)>0) vis=k;
+          sumX[vis]+=px; sumY[vis]+=py; cnt[vis]++;
+        }
+        const numSize=Math.min(w,h)*0.2;
+        ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+        for (let k=0;k<n;k++){ if(!cnt[k]) continue; const mx=sumX[k]/cnt[k], my=sumY[k]/cnt[k];
+          ctx.lineWidth=numSize*0.18; ctx.strokeStyle='rgba(0,0,0,0.82)'; ctx.strokeText(String(k+1),mx,my);
+          ctx.fillStyle='#ffffff'; ctx.fillText(String(k+1),mx,my); }
+        ctx.restore();
       }
-      // numéro du perso, centré en bas de chaque bande
-      const numSize = Math.min(stripW * 0.5, h * 0.3);
-      ctx.font = `900 ${Math.round(numSize)}px ${cfg.font || 'Montserrat'}, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.lineJoin = 'round';
-      for (let k = 0; k < n; k++) {
-        const xc = left + k*stripW + stripW/2, yc = top + h*0.93;
-        ctx.lineWidth = numSize * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.82)';
-        ctx.strokeText(String(k+1), xc, yc);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(String(k+1), xc, yc);
+    } else {
+      // ── Découpe AUTO : bandes verticales égales ──
+      const stripW = w / n;
+      _multiImgs.forEach((im, k) => {
+        ctx.save();
+        lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
+        ctx.beginPath(); ctx.rect(left + k*stripW, top, stripW, h); ctx.clip();
+        const scale = Math.max(stripW / im.naturalWidth, h / im.naturalHeight);
+        const drawW = im.naturalWidth * scale, drawH = im.naturalHeight * scale;
+        ctx.drawImage(im, left + k*stripW + (stripW - drawW)/2, top + (h - drawH)*0.25, drawW, drawH);
+        ctx.restore();
+      });
+      if (n > 1 && cfg.charSplit !== false) {
+        ctx.save();
+        lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
+        ctx.strokeStyle = cfg.strokeColor || '#7769DD';
+        ctx.lineWidth = Math.max(2, (cfg.strokeWidth || 4) * sc); ctx.lineCap = 'round';
+        for (let k = 1; k < n; k++) { const xd = left + k*stripW; ctx.beginPath(); ctx.moveTo(xd, top); ctx.lineTo(xd, top + h); ctx.stroke(); }
+        const numSize = Math.min(stripW * 0.5, h * 0.3);
+        ctx.font = `900 ${Math.round(numSize)}px ${cfg.font || 'Montserrat'}, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+        for (let k = 0; k < n; k++) {
+          const xc = left + k*stripW + stripW/2, yc = top + h*0.93;
+          ctx.lineWidth = numSize * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+          ctx.strokeText(String(k+1), xc, yc);
+          ctx.fillStyle = '#ffffff'; ctx.fillText(String(k+1), xc, yc);
+        }
+        ctx.restore();
       }
-      ctx.restore();
     }
   } else if (img) {
     ctx.save();
@@ -2870,6 +2909,89 @@ async function lmInitCoffreSelector() {
   // Rendu inline du slide 4 (remplace l'ancien coffre) — les images IDB
   // sont maintenant chargées, donc les thumbnails s'afficheront tout de suite.
   if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
+}
+
+// ── ÉDITEUR DE DÉCOUPE (multi-persos : tracer les lignes de coupe) ───────────
+// L'utilisateur clique 2 points pour tracer une ligne de coupe entre 2 persos.
+// N persos → N-1 coupes. Stocké dans LM.cuts (coords carte 0-1) ; appliqué à
+// chaque carte (rendu en couches, cf. lmDrawOneSlot).
+const LM_CE = { pending: null, SIZE: 360, MARGIN: 22, get DRAW() { return this.SIZE - 2*this.MARGIN; } };
+
+function lmCEMax() { return Math.max(0, (LM.charsPerPlayer || 1) - 1); }
+
+function lmOpenCutEditor() {
+  const modal = document.getElementById('lmCutModal');
+  if (!modal) return;
+  if (!Array.isArray(LM.cuts)) LM.cuts = [];
+  LM_CE.pending = null;
+  modal.style.display = 'flex';
+  const cv = document.getElementById('lmCutCanvas');
+  if (cv) {
+    cv.width = LM_CE.SIZE; cv.height = LM_CE.SIZE;
+    cv.onmousedown  = lmCEClick;
+    cv.ontouchstart = (e) => { e.preventDefault(); const t = e.touches[0]; lmCEClick({ clientX: t.clientX, clientY: t.clientY }); };
+  }
+  lmCEUpdateHint(); lmCEDraw();
+}
+function lmCutClose() { const m = document.getElementById('lmCutModal'); if (m) m.style.display = 'none'; LM_CE.pending = null; lmRenderPreview(); }
+function lmCutClear() { LM.cuts = []; LM_CE.pending = null; lmCEUpdateHint(); lmCEDraw(); lmRenderPreview(); }
+window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window.lmCutClear = lmCutClear;
+
+function lmCEUpdateHint() {
+  const h = document.getElementById('lmCutHint'); if (!h) return;
+  const max = lmCEMax(), cur = (LM.cuts || []).length;
+  if (max < 1) h.innerHTML = '⚠️ Règle d\'abord <strong>2 persos ou +</strong> par joueur (étape « Images des personnages ») pour pouvoir découper.';
+  else if (cur >= max) h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. « Effacer » pour recommencer.`;
+  else h.innerHTML = `🖱️ Clique <strong>2 points</strong> pour tracer la découpe ${cur+1}/${max}.` + (LM_CE.pending ? ' <em>(1er point posé)</em>' : '');
+}
+function lmCEPos(e) {
+  const cv = document.getElementById('lmCutCanvas'); const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (cv.width / r.width), y = (e.clientY - r.top) * (cv.height / r.height);
+  return { nx: (x - LM_CE.MARGIN) / LM_CE.DRAW, ny: (y - LM_CE.MARGIN) / LM_CE.DRAW };
+}
+function lmCEClick(e) {
+  if (lmCEMax() < 1 || (LM.cuts || []).length >= lmCEMax()) return;
+  const p = lmCEPos(e);
+  const nx = Math.max(0, Math.min(1, p.nx)), ny = Math.max(0, Math.min(1, p.ny));
+  if (!LM_CE.pending) { LM_CE.pending = { x: nx, y: ny }; }
+  else {
+    LM.cuts.push({ x1: LM_CE.pending.x, y1: LM_CE.pending.y, x2: nx, y2: ny });
+    LM_CE.pending = null;
+    lmRenderPreview();
+  }
+  lmCEUpdateHint(); lmCEDraw();
+}
+function lmCEDraw() {
+  const cv = document.getElementById('lmCutCanvas'); if (!cv) return;
+  const ctx = cv.getContext('2d'); const S = LM_CE.SIZE, M = LM_CE.MARGIN, D = LM_CE.DRAW;
+  ctx.clearRect(0, 0, S, S);
+  const slot = { cx: S/2, cy: S/2, w: D, h: D };
+  const n = LM.charsPerPlayer || 1;
+  const cuts = (LM.cuts || []).filter(Boolean);
+  const left = M, top = M, w = D, h = D;
+  const TINTS = ['rgba(255,90,90,0.5)','rgba(90,200,120,0.5)','rgba(90,150,255,0.5)','rgba(240,200,80,0.5)'];
+  const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
+  const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
+  const clipSidePos = (c) => { const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,nx=-uy,ny=ux,L=(w+h)*4;
+    const ax=c.x1-ux*L,ay=c.y1-uy*L,bx=c.x2+ux*L,by=c.y2+uy*L;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineTo(bx+nx*L,by+ny*L);ctx.lineTo(ax+nx*L,ay+ny*L);ctx.closePath();ctx.clip(); };
+  // fond de la forme
+  ctx.save(); lmMakeShapePath(ctx, slot, 1, LM); ctx.fillStyle = '#241640'; ctx.fill(); ctx.restore();
+  // régions teintées (couches)
+  for (let k=0;k<n;k++){ ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); if(k>0&&cuts[k-1]) clipSidePos(cutPx(cuts[k-1])); ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
+  // traits de coupe
+  ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; const L=(w+h)*4;
+  cuts.forEach(cu=>{const c=cutPx(cu),dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1;ctx.beginPath();ctx.moveTo(c.x1-dx/len*L,c.y1-dy/len*L);ctx.lineTo(c.x2+dx/len*L,c.y2+dy/len*L);ctx.stroke();});
+  ctx.restore();
+  // contour de la forme
+  ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.strokeStyle='#7c5cff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore();
+  // numéros aux centroïdes
+  const cpx=cuts.map(cutPx), GS=18, sx=new Array(n).fill(0), sy=new Array(n).fill(0), cn=new Array(n).fill(0);
+  for(let gy=0;gy<GS;gy++)for(let gx=0;gx<GS;gx++){const px=left+(gx+0.5)/GS*w,py=top+(gy+0.5)/GS*h;let vis=0;for(let k=1;k<n;k++)if(cpx[k-1]&&crossPx(cpx[k-1],px,py)>0)vis=k;sx[vis]+=px;sy[vis]+=py;cn[vis]++;}
+  ctx.font='900 26px Montserrat, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+  for(let k=0;k<n;k++){if(!cn[k])continue;const mx=sx[k]/cn[k],my=sy[k]/cn[k];ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,0.85)';ctx.strokeText(String(k+1),mx,my);ctx.fillStyle='#fff';ctx.fillText(String(k+1),mx,my);}
+  // point en attente
+  if(LM_CE.pending){const px=left+LM_CE.pending.x*w,py=top+LM_CE.pending.y*h;ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fillStyle='#ffd34d';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();}
 }
 
 // Download current LM preview at 1400px

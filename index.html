@@ -1839,6 +1839,7 @@
           <div class="lm-block">
             <div class="lm-block-title">🎴 Forme des cartes</div>
             <div id="lmShapeGrid" class="lm-shape-grid"></div>
+            <button class="btn lm-btn-bg-quick" style="width:100%;margin-top:10px;padding:9px 14px;" onclick="lmOpenCutEditor()" title="Jeux d'équipe : trace des lignes de découpe pour répartir les persos dans la carte. Chaque zone porte le numéro du perso.">✂️ Découper la carte (multi-persos)</button>
           </div>
           <div class="lm-block" style="margin-top:8px;">
             <div class="lm-block-title">🎨 Style des contours</div>
@@ -2237,6 +2238,26 @@
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- POLYGON EDITOR MODAL                                                   -->
 <!-- ══════════════════════════════════════════════════════════════════════ -->
+<div id="lmCutModal" class="lm-poly-modal-bg" style="display:none;" onclick="if(event.target===this)lmCutClose()">
+  <div class="lm-poly-editor" style="max-width:460px;">
+    <div class="lm-poly-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">✂️</span>
+        <span class="lm-poly-title">Découper la carte</span>
+      </div>
+      <button class="btn btn-icon" onclick="lmCutClose()">✕</button>
+    </div>
+    <div class="lm-poly-body" style="flex-direction:column;align-items:center;gap:14px;padding:18px;">
+      <div class="lm-poly-hint" id="lmCutHint" style="text-align:center;max-width:360px;">🖱️ Clique <strong>2 points</strong> pour tracer une découpe.</div>
+      <canvas id="lmCutCanvas" style="border-radius:12px;background:#1a1030;cursor:crosshair;"></canvas>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" onclick="lmCutClear()">↺ Effacer les découpes</button>
+        <button class="btn btn-primary" onclick="lmCutClose()">✅ Valider</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="lmPolyModal" class="lm-poly-modal-bg" style="display:none;" onclick="if(event.target===this)lmPolyClose()">
   <div class="lm-poly-editor">
 
