@@ -1321,7 +1321,6 @@ function lmInitRanks() {
   setV('lmRankSc', rs.strokeColor);
   setV('lmRankSw', rs.strokeWidth);
   setV('lmRsRot', rs.rotation || 0);
-  setV('lmRsSp', rs.spacing || 0);
   // Per-rank (per-slot)
   [0,1,2].forEach(i => {
     setV(`lmRankLabel${i}`,  LM.rankLabels[i]);
@@ -1329,6 +1328,10 @@ function lmInitRanks() {
     setV(`lmRankSize${i}`,   LM.slots[i].rankSize);
     setV(`lmRankX${i}`,      LM.slots[i].rankX);
     setV(`lmRankY${i}`,      LM.slots[i].rankY);
+    // Espacement par rang. Migration : si un ancien réglage global (rs.spacing)
+    // existe et que le rang n'a pas encore le sien, on le reprend.
+    const _rsp = (LM.slots[i].rankSpacing != null) ? LM.slots[i].rankSpacing : (rs.spacing || 0);
+    setV(`lmRankSp${i}`,     _rsp);
   });
   // Highlight active weight button
   document.querySelectorAll('.lm-rw-btn').forEach(b =>
@@ -1354,13 +1357,13 @@ function lmSyncRanks() {
   rs.strokeColor = g('lmRankSc') || '#000000';
   rs.strokeWidth = syncRange('lmRankSw');
   rs.rotation    = syncRange('lmRsRot');
-  rs.spacing     = syncRange('lmRsSp');
   [0,1,2].forEach(i => {
-    LM.rankLabels[i]     = g(`lmRankLabel${i}`)  || String(i+1);
-    LM.rankColors[i]     = g(`lmRankColor${i}`)  || '#ffffff';
-    LM.slots[i].rankSize = syncRange(`lmRankSize${i}`) || 80;
-    LM.slots[i].rankX    = syncRange(`lmRankX${i}`);
-    LM.slots[i].rankY    = syncRange(`lmRankY${i}`);
+    LM.rankLabels[i]        = g(`lmRankLabel${i}`)  || String(i+1);
+    LM.rankColors[i]        = g(`lmRankColor${i}`)  || '#ffffff';
+    LM.slots[i].rankSize    = syncRange(`lmRankSize${i}`) || 80;
+    LM.slots[i].rankX       = syncRange(`lmRankX${i}`);
+    LM.slots[i].rankY       = syncRange(`lmRankY${i}`);
+    LM.slots[i].rankSpacing = syncRange(`lmRankSp${i}`);
   });
   lmUpdateRankLabelPreviews();
   lmRenderPreview();
@@ -2384,7 +2387,9 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     : ((cfg.rankLabels || ['1ER','2ÈME','3ÈME'])[idx] || String(idx + 1));
   ctx.font = `${rankWeight} ${Math.round((slot.rankSize||80)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.letterSpacing = `${(rs.spacing||0)*sc}px`;
+  // Espacement par rang (slot.rankSpacing) ; repli sur l'ancien global rs.spacing.
+  const _rsp = (slot.rankSpacing != null) ? slot.rankSpacing : (rs.spacing || 0);
+  ctx.letterSpacing = `${_rsp*sc}px`;
   ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 6*sc;
   // Zone de texte : rankX = bord GAUCHE de la zone, largeur = rankMaxW (par défaut
   // = largeur naturelle du label → place inchangée par rapport à l'ancien rendu
