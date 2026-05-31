@@ -155,10 +155,9 @@ let currentCharSlot = 1; // 1 = perso principal, 2 = perso secondaire (2XKO)
 // custom). Renumérotation : Joueurs passe en III, Layouts en IV.
 const TC_PANELS = [
   { label: 'Import',   roman: 'I',   accent: '#7c5cff', emoji: '🟢', name: 'Import start.gg',       icon: 'import' },
-  { label: 'Réglages', roman: 'II',  accent: '#f0a020', emoji: '⚙️', name: 'Paramètres',            icon: 'settings' },
-  { label: 'Joueurs',  roman: 'III', accent: '#46d18f', emoji: '👥', name: 'Joueurs & Personnages', icon: 'players' },
-  { label: 'Layouts',  roman: 'IV',  accent: '#9a7aff', emoji: '🎨', name: 'Layouts Custom',        icon: 'layouts' },
-  { label: 'Sans layout', roman: 'V', accent: '#ff5c8a', emoji: '⚠️', name: 'Jeux sans layout',     icon: 'nolayout' },
+  { label: 'Joueurs',  roman: 'II',  accent: '#46d18f', emoji: '👥', name: 'Options & Joueurs',     icon: 'players' },
+  { label: 'Layouts',  roman: 'III', accent: '#9a7aff', emoji: '🎨', name: 'Layouts Custom',        icon: 'layouts' },
+  { label: 'Sans layout', roman: 'IV', accent: '#ff5c8a', emoji: '⚠️', name: 'Jeux sans layout',    icon: 'nolayout' },
 ];
 
 let _tcActive = 0;

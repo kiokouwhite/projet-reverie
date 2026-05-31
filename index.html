@@ -241,7 +241,10 @@
             </div>
 
             <!-- Slide 1 : Paramètres -->
+            <!-- Slide 1 : Options du tournoi + Joueurs & Personnages (fusionnés :
+                 Format + Nom du tournoi en haut, puis les cartes joueurs). -->
             <div class="left-slide" id="leftSlide1">
+              <div id="mergedSettings">
               <!-- Sélecteur de format graphique : Lorem (classique per-game)
                    vs Magna (format multi-jeux adaptatif). Le format change
                    le RENDU du Top 8 indépendamment du jeu : Magna utilise
@@ -268,6 +271,7 @@
                           style="flex:0 0 36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-weight:800;cursor:pointer;">+</button>
                 </div>
               </div>
+              </div><!-- /#mergedSettings -->
               <!-- Champ "Jeu" RETIRÉ de l'affichage : le jeu est désormais
                    déterminé automatiquement par l'import start.gg, donc le
                    sélecteur manuel n'est plus nécessaire. On CONSERVE #gameSelect
@@ -290,6 +294,8 @@
                   <optgroup label="🎨 Mes layouts" id="lmCustomOptGroup"></optgroup>
                 </select>
               </div>
+              <!-- Joueurs & Personnages (fusionnés sous les options ci-dessus) -->
+              <div class="slots-grid" id="slotsGrid"></div>
             </div>
 
             <!-- Slide Fond retiré : le fond est éditable via l'éditeur de
@@ -303,23 +309,16 @@
               </div>
             </div>
 
-            <!-- Slide 2 : Joueurs & Personnages (anciennement slide 3) -->
+            <!-- Slide 2 : Layouts Custom -->
             <div class="left-slide" id="leftSlide2">
-              <div class="slots-grid" id="slotsGrid"></div>
-            </div>
-
-            <!-- Slide 3 : Layouts Custom (anciennement slide 4, et avant ça
-                 "coffre", remplacé par une liste inline dans la télé). -->
-            <div class="left-slide" id="leftSlide3">
               <div class="lm-inline-layouts-wrap">
                 <button class="btn btn-primary lm-inline-new-btn" onclick="openLayoutMaker()">✨ Nouveau layout</button>
                 <div id="lmInlineLayoutsGrid" class="lm-inline-layouts-grid"></div>
               </div>
             </div>
 
-            <!-- Slide 4 : Jeux sans layout — onglet d'alerte qui clignote quand
-                 un import multi-jeux contient des jeux sans layout à créer. -->
-            <div class="left-slide" id="leftSlide4">
+            <!-- Slide 3 : Jeux sans layout — onglet d'alerte clignotant. -->
+            <div class="left-slide" id="leftSlide3">
               <div id="noLayoutSection" class="nolayout-section" style="display:none;margin-bottom:12px;">
                 <div class="section-title" style="font-size:11px;">⚠️ Jeux sans layout</div>
                 <div class="nolayout-warning">Ces jeux ne comportent pas encore de layout. Crée un layout custom pour les utiliser !</div>

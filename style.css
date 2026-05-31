@@ -1265,21 +1265,25 @@ body.top8-no-import #topPage:not(.left-collapsed) .page-collapse-btn {
   margin-bottom: 5px;
 }
 
-/* Panneau Paramètres : tout centré (labels + champs), bloc resserré au milieu.
-   Scopé à #leftSlide1 pour ne pas affecter les autres slides (Joueurs, etc.). */
-#leftSlide1 {
-  align-items: center;   /* override du align-items:stretch de .left-slide */
+/* Options du tournoi (Format + Nom) fusionnées en haut du panneau Joueurs :
+   bloc centré et resserré, posé AU-DESSUS de la grille des joueurs. Scopé à
+   #mergedSettings pour ne pas centrer la grille des slots en dessous. */
+#mergedSettings {
   text-align: center;
+  margin-bottom: 16px;
 }
-#leftSlide1 .field-label { text-align: center; width: 100%; }
-#leftSlide1 #formatSelect,
-#leftSlide1 #tournamentName,
-#leftSlide1 #magnaCountWrap {
+#mergedSettings .field-label { text-align: center; }
+#mergedSettings #formatSelect,
+#mergedSettings #tournamentName,
+#mergedSettings #magnaCountWrap {
+  display: block;
   width: 100%;
   max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
 }
-#leftSlide1 #formatSelect,
-#leftSlide1 #tournamentName {
+#mergedSettings #formatSelect,
+#mergedSettings #tournamentName {
   text-align: center;
   text-align-last: center;  /* centre aussi l'option affichée du <select> */
 }

@@ -1693,8 +1693,8 @@ function lmCloseCelebration() {
   // et on bascule sur le slide 4 (Layouts Custom) si possible.
   if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
   if (typeof tcGo === 'function') {
-    // Slide Layouts Custom = index 3 (anciennement 4 avant retrait de "Fond")
-    try { tcGo(3); } catch(e) {}
+    // Slide Layouts Custom = index 2 (après fusion Paramètres dans Joueurs)
+    try { tcGo(2); } catch(e) {}
   }
 }
 
