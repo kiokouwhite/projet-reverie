@@ -1321,6 +1321,7 @@ function lmInitRanks() {
   setV('lmRankSc', rs.strokeColor);
   setV('lmRankSw', rs.strokeWidth);
   setV('lmRsRot', rs.rotation || 0);
+  setV('lmRsSp', rs.spacing || 0);
   // Per-rank (per-slot)
   [0,1,2].forEach(i => {
     setV(`lmRankLabel${i}`,  LM.rankLabels[i]);
@@ -1353,6 +1354,7 @@ function lmSyncRanks() {
   rs.strokeColor = g('lmRankSc') || '#000000';
   rs.strokeWidth = syncRange('lmRankSw');
   rs.rotation    = syncRange('lmRsRot');
+  rs.spacing     = syncRange('lmRsSp');
   [0,1,2].forEach(i => {
     LM.rankLabels[i]     = g(`lmRankLabel${i}`)  || String(i+1);
     LM.rankColors[i]     = g(`lmRankColor${i}`)  || '#ffffff';
@@ -2381,33 +2383,38 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ? String(idx + 1)
     : ((cfg.rankLabels || ['1ER','2ÈME','3ÈME'])[idx] || String(idx + 1));
   ctx.font = `${rankWeight} ${Math.round((slot.rankSize||80)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.letterSpacing = `${(rs.spacing||0)*sc}px`;
   ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 6*sc;
-  // Rotation des classements (autour de leur ancre rankX/rankY).
+  // Zone de texte : rankX = bord GAUCHE de la zone, largeur = rankMaxW (par défaut
+  // = largeur naturelle du label → place inchangée par rapport à l'ancien rendu
+  // aligné à gauche). Le texte est CENTRÉ dans la zone (centre = rankX+zone/2),
+  // donc en étirant la zone le classement se recentre au lieu de rester collé à
+  // gauche. La largeur est passée en maxWidth → le texte se condense s'il dépasse.
+  const _rnat = ctx.measureText(rankLabel).width / sc;   // largeur naturelle (REF, espacement inclus)
+  const _rmw  = slot.rankMaxW || Math.max(40, _rnat);    // zone (REF)
+  const _rcx  = slot.rankX + _rmw / 2;                   // centre de la zone (REF)
+  // Rotation des classements (autour du centre de la zone / ligne de base).
   const _rrot = (rs.rotation || 0) * Math.PI / 180;
   ctx.save();
-  if (_rrot) { ctx.translate(slot.rankX*sc, slot.rankY*sc); ctx.rotate(_rrot); }
-  const _rdx = _rrot ? 0 : slot.rankX*sc, _rdy = _rrot ? 0 : slot.rankY*sc;
-  const _rmw = slot.rankMaxW || 0;   // zone de texte (largeur dispo) ; 0 = naturelle
+  if (_rrot) { ctx.translate(_rcx*sc, slot.rankY*sc); ctx.rotate(_rrot); }
+  const _rdx = _rrot ? 0 : _rcx*sc, _rdy = _rrot ? 0 : slot.rankY*sc;
   if ((rs.strokeWidth||0) > 0) {
     ctx.strokeStyle = rs.strokeColor || '#000';
     ctx.lineWidth = rs.strokeWidth * sc;
     ctx.lineJoin = 'round';
-    if (_rmw > 0) ctx.strokeText(rankLabel, _rdx, _rdy, _rmw*sc);
-    else          ctx.strokeText(rankLabel, _rdx, _rdy);
+    ctx.strokeText(rankLabel, _rdx, _rdy, _rmw*sc);
   }
   ctx.fillStyle = numColor;
-  if (_rmw > 0) ctx.fillText(rankLabel, _rdx, _rdy, _rmw*sc);
-  else          ctx.fillText(rankLabel, _rdx, _rdy);
+  ctx.fillText(rankLabel, _rdx, _rdy, _rmw*sc);
   ctx.restore();
-  // Capture du classement pour la poignée de manipulation (aligné à gauche).
-  // maxW = zone de texte si définie, sinon largeur naturelle du label → la boîte
-  // épouse le label tant qu'aucune zone n'a été étirée.
+  // Capture pour la poignée : boîte = [rankX, rankX+zone] (bord gauche = rankX) ;
+  // le texte y est centré (l'overlay tourne autour du centre de la boîte).
   if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
     kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
-    maxW: slot.rankMaxW || Math.max(40, ctx.measureText(rankLabel).width / sc),
-    rot: rs.rotation || 0, align: 'left',
+    maxW: _rmw, rot: rs.rotation || 0, align: 'left',
   });
+  ctx.letterSpacing = '0px';
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
   // Name

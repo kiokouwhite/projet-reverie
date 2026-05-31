@@ -78,8 +78,8 @@
   function boxFromDesc(d) {
     const padY = d.size * 0.18;
     const hRef = d.size * 1.15 + padY * 2;
-    // Les classements sont alignés à gauche (ancre = bord gauche) ; titres et
-    // pseudos sont centrés (ancre = centre).
+    // Boîte : pour les classements, rankX est le bord GAUCHE de la zone (align
+    // 'left') ; titres et pseudos sont centrés sur leur ancre (bord = cx-maxW/2).
     const leftAlign = d.align === 'left';
     const leftRef = leftAlign ? d.cx : (d.cx - d.maxW / 2);
     return {
@@ -88,9 +88,10 @@
       w:    d.maxW / REF * 100,
       h:    hRef / REF * 100,
       rot:  d.rot || 0,                               // rotation du texte (deg)
-      // Ancre de rotation = point de dessin du texte (x selon l'alignement,
-      // y = ligne de base) → la boîte tourne autour du même point que le texte.
-      originX: leftAlign ? 0 : 50,
+      // Le texte est TOUJOURS centré horizontalement dans sa boîte (titres,
+      // pseudos ET classements centrés dans leur zone) → l'origine de rotation
+      // X est au centre de la boîte ; Y sur la ligne de base.
+      originX: 50,
       originY: (d.size * 0.92 + padY) / hRef * 100,
     };
   }
@@ -180,13 +181,16 @@
       if (_drag.mode === 'move') {
         _drag.ref.rankX = clamp(_drag.x0 + dxRef, 0, REF);
         _drag.ref.rankY = clamp(_drag.y0 + dyRef, 0, REF);
+      } else if (_drag.mode === 'zoneE') {
+        // Bord DROIT : largeur = largeur0 + dx (bord gauche figé sur rankX).
+        _drag.ref.rankMaxW = clamp(Math.round(_drag.maxW0 + dxRef), 40, REF);
       } else {
-        // Poignées latérales → étire la ZONE de texte (et non la taille de police),
-        // comme pour les titres/pseudos. Le classement est aligné à gauche : son
-        // bord gauche reste figé sur rankX, donc la largeur varie de 1× le
-        // déplacement (≠ centré qui varie de 2×).
-        const nw = _drag.mode === 'zoneE' ? _drag.maxW0 + dxRef : _drag.maxW0 - dxRef;
-        _drag.ref.rankMaxW = clamp(Math.round(nw), 40, REF);
+        // Bord GAUCHE : on déplace rankX et on ajuste la largeur pour figer le
+        // bord droit → le texte (centré) reste entre les deux bords.
+        const right = _drag.x0 + _drag.maxW0;
+        const newX  = clamp(_drag.x0 + dxRef, 0, right - 40);
+        _drag.ref.rankX    = newX;
+        _drag.ref.rankMaxW = clamp(Math.round(right - newX), 40, REF);
       }
     } else {
       if (_drag.mode === 'move') {
