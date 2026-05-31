@@ -2961,19 +2961,33 @@ async function lmInitCoffreSelector() {
 // L'utilisateur clique 2 points pour tracer une ligne de coupe entre 2 persos.
 // N persos → N-1 coupes. Stocké dans LM.cuts (coords carte 0-1) ; appliqué à
 // chaque carte (rendu en couches, cf. lmDrawOneSlot).
-const LM_CE = { pending: null, MAX_CUTS: 4, SIZE: 360, MARGIN: 22, get DRAW() { return this.SIZE - 2*this.MARGIN; } };
+const LM_CE = { pending: null, selected: -1, drag: null, MAX_CUTS: 4, SIZE: 360, MARGIN: 22, get DRAW() { return this.SIZE - 2*this.MARGIN; } };
+
+// Distance (coords carte 0-1) d'un point au SEGMENT d'une découpe.
+function lmCEDistSeg(px, py, c) {
+  const dx=c.x2-c.x1, dy=c.y2-c.y1, l2=dx*dx+dy*dy;
+  let t = l2 ? ((px-c.x1)*dx + (py-c.y1)*dy)/l2 : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px-(c.x1+t*dx), py-(c.y1+t*dy));
+}
+// Index de la découpe la plus proche du clic (sous le seuil), sinon -1.
+function lmCEHitCut(nx, ny) {
+  const cuts = LM.cuts || []; let best = -1, bestD = 0.05;
+  for (let i=0;i<cuts.length;i++){ const d = lmCEDistSeg(nx, ny, cuts[i]); if (d < bestD) { bestD = d; best = i; } }
+  return best;
+}
 
 function lmOpenCutEditor() {
   const modal = document.getElementById('lmCutModal');
   if (!modal) return;
   if (!Array.isArray(LM.cuts)) LM.cuts = [];
-  LM_CE.pending = null;
+  LM_CE.pending = null; LM_CE.selected = -1; LM_CE.drag = null;
   modal.style.display = 'flex';
   const cv = document.getElementById('lmCutCanvas');
   if (cv) {
     cv.width = LM_CE.SIZE; cv.height = LM_CE.SIZE;
-    cv.onmousedown  = lmCEClick;
-    cv.ontouchstart = (e) => { e.preventDefault(); const t = e.touches[0]; lmCEClick({ clientX: t.clientX, clientY: t.clientY }); };
+    cv.onmousedown   = lmCEClick;
+    cv.oncontextmenu = (e) => { e.preventDefault(); lmCEDeleteAt(e); };  // clic droit = supprimer la découpe
+    cv.ontouchstart  = (e) => { e.preventDefault(); const t = e.touches[0]; lmCEClick({ clientX: t.clientX, clientY: t.clientY }); };
   }
   const gapEl = document.getElementById('lmCutGap');
   if (gapEl) { gapEl.value = LM.cutGap || 0; const num = gapEl.nextElementSibling; if (num && num.type === 'number') num.value = LM.cutGap || 0; }
@@ -2991,10 +3005,11 @@ window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window
 function lmCEUpdateHint() {
   const h = document.getElementById('lmCutHint'); if (!h) return;
   const cur = (LM.cuts || []).length;
+  const edit = cur ? '<br><span style="opacity:.8">↔️ Glisse une ligne pour la déplacer • clic droit dessus pour la supprimer.</span>' : '';
   if (LM_CE.pending) { h.innerHTML = '🖱️ Clique le <strong>2e point</strong> de la découpe.'; return; }
-  if (cur >= LM_CE.MAX_CUTS) { h.innerHTML = `✅ ${cur} découpes → ${cur+1} zones (max). « Effacer » pour recommencer.`; return; }
+  if (cur >= LM_CE.MAX_CUTS) { h.innerHTML = `✅ ${cur} découpes → ${cur+1} zones (max).` + edit; return; }
   if (cur === 0) h.innerHTML = '🖱️ Clique <strong>2 points</strong> pour tracer une découpe (→ 2 zones).';
-  else h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. Clique encore <strong>2 points</strong> pour ajouter une zone.`;
+  else h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. Clique <strong>2 points</strong> pour en ajouter.` + edit;
 }
 function lmCEPos(e) {
   const cv = document.getElementById('lmCutCanvas'); const r = cv.getBoundingClientRect();
@@ -3002,20 +3017,54 @@ function lmCEPos(e) {
   return { nx: (x - LM_CE.MARGIN) / LM_CE.DRAW, ny: (y - LM_CE.MARGIN) / LM_CE.DRAW };
 }
 function lmCEClick(e) {
-  if ((LM.cuts || []).length >= LM_CE.MAX_CUTS) return;   // limite raisonnable
   const p = lmCEPos(e);
   const nx = Math.max(0, Math.min(1, p.nx)), ny = Math.max(0, Math.min(1, p.ny));
+  // Clic SUR une découpe existante (et pas en train de poser un point) → on la
+  // sélectionne et on démarre son déplacement (glisser).
+  if (!LM_CE.pending) {
+    const hit = lmCEHitCut(nx, ny);
+    if (hit >= 0) {
+      LM_CE.selected = hit;
+      LM_CE.drag = { idx: hit, startX: nx, startY: ny, cut0: { ...LM.cuts[hit] } };
+      window.addEventListener('mousemove', lmCEDragMove);
+      window.addEventListener('mouseup', lmCEDragUp, { once: true });
+      lmCEUpdateHint(); lmCEDraw();
+      return;
+    }
+  }
+  // Sinon : ajout d'une découpe (2 points).
+  if ((LM.cuts || []).length >= LM_CE.MAX_CUTS && !LM_CE.pending) return;
   if (!LM_CE.pending) { LM_CE.pending = { x: nx, y: ny }; }
   else {
     LM.cuts.push({ x1: LM_CE.pending.x, y1: LM_CE.pending.y, x2: nx, y2: ny });
-    LM_CE.pending = null;
-    // Chaque découpe ajoute une ZONE → autant de persos. On remonte le compteur
-    // et on (re)charge le perso de la nouvelle zone depuis start.gg si dispo.
+    LM_CE.pending = null; LM_CE.selected = LM.cuts.length - 1;
     LM.charsPerPlayer = Math.max(LM.charsPerPlayer || 1, LM.cuts.length + 1);
     if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
     lmRenderPreview();
   }
   lmCEUpdateHint(); lmCEDraw();
+}
+function lmCEDragMove(e) {
+  if (!LM_CE.drag) return;
+  const p = lmCEPos(e);
+  const c0 = LM_CE.drag.cut0;
+  // translation rigide, bornée pour garder les 2 extrémités dans la carte
+  let dx = (Math.max(0,Math.min(1,p.nx))) - LM_CE.drag.startX;
+  let dy = (Math.max(0,Math.min(1,p.ny))) - LM_CE.drag.startY;
+  dx = Math.max(-Math.min(c0.x1,c0.x2), Math.min(1-Math.max(c0.x1,c0.x2), dx));
+  dy = Math.max(-Math.min(c0.y1,c0.y2), Math.min(1-Math.max(c0.y1,c0.y2), dy));
+  LM.cuts[LM_CE.drag.idx] = { x1:c0.x1+dx, y1:c0.y1+dy, x2:c0.x2+dx, y2:c0.y2+dy };
+  lmCEDraw(); lmRenderPreview();
+}
+function lmCEDragUp() { window.removeEventListener('mousemove', lmCEDragMove); LM_CE.drag = null; lmCEUpdateHint(); }
+function lmCEDeleteAt(e) {
+  const p = lmCEPos(e);
+  const hit = lmCEHitCut(Math.max(0,Math.min(1,p.nx)), Math.max(0,Math.min(1,p.ny)));
+  if (hit < 0) return;
+  LM.cuts.splice(hit, 1);
+  LM_CE.selected = -1; LM_CE.pending = null;
+  LM.charsPerPlayer = Math.max(1, LM.cuts.length + 1);
+  lmCEUpdateHint(); lmCEDraw(); lmRenderPreview();
 }
 function lmCEDraw() {
   const cv = document.getElementById('lmCutCanvas'); if (!cv) return;
@@ -3054,6 +3103,14 @@ function lmCEDraw() {
   // numéros aux centroïdes des régions
   ctx.font='900 26px Montserrat, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
   for(let k=0;k<n;k++){const c=toPx(lmPolyCentroid(regions[k]));ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,0.85)';ctx.strokeText(String(k+1),c.x,c.y);ctx.fillStyle='#fff';ctx.fillText(String(k+1),c.x,c.y);}
+  // découpe SÉLECTIONNÉE : segment surligné + poignées (déplaçable / clic droit = supprimer)
+  if (LM_CE.selected>=0 && cuts[LM_CE.selected]) {
+    const c=cuts[LM_CE.selected], a=toPx({x:c.x1,y:c.y1}), b=toPx({x:c.x2,y:c.y2});
+    ctx.save(); ctx.strokeStyle='#ffd34d'; ctx.lineWidth=3; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.setLineDash([]);
+    [a,b].forEach(pt=>{ ctx.beginPath(); ctx.arc(pt.x,pt.y,5,0,Math.PI*2); ctx.fillStyle='#ffd34d'; ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke(); });
+    ctx.restore();
+  }
   // point en attente
   if(LM_CE.pending){const px=left+LM_CE.pending.x*w,py=top+LM_CE.pending.y*h;ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fillStyle='#ffd34d';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();}
 }
