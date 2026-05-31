@@ -2340,7 +2340,12 @@ function lmDrawGameImg(ctx, SIZE, cfg) {
 // ── FONCTIONS DE DESSIN PARTAGÉES ──────────────────────────────────────────────
 
 function lmDrawTitlesFrom(ctx, sc, cfg) {
-  const tournamentName = document.getElementById('tournamentName')?.value || 'Lorem Ipsum';
+  // En mode multi-graph, le nom du tournoi du graph est passé via
+  // window._multiTournamentName (comme pour drawTitles des layouts intégrés) ;
+  // sinon on lit le champ. SANS ça, le snapshot d'un layout custom figeait la
+  // valeur du DOM au moment du rendu (souvent le défaut "Lorem Ipsum").
+  const tournamentName = (typeof window !== 'undefined' && window._multiTournamentName)
+    || document.getElementById('tournamentName')?.value || 'Lorem Ipsum';
   const lines = [tournamentName.toUpperCase(), (cfg.gameName||'').toUpperCase(), 'RÉSULTATS'];
   const tCfgs = [cfg.T1, cfg.T2, cfg.T3];
   ctx.save();

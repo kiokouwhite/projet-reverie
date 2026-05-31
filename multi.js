@@ -539,6 +539,28 @@ async function generateAllGraphs() {
   }
 }
 
+// Le nom du tournoi (panneau principal) a changé. En mode multi-graph il est
+// PARTAGÉ par tous les graphs → on met à jour leur tournamentName ET on régénère
+// leurs snapshots (sinon les cartes gardent l'ancien nom figé dans leur image —
+// c'était le bug "le layout custom affiche juste Lorem Ipsum"). Débounce pour ne
+// pas régénérer à chaque frappe. Hors multi, simple re-rendu de l'aperçu.
+function onMainTournamentNameInput() {
+  const hasGraphs = (typeof graphs !== 'undefined' && Array.isArray(graphs) && graphs.length > 0);
+  if (hasGraphs) {
+    const val = document.getElementById('tournamentName')?.value || '';
+    graphs.forEach(g => { g.tournamentName = val; });
+    clearTimeout(window._mainTnameTimer);
+    window._mainTnameTimer = setTimeout(async () => {
+      try {
+        if (typeof generateAllGraphs === 'function') await generateAllGraphs();
+        if (typeof renderMultiPreview === 'function') renderMultiPreview();
+      } catch (e) { console.warn('[multi] régénération nom du tournoi :', e); }
+    }, 500);
+  }
+  if (typeof generatePreview === 'function') generatePreview();   // aperçu live immédiat
+}
+window.onMainTournamentNameInput = onMainTournamentNameInput;
+
 // ── NAVIGATION MULTI-GRAPH ────────────────────────────────────────────────────
 function renderMultiPreview() {
   if (!graphs.length) return;
@@ -645,7 +667,10 @@ async function addCustomLayoutGraph(layout) {
     game:           layout.id,
     gameName:       layout.name,
     players:        evPlayers,
-    tournamentName: graphs[0]?.tournamentName || '',
+    // Nom du tournoi : on prend la valeur actuelle du champ (sinon celle d'un
+    // autre graph) → la carte custom affiche le bon nom dès sa création, et le
+    // champ ne se vide pas en naviguant sur ce graph.
+    tournamentName: (document.getElementById('tournamentName')?.value || graphs[0]?.tournamentName || ''),
     isCustomLayout: true,
     videogameImageUrl: _pillImg,
   };
