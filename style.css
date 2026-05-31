@@ -1265,6 +1265,25 @@ body.top8-no-import #topPage:not(.left-collapsed) .page-collapse-btn {
   margin-bottom: 5px;
 }
 
+/* Panneau Paramètres : tout centré (labels + champs), bloc resserré au milieu.
+   Scopé à #leftSlide1 pour ne pas affecter les autres slides (Joueurs, etc.). */
+#leftSlide1 {
+  align-items: center;   /* override du align-items:stretch de .left-slide */
+  text-align: center;
+}
+#leftSlide1 .field-label { text-align: center; width: 100%; }
+#leftSlide1 #formatSelect,
+#leftSlide1 #tournamentName,
+#leftSlide1 #magnaCountWrap {
+  width: 100%;
+  max-width: 320px;
+}
+#leftSlide1 #formatSelect,
+#leftSlide1 #tournamentName {
+  text-align: center;
+  text-align-last: center;  /* centre aussi l'option affichée du <select> */
+}
+
 /* ── INPUTS ─────────────────────────────────────────────── */
 input[type=text], input[type=password], select, textarea {
   font-family: 'Nunito', sans-serif;
