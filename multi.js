@@ -155,9 +155,10 @@ async function importAllEvents() {
         .sort((a, b) => b.entrants - a.entrants)   // les plus gros jeux d'abord
         // (plus de limite : on affiche TOUS les jeux du tournoi)
         .map(g => ({
-          name:     g.name,
-          imgUrl:   g.imgUrl,
-          entrants: g.entrants ? g.entrants + ' entrants' : '',
+          name:          g.name,
+          imgUrl:        g.imgUrl,
+          entrants:      g.entrants ? g.entrants + ' entrants' : '',
+          entrantsCount: g.entrants || 0,   // nombre brut → taille du nuage
         }));
       cloudAnimSetGames(cloudGames);
     }

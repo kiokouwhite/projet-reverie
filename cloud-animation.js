@@ -230,18 +230,27 @@
     // l'autre tout en gardant une position distincte par jeu (pas de collision).
     const positions  = spreadPositions(total);
     const slotOffset = _hashStr(games.map(g => g.name || '').join('|')) % positions.length;
-    // Plus il y a de jeux, plus on rétrécit les nuages et on réduit le jitter,
-    // pour qu'ils ne se chevauchent pas malgré la densité.
-    const sizeMax = total <= 5 ? 388 : Math.max(190, 360 - (total - 5) * 16);
-    const sizeMin = total <= 5 ? 300 : Math.max(150, sizeMax - 60);
-    const jitAmp  = total <= 6 ? 2 : (total <= 10 ? 1 : 0); // ±% de jitter
+    // Nombre d'inscrits par jeu (brut) → pilote la TAILLE du nuage.
+    const counts = games.map(g =>
+      Math.max(0, (g.entrantsCount != null) ? g.entrantsCount : (parseInt(g.entrants) || 0)));
+    const maxCount = Math.max(1, ...counts);
+    // Fourchette de tailles : rétrécit avec le nombre de jeux (anti-chevauchement),
+    // mais reste assez large pour que la différence selon les inscrits se voie.
+    const sizeMax = total <= 5 ? 440 : Math.max(220, 410 - (total - 5) * 16);
+    const sizeMin = Math.max(175, sizeMax - 165);
+    // Placement plus aléatoire (jitter plus large) pour un rendu naturel, sans
+    // recoller les nuages. On réduit l'amplitude quand il y a beaucoup de jeux.
+    const jitAmp  = total <= 6 ? 6 : (total <= 10 ? 4 : 2); // ±% de jitter
     layer.innerHTML = games.map((g, i) => {
       const p = positions[(slotOffset + i) % positions.length];
-      const jitterX = jitAmp ? ((_hashStr(g.name + '_x') % (jitAmp * 20)) - jitAmp * 10) / 10 : 0;
-      const jitterY = jitAmp ? ((_hashStr(g.name + '_y') % (jitAmp * 20)) - jitAmp * 10) / 10 : 0;
+      const jitterX = ((_hashStr(g.name + '_x') % (jitAmp * 20)) - jitAmp * 10) / 10;
+      const jitterY = ((_hashStr(g.name + '_y') % (jitAmp * 20)) - jitAmp * 10) / 10;
       const xPct   = Math.max(8,  Math.min(92, p.x + jitterX));
       const yPct   = Math.max(12, Math.min(88, p.y + jitterY));
-      const size   = sizeMin + ((_hashStr(g.name + '_sz') % Math.max(1, sizeMax - sizeMin)));
+      // Taille ∝ inscrits : le plus gros tournoi atteint sizeMax, les autres
+      // proportionnellement (avec un plancher). Sans donnée → taille moyenne.
+      const frac   = counts[i] > 0 ? counts[i] / maxCount : 0.6;
+      const size   = Math.round(sizeMin + frac * (sizeMax - sizeMin));
       // Delays alignés sur ceux des filler clouds (0-0.48s) pour que les
       // cartes-jeux fassent partie de la même vague d'explosion au lieu
       // d'apparaître séparément ~1s plus tard.
