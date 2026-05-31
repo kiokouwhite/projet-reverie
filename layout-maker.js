@@ -2690,9 +2690,15 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
 
   ctx.save();
 
+  // Mode "découpe avec espacement" : on NE remplit PAS toute la carte (sinon
+  // l'écart entre zones prendrait la couleur de fond — c'était le "noir" gênant) ;
+  // on remplit chaque zone individuellement (plus bas), l'écart laisse voir le
+  // FOND derrière la carte.
+  const _gapMode = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean).length : 0) > 0 && (cfg.cutGap || 0) > 0;
+
   // Clip + fill
   lmMakeShapePath(ctx, slot, sc, cfg);
-  if (cfg.fillColor && cfg.fillColor !== 'transparent') {
+  if (cfg.fillColor && cfg.fillColor !== 'transparent' && !_gapMode) {
     ctx.fillStyle = cfg.fillColor;
     ctx.fill();
   }
@@ -2723,13 +2729,16 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(bx+nx*L,by+ny*L); ctx.lineTo(ax+nx*L,ay+ny*L); ctx.closePath(); ctx.clip();
       };
       for (let k=0;k<n;k++){
-        const im=_imgsArr[k]; if(!im) continue;
         const ptsN=regions[k], LN=ptsN.length, pts=ptsN.map(toPx), ctr=toPx(lmPolyCentroid(ptsN));
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         for (let i=0;i<LN;i++){ const off = lmEdgeOnBox(ptsN[i], ptsN[(i+1)%LN]) ? 0 : g2; clipEdgeHalf(pts[i], pts[(i+1)%LN], ctr, off); }
-        const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
-        ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH);
+        // En mode espacement, on remplit CHAQUE zone (sous le perso / zones vides)
+        // ici — pas toute la carte — pour que l'écart reste transparent (fond visible).
+        if (_gapMode && cfg.fillColor && cfg.fillColor !== 'transparent') { ctx.fillStyle = cfg.fillColor; ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height); }
+        const im=_imgsArr[k];
+        if (im) { const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
+          ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH); }
         ctx.restore();
       }
       if (cfg.charSplit !== false) {
