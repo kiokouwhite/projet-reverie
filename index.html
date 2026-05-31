@@ -2250,6 +2250,11 @@
     <div class="lm-poly-body" style="flex-direction:column;align-items:center;gap:14px;padding:18px;">
       <div class="lm-poly-hint" id="lmCutHint" style="text-align:center;max-width:360px;">🖱️ Clique <strong>2 points</strong> pour tracer une découpe.</div>
       <canvas id="lmCutCanvas" style="border-radius:12px;background:#1a1030;cursor:crosshair;"></canvas>
+      <div style="display:flex;align-items:center;gap:8px;width:100%;max-width:360px;font-size:13px;color:#6a4f8f;font-weight:700;">
+        <span style="white-space:nowrap;">Espacement</span>
+        <input type="range" min="0" max="40" step="1" id="lmCutGap" value="0" oninput="lmCutSetGap(this.value)" style="flex:1;">
+        <input type="number" min="0" max="60" value="0" style="width:48px;" oninput="document.getElementById('lmCutGap').value=this.value;lmCutSetGap(this.value)">
+      </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-secondary" onclick="lmCutClear()">↺ Effacer les découpes</button>
         <button class="btn btn-primary" onclick="lmCutClose()">✅ Valider</button>

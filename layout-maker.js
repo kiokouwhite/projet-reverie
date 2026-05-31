@@ -230,6 +230,7 @@ const LM = {
   charUrlsMulti: [[], [], []],   // URLs/dataURLs par slot (persisté)
   charSplit: true,               // multi-persos : trait de séparation + n° par perso
   cuts: [],                      // découpe manuelle : lignes {x1,y1,x2,y2} en coords carte 0-1
+  cutGap: 0,                     // espacement entre les zones découpées (px réf)
 
   // Step 6 — Noms
   playerNames: ['','',''],
@@ -1591,6 +1592,7 @@ async function lmOpenForEdit(layoutId) {
   LM.charsPerPlayer = layout.charsPerPlayer || 1;
   LM.charSplit      = layout.charSplit !== false;
   LM.cuts           = (layout.cuts || []).map(c => ({...c}));
+  LM.cutGap         = layout.cutGap || 0;
   LM.charUrlsMulti  = (layout.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]);
   LM.charImgsMulti  = [[], [], []];
   LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -1756,6 +1758,7 @@ async function lmFinishAndSave(silent, keepEdit) {
     charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
     charSplit:      LM.charSplit !== false,
     cuts:           (LM.cuts || []).map(c => ({...c})),
+    cutGap:         LM.cutGap || 0,
     nameStyle: {...LM.nameStyle},
     nameColors: [...LM.nameColors],
     playerNames: [...LM.playerNames],
@@ -2709,12 +2712,22 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       const regions = lmComputeCutRegions(_cuts);
       const n = regions.length;
       const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
+      const g2 = ((cfg.cutGap || 0) * sc) / 2;   // demi-espacement entre zones (px)
+      // clip au demi-plan intérieur (côté centroïde) de l'arête A→B, décalé vers
+      // l'intérieur de `off` px (0 pour les bords de carte, g2 pour les coupes).
+      const clipEdgeHalf = (A, B, ctr, off) => {
+        const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+        let nx=-uy, ny=ux; if ((ctr.x-A.x)*nx+(ctr.y-A.y)*ny < 0) { nx=-nx; ny=-ny; }
+        const L=(Math.abs(w)+Math.abs(h))*4;
+        const ax=A.x+nx*off-ux*L, ay=A.y+ny*off-uy*L, bx=B.x+nx*off+ux*L, by=B.y+ny*off+uy*L;
+        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(bx+nx*L,by+ny*L); ctx.lineTo(ax+nx*L,ay+ny*L); ctx.closePath(); ctx.clip();
+      };
       for (let k=0;k<n;k++){
         const im=_imgsArr[k]; if(!im) continue;
-        const poly = regions[k].map(toPx);
+        const ptsN=regions[k], LN=ptsN.length, pts=ptsN.map(toPx), ctr=toPx(lmPolyCentroid(ptsN));
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
-        ctx.beginPath(); poly.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.clip();
+        for (let i=0;i<LN;i++){ const off = lmEdgeOnBox(ptsN[i], ptsN[(i+1)%LN]) ? 0 : g2; clipEdgeHalf(pts[i], pts[(i+1)%LN], ctr, off); }
         const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
         ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH);
         ctx.restore();
@@ -2723,9 +2736,12 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.save(); lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.strokeStyle = cfg.strokeColor || '#7769DD';
         ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round'; ctx.lineJoin='round';
-        // ne tracer que les arêtes INTÉRIEURES (les coupes), pas le bord de la carte.
-        regions.forEach(pl => { for (let i=0;i<pl.length;i++){ const A=pl[i], B=pl[(i+1)%pl.length]; if (lmEdgeOnBox(A,B)) continue;
-          const a=toPx(A), b=toPx(B); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); } });
+        // bord de chaque zone le long des coupes (décalé de g2 → matérialise l'espacement).
+        regions.forEach(pl => { const ctr=toPx(lmPolyCentroid(pl)), L=pl.length;
+          for (let i=0;i<L;i++){ const A=pl[i], B=pl[(i+1)%L]; if (lmEdgeOnBox(A,B)) continue;
+            const a=toPx(A), b=toPx(B), dx=b.x-a.x, dy=b.y-a.y, ln=Math.hypot(dx,dy)||1; let nx=-dy/ln, ny=dx/ln;
+            if ((ctr.x-a.x)*nx+(ctr.y-a.y)*ny < 0) { nx=-nx; ny=-ny; }
+            ctx.beginPath(); ctx.moveTo(a.x+nx*g2, a.y+ny*g2); ctx.lineTo(b.x+nx*g2, b.y+ny*g2); ctx.stroke(); } });
         const numSize=Math.min(w,h)*0.2;
         ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
         ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
@@ -2959,11 +2975,18 @@ function lmOpenCutEditor() {
     cv.onmousedown  = lmCEClick;
     cv.ontouchstart = (e) => { e.preventDefault(); const t = e.touches[0]; lmCEClick({ clientX: t.clientX, clientY: t.clientY }); };
   }
+  const gapEl = document.getElementById('lmCutGap');
+  if (gapEl) { gapEl.value = LM.cutGap || 0; const num = gapEl.nextElementSibling; if (num && num.type === 'number') num.value = LM.cutGap || 0; }
   lmCEUpdateHint(); lmCEDraw();
 }
 function lmCutClose() { const m = document.getElementById('lmCutModal'); if (m) m.style.display = 'none'; LM_CE.pending = null; lmRenderPreview(); }
 function lmCutClear() { LM.cuts = []; LM_CE.pending = null; lmCEUpdateHint(); lmCEDraw(); lmRenderPreview(); }
-window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window.lmCutClear = lmCutClear;
+function lmCutSetGap(v) {
+  LM.cutGap = Math.max(0, Math.min(60, parseFloat(v) || 0));
+  const el = document.getElementById('lmCutGap'); if (el) { el.value = LM.cutGap; const num = el.nextElementSibling; if (num && num.type === 'number') num.value = LM.cutGap; }
+  lmCEDraw(); lmRenderPreview();
+}
+window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window.lmCutClear = lmCutClear; window.lmCutSetGap = lmCutSetGap;
 
 function lmCEUpdateHint() {
   const h = document.getElementById('lmCutHint'); if (!h) return;
@@ -3005,15 +3028,26 @@ function lmCEDraw() {
   const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
   const regions = lmComputeCutRegions(cuts);   // subdivision récursive (coupes s'arrêtent)
   const n = regions.length;
+  // demi-espacement, ramené à l'échelle de l'aperçu (cutGap est en px réf / largeur slot)
+  const g2 = ((LM.cutGap || 0) * (D / (LM.slots?.[0]?.w || 352))) / 2;
+  const clipEdgeHalf = (A, B, ctr, off) => {
+    const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+    let nx=-uy, ny=ux; if ((ctr.x-A.x)*nx+(ctr.y-A.y)*ny < 0) { nx=-nx; ny=-ny; }
+    const L=(w+h)*4, ax=A.x+nx*off-ux*L, ay=A.y+ny*off-uy*L, bx=B.x+nx*off+ux*L, by=B.y+ny*off+uy*L;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(bx+nx*L,by+ny*L); ctx.lineTo(ax+nx*L,ay+ny*L); ctx.closePath(); ctx.clip();
+  };
   // fond de la forme
   ctx.save(); lmMakeShapePath(ctx, slot, 1, LM); ctx.fillStyle = '#241640'; ctx.fill(); ctx.restore();
-  // régions teintées (polygones)
-  for (let k=0;k<n;k++){ const poly=regions[k].map(toPx); ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip();
-    ctx.beginPath(); poly.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.clip();
+  // régions teintées (polygones, rétrécis de g2 le long des coupes → espacement)
+  for (let k=0;k<n;k++){ const ptsN=regions[k], LN=ptsN.length, pts=ptsN.map(toPx), ctr=toPx(lmPolyCentroid(ptsN));
+    ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip();
+    for(let i=0;i<LN;i++){ const off=lmEdgeOnBox(ptsN[i],ptsN[(i+1)%LN])?0:g2; clipEdgeHalf(pts[i],pts[(i+1)%LN],ctr,off); }
     ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
-  // traits de coupe = arêtes intérieures des régions
+  // traits de coupe = arêtes intérieures (décalées de g2)
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
-  regions.forEach(pl=>{ for(let i=0;i<pl.length;i++){ const A=pl[i],B=pl[(i+1)%pl.length]; if(lmEdgeOnBox(A,B))continue; const a=toPx(A),b=toPx(B); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); } });
+  regions.forEach(pl=>{ const ctr=toPx(lmPolyCentroid(pl)); for(let i=0;i<pl.length;i++){ const A=pl[i],B=pl[(i+1)%pl.length]; if(lmEdgeOnBox(A,B))continue;
+    const a=toPx(A),b=toPx(B),dx=b.x-a.x,dy=b.y-a.y,ln=Math.hypot(dx,dy)||1; let nx=-dy/ln,ny=dx/ln; if((ctr.x-a.x)*nx+(ctr.y-a.y)*ny<0){nx=-nx;ny=-ny;}
+    ctx.beginPath();ctx.moveTo(a.x+nx*g2,a.y+ny*g2);ctx.lineTo(b.x+nx*g2,b.y+ny*g2);ctx.stroke(); } });
   ctx.restore();
   // contour de la forme
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.strokeStyle='#7c5cff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore();
