@@ -2232,6 +2232,37 @@ canvas { width: 100%; display: block; }
   object-fit: contain;
 }
 
+/* ── Manipulation directe des titres (couche au-dessus de l'aperçu) ──────── */
+.etm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;   /* seules les boîtes captent les clics */
+}
+.etm-box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: move;
+  border: 1.5px dashed rgba(124,92,255,0.85);
+  border-radius: 5px;
+  background: rgba(124,92,255,0.05);
+  transition: background 0.12s, border-color 0.12s;
+}
+.etm-box:hover, .etm-box.etm-active {
+  background: rgba(124,92,255,0.16);
+  border-color: rgba(124,92,255,1);
+}
+.etm-handle {
+  position: absolute;
+  width: 13px; height: 13px;
+  background: #fff;
+  border: 2px solid #7c5cff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.etm-handle.etm-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
 /* ── ÉDITEUR DE TITRES ──────────────────────────────────── */
 .title-row {
   display: grid;

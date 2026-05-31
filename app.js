@@ -3357,6 +3357,10 @@ function openEditorModal() {
   loadNameConfig();
   renderNameEditor();
   renderEditorCanvas();
+  // Active la manipulation directe des titres (glisser pour déplacer, poignée
+  // de coin pour redimensionner). setTimeout : attendre que le modal soit
+  // affiché (flex) pour que les mesures getBoundingClientRect soient justes.
+  if (typeof editorTextManipInit === 'function') setTimeout(editorTextManipInit, 30);
   // Restaure le dernier onglet utilisé (Pseudos/Titres) ou Pseudos par défaut
   const savedTab = localStorage.getItem('top8_editor_tab') || 'pseudos';
   editorSwitchTab(savedTab);
@@ -3390,6 +3394,8 @@ function renderEditorCanvas() {
   const c = document.getElementById('editorCanvas');
   if (!c || document.getElementById('editorModal').style.display === 'none') return;
   renderCanvas(c, 700);
+  // Repositionne les poignées de manipulation directe des titres.
+  if (typeof editorTextManipRefresh === 'function') editorTextManipRefresh();
 }
 
 function initTitleEditor() {
