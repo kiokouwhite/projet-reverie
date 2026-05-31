@@ -42,22 +42,30 @@
     return _overlay;
   }
 
-  // Boîte d'affichage (px relatifs à l'overlay) depuis {cx, base, size, maxW} REF.
+  // Positionne l'overlay pour qu'il recouvre EXACTEMENT le canvas (le wrap LM
+  // est en flex:1 et bien plus grand que le canvas centré → on ne peut pas se
+  // contenter d'inset:0). Renvoie false si le canvas n'est pas encore mesurable.
+  function positionOverlay(ov) {
+    const c = canvas(), w = wrap();
+    if (!c || !w) return false;
+    const cr = c.getBoundingClientRect(), wr = w.getBoundingClientRect();
+    if (cr.width < 2 || cr.height < 2) return false;
+    ov.style.inset  = 'auto';
+    ov.style.left   = (cr.left - wr.left) + 'px';
+    ov.style.top    = (cr.top  - wr.top)  + 'px';
+    ov.style.width  = cr.width + 'px';
+    ov.style.height = cr.height + 'px';
+    return true;
+  }
+
+  // Boîte d'affichage en px RELATIFS au canvas (= à l'overlay, qui le recouvre).
   function boxFromDesc(d) {
     const sc = dispScale();
     if (!sc) return null;
     const padY = d.size * 0.18;
-    const leftRef = d.cx - d.maxW / 2;
-    const topRef  = d.base - d.size * 0.92 - padY;
-    const c = canvas();
-    let offX = 0, offY = 0;
-    if (c && _overlay) {
-      const cr = c.getBoundingClientRect(), or = _overlay.getBoundingClientRect();
-      offX = cr.left - or.left; offY = cr.top - or.top;
-    }
     return {
-      left: offX + leftRef * sc,
-      top:  offY + topRef * sc,
+      left: (d.cx - d.maxW / 2) * sc,
+      top:  (d.base - d.size * 0.92 - padY) * sc,
       w:    d.maxW * sc,
       h:    (d.size * 1.15 + padY * 2) * sc,
     };
@@ -66,7 +74,7 @@
   function refresh() {
     const ov = ensureOverlay();
     if (!ov) return;
-    if (!isActive()) { ov.style.display = 'none'; return; }
+    if (!isActive() || !positionOverlay(ov)) { ov.style.display = 'none'; return; }
     ov.style.display = 'block';
     ov.innerHTML = '';
     (window._lmtmRegions || []).forEach(d => {
