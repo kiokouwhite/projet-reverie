@@ -29,6 +29,17 @@ let currentCharSlot = 1; // 1 = perso principal, 2 = perso secondaire (2XKO)
   const wrap = body => `<svg viewBox="0 0 120 120" width="100%" height="100%">${body}</svg>`;
 
   window._iconSvgs = {
+    // Jeu sans layout — carte vide en pointillés + triangle d'alerte + badge.
+    // Repris du handoff design "Card buttons" (icons.jsx → IconNoLayout).
+    nolayout: wrap(`<g ${lp}>
+      <rect x="24" y="30" width="72" height="64" rx="10" fill="${F.li}" stroke="${S.pu}" stroke-dasharray="5 5"/>
+      <path d="M34 84 L 48 68 L 58 78 L 70 64 L 86 84 Z" fill="${F.sk}" stroke="${S.sk}" opacity="0.5"/>
+      <path d="M60 42 L 80 78 L 40 78 Z" fill="${F.go}" stroke="${S.co}"/>
+      <line x1="60" y1="56" x2="60" y2="66" stroke="${S.pl}" stroke-width="3"/>
+      <circle cx="60" cy="72" r="2" fill="${S.pl}" stroke="${S.pl}"/>
+      <circle cx="86" cy="36" r="9" fill="${F.pk}" stroke="${S.pk}"/>
+      <text x="86" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="${S.pl}" font-family="'Quicksand', sans-serif">!</text>
+    </g>${sp(26,24,0.5,S.mi)}${sp(28,104,0.5,S.co)}${sp(100,102,0.5,S.sk)}`),
     import: wrap(`
       <path d="M60 26 L60 58" stroke="${S.mi}" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round" fill="none"/>
       <circle cx="60" cy="42" r="14" fill="${F.mi}" stroke="${S.mi}" ${lp}/>
