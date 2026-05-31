@@ -1018,6 +1018,10 @@ function applyMagnaUI() {
   if (wrap) wrap.style.display = (currentFormat === 'magna') ? '' : 'none';
   const el = document.getElementById('magnaCountValue');
   if (el) el.textContent = String(magnaPlayerCount);
+  // Le rendu Magna est en 16:9 (pas carré comme Lorem) → on bascule le
+  // conteneur d'aperçu en 16:9 via cette classe pour qu'il n'y ait pas de
+  // zone vide en bas (cf. règle .canvas-wrap dans style.css).
+  document.body.classList.toggle('top8-magna', currentFormat === 'magna');
 }
 
 // Rang labels standards d'un bracket double-élim : 1, 2, 3, 4, 5/5, 7/7,
