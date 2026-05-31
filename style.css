@@ -2259,6 +2259,12 @@ canvas { width: 100%; display: block; }
   background: rgba(70,209,143,0.16); border-color: rgba(70,209,143,1);
 }
 .etm-box.etm-name .etm-handle { border-color: #2ea36a; }
+/* Classements (1ER/2ÈME/3ÈME) en doré. */
+.etm-box.etm-rank { border-color: rgba(245,200,66,0.9); background: rgba(245,200,66,0.06); }
+.etm-box.etm-rank:hover, .etm-box.etm-rank.etm-active {
+  background: rgba(245,200,66,0.18); border-color: rgba(245,200,66,1);
+}
+.etm-box.etm-rank .etm-handle { border-color: #c8a800; }
 .etm-handle {
   position: absolute;
   width: 13px; height: 13px;

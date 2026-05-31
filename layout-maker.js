@@ -2397,6 +2397,11 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   ctx.fillStyle = numColor;
   ctx.fillText(rankLabel, _rdx, _rdy);
   ctx.restore();
+  // Capture du classement pour la poignée de manipulation (aligné à gauche).
+  if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
+    kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
+    maxW: Math.max(40, ctx.measureText(rankLabel).width / sc), rot: rs.rotation || 0, align: 'left',
+  });
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
   // Name

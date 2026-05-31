@@ -78,14 +78,19 @@
   function boxFromDesc(d) {
     const padY = d.size * 0.18;
     const hRef = d.size * 1.15 + padY * 2;
+    // Les classements sont alignés à gauche (ancre = bord gauche) ; titres et
+    // pseudos sont centrés (ancre = centre).
+    const leftAlign = d.align === 'left';
+    const leftRef = leftAlign ? d.cx : (d.cx - d.maxW / 2);
     return {
-      left: (d.cx - d.maxW / 2) / REF * 100,
+      left: leftRef / REF * 100,
       top:  (d.y - d.size * 0.92 - padY) / REF * 100,
       w:    d.maxW / REF * 100,
       h:    hRef / REF * 100,
       rot:  d.rot || 0,                               // rotation du texte (deg)
-      // Ancre verticale (la ligne de base) dans la boîte → la boîte tourne
-      // autour du même point que le texte.
+      // Ancre de rotation = point de dessin du texte (x selon l'alignement,
+      // y = ligne de base) → la boîte tourne autour du même point que le texte.
+      originX: leftAlign ? 0 : 50,
       originY: (d.size * 0.92 + padY) / hRef * 100,
     };
   }
@@ -110,7 +115,7 @@
       el.style.height = box.h + '%';
       // La boîte tourne avec le texte (autour de la ligne de base centrée).
       if (box.rot) {
-        el.style.transformOrigin = '50% ' + box.originY + '%';
+        el.style.transformOrigin = box.originX + '% ' + box.originY + '%';
         el.style.transform = 'rotate(' + box.rot + 'deg)';
       }
       el.title = (d.kind === 'name' ? 'Pseudo' : 'Titre') + ' — glisser pour déplacer, bords pour la zone';
@@ -139,6 +144,13 @@
       if (!t) return;
       _drag = { kind, ref: t, mode, sc, startX: e.clientX, startY: e.clientY,
                 x0: t.x, y0: t.y, maxW0: t.maxW || 900 };
+    } else if (kind === 'rank') {
+      const slot = (L.slots || [])[+boxEl.dataset.id];
+      if (!slot) return;
+      const reg = (window._lmtmRegions || []).find(r => r.kind === 'rank' && r.idx === +boxEl.dataset.id);
+      _drag = { kind, ref: slot, mode, sc, startX: e.clientX, startY: e.clientY,
+                x0: slot.rankX, y0: slot.rankY, size0: slot.rankSize || 80,
+                maxW0: reg ? reg.maxW : 80 };
     } else {
       const slot = (L.slots || [])[+boxEl.dataset.id];
       if (!slot) return;
@@ -162,6 +174,16 @@
         _drag.ref.y = clamp(_drag.y0 + dyRef, 0, REF);
       } else {
         _drag.ref.maxW = zoneW(_drag.maxW0);
+      }
+    } else if (_drag.kind === 'rank') {
+      if (_drag.mode === 'move') {
+        _drag.ref.rankX = clamp(_drag.x0 + dxRef, 0, REF);
+        _drag.ref.rankY = clamp(_drag.y0 + dyRef, 0, REF);
+      } else {
+        // Poignées latérales → taille du classement (largeur du label ∝ taille).
+        const nw = _drag.mode === 'zoneE' ? _drag.maxW0 + dxRef : _drag.maxW0 - dxRef;
+        const ratio = clamp(nw / Math.max(20, _drag.maxW0), 0.3, 5);
+        _drag.ref.rankSize = clamp(Math.round(_drag.size0 * ratio), 20, 240);
       }
     } else {
       if (_drag.mode === 'move') {
