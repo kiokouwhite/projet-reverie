@@ -1603,9 +1603,17 @@ function renderCharGrid(filter) {
       ? players[currentSlotIndex]?.charId2 === c.id
       : players[currentSlotIndex]?.charId  === c.id;
     btn.className = 'char-btn' + (isSelected ? ' selected' : '');
-    const visual = c.imgUrl
-      ? `<img src="${c.imgUrl}" class="icon" style="width:34px;height:34px;object-fit:contain;border-radius:6px;" loading="lazy" onerror="this.outerHTML='<span class=&quot;icon&quot;>🎮</span>'">`
-      : `<span class="icon">${c.icon || '🎮'}</span>`;
+    // Image du perso : 1) image start.gg (imgUrl), sinon 2) art local (mural)
+    // pour les persos du roster interne → tout le monde a une image quand
+    // l'asset existe ; 3) emoji en dernier recours (asset manquant).
+    let imgSrc = c.imgUrl || null;
+    if (!imgSrc && c._src === 'local' && typeof getMuralArtUrl === 'function') {
+      imgSrc = getMuralArtUrl(c.id, 1, currentGame);
+    }
+    const fb = c.icon || '🎮';
+    const visual = imgSrc
+      ? `<img src="${imgSrc}" class="icon" style="width:36px;height:36px;object-fit:cover;object-position:center top;border-radius:6px;" loading="lazy" onerror="this.outerHTML='<span class=&quot;icon&quot;>${fb}</span>'">`
+      : `<span class="icon">${fb}</span>`;
     btn.innerHTML = `${visual}<span>${escHtml(c.name)}</span>`;
     btn.onclick = () => {
       const i = currentSlotIndex;
