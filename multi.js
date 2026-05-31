@@ -675,6 +675,20 @@ async function addCustomLayoutGraph(layout) {
   window._multiTournamentName = newGraph.tournamentName || '';
   window._multiGameData = GAMES[newGraph.game] || { sub1: newGraph.gameName, sub2: 'RÉSULTATS' };
 
+  // S'assurer que la police du layout est chargée AVANT de figer le snapshot
+  // 1400px : sinon canvas dessinerait avec une police de repli (métriques /
+  // espacement différents) et l'affichage ne correspondrait pas à l'aperçu du
+  // Layout Maker (qui, lui, rend une fois les polices prêtes).
+  try {
+    if (document.fonts && document.fonts.load) {
+      const _cfg = (typeof LAYOUTS !== 'undefined' && LAYOUTS[newGraph.game]?._lm) || layout || {};
+      const fam = _cfg.font || 'Montserrat';
+      await Promise.all(['400','700','800','900']
+        .map(w => document.fonts.load(`${w} 80px ${fam}`).catch(() => {})));
+      await document.fonts.ready;
+    }
+  } catch (e) { /* non bloquant */ }
+
   const canvas = document.createElement('canvas');
   if (typeof renderCanvas === 'function') renderCanvas(canvas, 1400);
 

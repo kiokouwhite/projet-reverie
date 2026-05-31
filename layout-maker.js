@@ -487,12 +487,21 @@ if (document.readyState === 'loading') {
 
 function closeLayoutMaker() {
   document.getElementById('lmModal').style.display = 'none';
-  // Réinitialiser le mode édition si on ferme sans sauvegarder
-  LM._editIdx = undefined;
-  LM._editId  = undefined;
   // Reset guard de transition au cas où on aurait fermé en plein milieu
   // d'une transition — sinon la prochaine ouverture serait bloquée.
   LM._isTransitioning = false;
+  // En mode ÉDITION : auto-mettre à jour le layout à la fermeture, pour que
+  // l'AFFICHAGE (le snapshot du multi-graph, figé à la dernière sauvegarde)
+  // reflète les modifs sans devoir cliquer "Mettre à jour" manuellement.
+  // → sauvegarde SILENCIEUSE. lmFinishAndSave réinitialise lui-même
+  // _editIdx/_editId et s'en sert pour REMPLACER le layout (pas de doublon),
+  // donc on ne les remet PAS à zéro ici avant l'appel.
+  if (LM._editId != null && typeof lmFinishAndSave === 'function') {
+    Promise.resolve(lmFinishAndSave(true)).catch(e => console.warn('[LM] auto-update à la fermeture:', e));
+  } else {
+    LM._editIdx = undefined;
+    LM._editId  = undefined;
+  }
 }
 
 // Vérifie qu'un snapshot full-body n'est pas corrompu (canvas tout noir
@@ -1588,7 +1597,7 @@ async function lmOpenForEdit(layoutId) {
   lmRenderPreview();
 }
 
-async function lmFinishAndSave() {
+async function lmFinishAndSave(silent) {
   const name = document.getElementById('lmLayoutNameInput')?.value.trim() || LM.gameName;
   // Mode édition : réutiliser le même id ; sinon, créer un nouvel id
   const id   = LM._editId || ('custom_' + Date.now());
@@ -1703,8 +1712,10 @@ async function lmFinishAndSave() {
     }
   } catch(e) { console.warn('[multi-nav] ajout layout custom :', e); }
 
-  // Show celebration
-  lmShowCelebration(layout);
+  // Show celebration — sauf en sauvegarde SILENCIEUSE (ex. auto-mise à jour à la
+  // fermeture de l'éditeur en mode édition : le modal est déjà fermé, on ne veut
+  // pas rouvrir un écran de célébration).
+  if (!silent) lmShowCelebration(layout);
 }
 
 function lmAddToSelector(layout) {
