@@ -839,9 +839,13 @@ async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
   // Reset les noms dans LM
   if (typeof LM !== 'undefined') LM.playerNames = ['', '', ''];
 
-  // Pré-remplir depuis players[] si c'est le bon event (fallback)
+  // Pré-remplir depuis players[] si c'est le bon event (fallback). On inclut
+  // la TEAM (prefix) via lmFormatPlayerName, sinon le nom de team n'apparaît pas.
   if (typeof players !== 'undefined') {
-    LM.playerNames = [0,1,2].map(i => players[i]?.name || '');
+    LM.playerNames = [0,1,2].map(i =>
+      (typeof lmFormatPlayerName === 'function' && players[i])
+        ? lmFormatPlayerName(players[i], '')
+        : (players[i]?.name || ''));
   }
 
   // Fetch le vrai top 3 de cet event
@@ -862,7 +866,9 @@ async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
         const s = nodes[i];
         if (!s) return '';
         const p = s.entrant?.participants?.[0];
-        return p?.player?.gamerTag || s.entrant?.name || '';
+        const nm = p?.player?.gamerTag || s.entrant?.name || '';
+        const team = p?.player?.prefix || '';
+        return nm ? (team ? `${team} | ${nm}` : nm) : '';
       });
     } catch(e) {
       console.warn('[LM] Impossible de récupérer le top 3 :', e);

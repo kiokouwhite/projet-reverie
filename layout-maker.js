@@ -210,6 +210,7 @@ const LM = {
     strokeColor: '#000000',
     strokeWidth: 0,
     numbersOnly: false,
+    rotation: 0,   // rotation des classements (degrés)
   },
 
   // Step 5 — Personnages
@@ -229,6 +230,7 @@ const LM = {
     size:44, weight:'800', color:'#ffffff',
     strokeColor:'#000000', strokeWidth:0,
     spacing:4,
+    rotation:0,   // rotation des pseudos (degrés)
   },
 
   // Step 8
@@ -1268,6 +1270,7 @@ function lmInitNames() {
   setV('lmNsSc', ns.strokeColor);
   setV('lmNsSw', ns.strokeWidth);
   setV('lmNsSp', ns.spacing);
+  setV('lmNsRot', ns.rotation || 0);
 }
 
 function lmSyncNames() {
@@ -1294,6 +1297,7 @@ function lmSyncNames() {
   ns.strokeColor = g('lmNsSc')           || '#000000';
   ns.strokeWidth = syncRange('lmNsSw');
   ns.spacing     = syncRange('lmNsSp');
+  ns.rotation    = syncRange('lmNsRot');
   lmRenderPreview();
 }
 
@@ -1313,6 +1317,7 @@ function lmInitRanks() {
   setC('lmRankNumbersOnly', rs.numbersOnly);
   setV('lmRankSc', rs.strokeColor);
   setV('lmRankSw', rs.strokeWidth);
+  setV('lmRsRot', rs.rotation || 0);
   // Per-rank (per-slot)
   [0,1,2].forEach(i => {
     setV(`lmRankLabel${i}`,  LM.rankLabels[i]);
@@ -1344,6 +1349,7 @@ function lmSyncRanks() {
   rs.numbersOnly = gc('lmRankNumbersOnly');
   rs.strokeColor = g('lmRankSc') || '#000000';
   rs.strokeWidth = syncRange('lmRankSw');
+  rs.rotation    = syncRange('lmRsRot');
   [0,1,2].forEach(i => {
     LM.rankLabels[i]     = g(`lmRankLabel${i}`)  || String(i+1);
     LM.rankColors[i]     = g(`lmRankColor${i}`)  || '#ffffff';
@@ -2374,14 +2380,20 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   ctx.font = `${rankWeight} ${Math.round((slot.rankSize||80)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 6*sc;
+  // Rotation des classements (autour de leur ancre rankX/rankY).
+  const _rrot = (rs.rotation || 0) * Math.PI / 180;
+  ctx.save();
+  if (_rrot) { ctx.translate(slot.rankX*sc, slot.rankY*sc); ctx.rotate(_rrot); }
+  const _rdx = _rrot ? 0 : slot.rankX*sc, _rdy = _rrot ? 0 : slot.rankY*sc;
   if ((rs.strokeWidth||0) > 0) {
     ctx.strokeStyle = rs.strokeColor || '#000';
     ctx.lineWidth = rs.strokeWidth * sc;
     ctx.lineJoin = 'round';
-    ctx.strokeText(rankLabel, slot.rankX*sc, slot.rankY*sc);
+    ctx.strokeText(rankLabel, _rdx, _rdy);
   }
   ctx.fillStyle = numColor;
-  ctx.fillText(rankLabel, slot.rankX*sc, slot.rankY*sc);
+  ctx.fillText(rankLabel, _rdx, _rdy);
+  ctx.restore();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
   // Name
@@ -2397,16 +2409,22 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.letterSpacing = `${(ns.spacing||4)*sc}px`;
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
     ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
+    // Rotation des pseudos (autour de leur ancre). _dx/_dy = point de dessin.
+    const _nrot = (ns.rotation || 0) * Math.PI / 180;
+    ctx.save();
+    if (_nrot) { ctx.translate(nameX, slot.nameY*sc); ctx.rotate(_nrot); }
+    const _dx = _nrot ? 0 : nameX, _dy = _nrot ? 0 : slot.nameY*sc;
     if ((ns.strokeWidth||0) > 0) {
       ctx.strokeStyle = ns.strokeColor || '#000';
       ctx.lineWidth = ns.strokeWidth * sc;
       ctx.lineJoin = 'round';
-      if (_nmw > 0) ctx.strokeText(name.toUpperCase(), nameX, slot.nameY*sc, _nmw*sc);
-      else          ctx.strokeText(name.toUpperCase(), nameX, slot.nameY*sc);
+      if (_nmw > 0) ctx.strokeText(name.toUpperCase(), _dx, _dy, _nmw*sc);
+      else          ctx.strokeText(name.toUpperCase(), _dx, _dy);
     }
     ctx.fillStyle = nameColor;
-    if (_nmw > 0) ctx.fillText(name.toUpperCase(), nameX, slot.nameY*sc, _nmw*sc);
-    else          ctx.fillText(name.toUpperCase(), nameX, slot.nameY*sc);
+    if (_nmw > 0) ctx.fillText(name.toUpperCase(), _dx, _dy, _nmw*sc);
+    else          ctx.fillText(name.toUpperCase(), _dx, _dy);
+    ctx.restore();
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
       .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360 });
     ctx.letterSpacing = '0px';
