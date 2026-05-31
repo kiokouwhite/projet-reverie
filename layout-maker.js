@@ -1306,6 +1306,8 @@ function lmInitNames() {
     // Individual position (nameX, nameY from slot)
     setV(`lmNameX${i}`, LM.slots[i].nameX != null ? LM.slots[i].nameX : LM.slots[i].cx);
     setV(`lmNameY${i}`, LM.slots[i].nameY);
+    // Taille individuelle (slot.nameSize) ; sinon on affiche la taille globale.
+    setV(`lmNameSize${i}`, LM.slots[i].nameSize != null ? LM.slots[i].nameSize : (LM.nameStyle.size || 34));
   });
   // Global style
   const ns = LM.nameStyle;
@@ -1344,6 +1346,27 @@ function lmSyncNames() {
   ns.spacing     = syncRange('lmNsSp');
   ns.rotation    = syncRange('lmNsRot');
   ns.arc         = syncRange('lmNsArc');
+  // Les pseudos SANS taille individuelle suivent la taille globale : on reflète
+  // la nouvelle taille globale dans leurs sliders (ceux qui ont une taille
+  // individuelle conservent la leur).
+  [0,1,2].forEach(i => {
+    if (LM.slots[i] && LM.slots[i].nameSize == null) {
+      const el = document.getElementById(`lmNameSize${i}`);
+      if (el) { el.value = ns.size; const n = el.nextElementSibling; if (n && n.type === 'number') n.value = ns.size; }
+    }
+  });
+  lmRenderPreview();
+}
+
+// Taille INDIVIDUELLE d'un pseudo (override de la taille globale). Réglée
+// seulement quand l'utilisateur bouge le slider "Taille" de CE pseudo → ni les
+// autres pseudos ni la taille globale ne sont touchés (non destructif).
+function lmSetNameSize(i, v) {
+  if (!LM.slots[i]) return;
+  const size = parseFloat(v) || (LM.nameStyle.size || 34);
+  LM.slots[i].nameSize = size;
+  const el = document.getElementById(`lmNameSize${i}`);
+  if (el) { el.value = size; const n = el.nextElementSibling; if (n && n.type === 'number') n.value = size; }
   lmRenderPreview();
 }
 
@@ -2599,7 +2622,9 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     const nameX = (slot.nameX != null) ? slot.nameX * sc : cx;
     const _refNameX = (slot.nameX != null) ? slot.nameX : slot.cx; // coord REF
     const _nmw = slot.nameMaxW || 0;                                // zone de texte
-    ctx.font = `${ns.weight||'800'} ${Math.round((ns.size||34)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
+    // Taille par pseudo (slot.nameSize) ; repli sur la taille globale (ns.size).
+    const _nsz = (slot.nameSize != null) ? slot.nameSize : (ns.size || 34);
+    ctx.font = `${ns.weight||'800'} ${Math.round(_nsz*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.letterSpacing = `${(ns.spacing||4)*sc}px`;
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
@@ -2615,7 +2640,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       maxWidth: _nmw > 0 ? _nmw * sc : 0,
     });
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
-      .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
+      .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:_nsz, maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
     ctx.letterSpacing = '0px';
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
   }
