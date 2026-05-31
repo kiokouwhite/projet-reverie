@@ -2261,7 +2261,8 @@ canvas { width: 100%; display: block; }
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
-.etm-handle.etm-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.etm-handle.etm-e { right: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+.etm-handle.etm-w { left:  -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 
 /* ── ÉDITEUR DE TITRES ──────────────────────────────────── */
 .title-row {

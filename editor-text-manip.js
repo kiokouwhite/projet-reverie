@@ -31,6 +31,12 @@
     return game.sub2 || '';
   }
 
+  // Largeur de la zone de texte (maxW). Mêmes défauts que drawTitles.
+  function defaultMaxW(key, cfg) {
+    if (cfg && cfg.maxW) return cfg.maxW;
+    return key === 'T2' ? 960 : 800;
+  }
+
   // Reproduit le choix police/weight de drawTitles pour une mesure fidèle.
   function titleFont(cfg, sizePx) {
     const isT8 = (typeof currentGame !== 'undefined' && currentGame === 'tekken8');
@@ -93,12 +99,15 @@
     if (!text) return null;
     const sc = dispScale();
     if (!sc) return null;
-    const wRef = measureRefWidth(cfg, text);
-    // textAlign=center, textBaseline=alphabetic dans drawTitles.
-    const padX = 10, padY = cfg.s * 0.18;
-    const leftRef = cfg.x - wRef / 2 - padX;
+    // La boîte représente la ZONE DE TEXTE disponible (= maxW dans drawTitles),
+    // centrée sur cfg.x. C'est cette zone qu'on étire avec les poignées
+    // latérales : plus large = le texte a plus de place (moins condensé) ;
+    // plus étroite = le texte est resserré dans la zone.
+    const maxW = defaultMaxW(key, cfg);
+    const padY = cfg.s * 0.18;
+    const leftRef = cfg.x - maxW / 2;
     const topRef  = cfg.y - cfg.s * 0.92 - padY;       // ascendante approx
-    const wBoxRef = wRef + padX * 2;
+    const wBoxRef = maxW;
     const hBoxRef = cfg.s * 1.15 + padY * 2;
     // Position du canvas relative à l'ORIGINE de l'overlay (et non du wrap, qui
     // a une bordure) → alignement exact des boîtes sur le canvas.
@@ -124,6 +133,7 @@
     T.x = Math.max(0, Math.min(REF, T.x));
     T.y = Math.max(0, Math.min(REF, T.y));
     T.s = Math.max(10, Math.min(220, T.s));
+    if ('maxW' in patch) T.maxW = Math.max(60, Math.min(REF, T.maxW));
     const p = key.toLowerCase();
     const setEl = (suf, val) => {
       const s = document.getElementById(p + suf); if (s) s.value = Math.round(val);
@@ -153,7 +163,7 @@
       el.style.top = box.top + 'px';
       el.style.width = box.w + 'px';
       el.style.height = box.h + 'px';
-      el.innerHTML = '<span class="etm-handle etm-se"></span>';
+      el.innerHTML = '<span class="etm-handle etm-w"></span><span class="etm-handle etm-e"></span>';
       ov.appendChild(el);
     });
   }
@@ -169,12 +179,13 @@
     if (!cfg) return;
     e.preventDefault();
     const sc = dispScale() || 1;
+    const mode = handle
+      ? (handle.classList.contains('etm-e') ? 'zoneE' : 'zoneW')
+      : 'move';
     _drag = {
-      key, mode: handle ? 'resize' : 'move',
+      key, mode,
       startX: e.clientX, startY: e.clientY,
-      x0: cfg.x, y0: cfg.y, s0: cfg.s, sc,
-      // Demi-largeur initiale (px affichage) pour le ratio de resize.
-      w0: (boxEl.getBoundingClientRect().width) / 2,
+      x0: cfg.x, y0: cfg.y, maxW0: defaultMaxW(key, cfg), sc,
     };
     boxEl.classList.add('etm-active');
     window.addEventListener('pointermove', onMove);
@@ -191,10 +202,13 @@
         y: _drag.y0 + dy / _drag.sc,
       }, false);
     } else {
-      // Resize : ratio basé sur la distance horizontale au coin → taille police.
-      const newHalf = Math.max(8, _drag.w0 + dx);
-      const ratio = newHalf / Math.max(8, _drag.w0);
-      applyTitle(_drag.key, { s: _drag.s0 * ratio }, false);
+      // Étirement de la zone de texte (maxW). Zone centrée sur x → tirer un bord
+      // l'élargit/rétrécit symétriquement (le bord suit le curseur).
+      const dxRef = dx / _drag.sc;
+      const newMaxW = _drag.mode === 'zoneE'
+        ? _drag.maxW0 + 2 * dxRef    // bord droit vers la droite = plus large
+        : _drag.maxW0 - 2 * dxRef;   // bord gauche vers la gauche (dx<0) = plus large
+      applyTitle(_drag.key, { maxW: newMaxW }, false);
     }
     refresh();
   }

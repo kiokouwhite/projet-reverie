@@ -3300,6 +3300,9 @@ function saveTitleConfig() {
     strokeColor: rf(`${p}strokecolor`, T.strokeColor ?? '#000000'),
     strokeWidth: rf(`${p}strokew`,     T.strokeWidth ?? 0),
     font:        rf(`${p}font`,        T.font        ?? ''),
+    // Zone de texte (largeur dispo) — pas de slider, géré par la manipulation
+    // directe ; on persiste la valeur courante de CONFIG.
+    maxW:        T.maxW,
   });
   const all = getTitleConfigs();
   all[currentGame] = { T1: readT('t1', CONFIG.T1), T2: readT('t2', CONFIG.T2), T3: readT('t3', CONFIG.T3) };
