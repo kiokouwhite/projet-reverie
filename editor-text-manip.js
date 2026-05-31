@@ -16,6 +16,7 @@
   const KEYS = ['T1', 'T2', 'T3'];
   let _overlay = null;
   let _drag = null;                  // état de glissement courant
+  let _selected = null;              // clé "kind:id" de la zone sélectionnée (seule boîte affichée)
 
   function canvas() { return document.getElementById('editorCanvas'); }
   function wrap()   { return document.querySelector('.editor-canvas-wrap'); }
@@ -88,6 +89,14 @@
     _overlay.innerHTML = '';
     w.style.position = w.style.position || 'relative';
     w.appendChild(_overlay);
+    // Clic dans le vide (sur le canvas, hors d'une boîte) → désélectionne :
+    // toutes les zones redeviennent invisibles. L'overlay est pointer-events:none,
+    // donc les clics hors boîte atteignent le canvas → on les capte ici.
+    const c = canvas();
+    if (c && !c._etmDeselectBound) {
+      c.addEventListener('pointerdown', () => { if (_selected !== null) { _selected = null; refresh(); } });
+      c._etmDeselectBound = true;
+    }
     return _overlay;
   }
 
@@ -170,6 +179,7 @@
       el.className = 'etm-box etm-' + d.kind;
       el.dataset.kind = d.kind;
       el.dataset.id = d.id;
+      if (_selected === d.kind + ':' + d.id) el.classList.add('etm-selected');
       el.style.left = box.left + 'px';
       el.style.top = box.top + 'px';
       el.style.width = box.w + 'px';
@@ -188,6 +198,12 @@
     const handle = e.target.closest('.etm-handle');
     const boxEl  = e.target.closest('.etm-box');
     if (!boxEl) return;
+    // Sélectionne cette zone (les autres se cachent) — la zone reste affichée
+    // tant qu'on ne clique pas ailleurs.
+    _selected = boxEl.dataset.kind + ':' + boxEl.dataset.id;
+    if (_overlay) _overlay.querySelectorAll('.etm-box.etm-selected')
+      .forEach(b => { if (b !== boxEl) b.classList.remove('etm-selected'); });
+    boxEl.classList.add('etm-selected');
     e.preventDefault();
     const kind = boxEl.dataset.kind;
     const sc = dispScale() || 1;

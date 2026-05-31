@@ -2244,24 +2244,31 @@ canvas { width: 100%; display: block; }
   box-sizing: border-box;
   pointer-events: auto;
   cursor: move;
-  border: 1.5px dashed rgba(124,92,255,0.85);
+  /* Invisible par défaut : la zone n'apparaît QUE quand on clique le texte
+     (état .etm-selected). On garde juste un repère discret au survol pour
+     indiquer que le texte est cliquable. */
+  border: 1.5px dashed transparent;
   border-radius: 5px;
-  background: rgba(124,92,255,0.05);
+  background: transparent;
   transition: background 0.12s, border-color 0.12s;
 }
-.etm-box:hover, .etm-box.etm-active {
+.etm-box:hover { border-color: rgba(124,92,255,0.45); }
+.etm-box.etm-selected, .etm-box.etm-active {
   background: rgba(124,92,255,0.16);
   border-color: rgba(124,92,255,1);
 }
+/* Poignées : masquées tant que la boîte n'est pas sélectionnée. */
+.etm-box .etm-handle { display: none; }
+.etm-box.etm-selected .etm-handle, .etm-box.etm-active .etm-handle { display: block; }
 /* Pseudos en vert pour les distinguer des titres (violet). */
-.etm-box.etm-name { border-color: rgba(70,209,143,0.85); background: rgba(70,209,143,0.05); }
-.etm-box.etm-name:hover, .etm-box.etm-name.etm-active {
+.etm-box.etm-name:hover { border-color: rgba(70,209,143,0.5); }
+.etm-box.etm-name.etm-selected, .etm-box.etm-name.etm-active {
   background: rgba(70,209,143,0.16); border-color: rgba(70,209,143,1);
 }
 .etm-box.etm-name .etm-handle { border-color: #2ea36a; }
 /* Classements (1ER/2ÈME/3ÈME) en doré. */
-.etm-box.etm-rank { border-color: rgba(245,200,66,0.9); background: rgba(245,200,66,0.06); }
-.etm-box.etm-rank:hover, .etm-box.etm-rank.etm-active {
+.etm-box.etm-rank:hover { border-color: rgba(245,200,66,0.55); }
+.etm-box.etm-rank.etm-selected, .etm-box.etm-rank.etm-active {
   background: rgba(245,200,66,0.18); border-color: rgba(245,200,66,1);
 }
 .etm-box.etm-rank .etm-handle { border-color: #c8a800; }
