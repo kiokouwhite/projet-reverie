@@ -1961,7 +1961,14 @@ async function lmDeleteLayout(idx) {
 function lmRenderPreview() {
   const canvas = document.getElementById('lmPreviewCanvas');
   if (!canvas) return;
+  // Capture des zones (titres + pseudos) pendant CE rendu, pour les poignées
+  // de manipulation directe. Gardé par window._lmtmCapture → aucun effet sur
+  // le rendu de la carte finale / du téléchargement.
+  window._lmtmRegions = [];
+  window._lmtmCapture = true;
   lmRenderToCanvas(canvas);
+  window._lmtmCapture = false;
+  if (typeof lmTextManipRefresh === 'function') lmTextManipRefresh();
 }
 
 function lmRenderToCanvas(canvas) {
@@ -2200,14 +2207,17 @@ function lmDrawTitlesFrom(ctx, sc, cfg) {
     ctx.letterSpacing = `${(tc.spacing||0)*sc}px`;
     ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8*sc;
     ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
+    const _mw = tc.maxW || 900;   // zone de texte (largeur dispo)
     if ((tc.strokeWidth||0) > 0) {
       ctx.strokeStyle = tc.strokeColor || '#000';
       ctx.lineWidth = tc.strokeWidth * sc;
       ctx.lineJoin = 'round';
-      ctx.strokeText(text, tc.x*sc, tc.y*sc, 900*sc);
+      ctx.strokeText(text, tc.x*sc, tc.y*sc, _mw*sc);
     }
     ctx.fillStyle = tc.color || '#ffffff';
-    ctx.fillText(text, tc.x*sc, tc.y*sc, 900*sc);
+    ctx.fillText(text, tc.x*sc, tc.y*sc, _mw*sc);
+    if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
+      .push({ kind:'title', id:'T'+(i+1), cx:tc.x, y:tc.y, size:tc.size, maxW:_mw });
   });
   ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
   ctx.letterSpacing='0px';
@@ -2380,6 +2390,8 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     const nameColors = cfg.nameColors || null;
     const nameColor = (nameColors && nameColors[idx]) ? nameColors[idx] : (ns.color || '#ffffff');
     const nameX = (slot.nameX != null) ? slot.nameX * sc : cx;
+    const _refNameX = (slot.nameX != null) ? slot.nameX : slot.cx; // coord REF
+    const _nmw = slot.nameMaxW || 0;                                // zone de texte
     ctx.font = `${ns.weight||'800'} ${Math.round((ns.size||34)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.letterSpacing = `${(ns.spacing||4)*sc}px`;
@@ -2389,10 +2401,14 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       ctx.strokeStyle = ns.strokeColor || '#000';
       ctx.lineWidth = ns.strokeWidth * sc;
       ctx.lineJoin = 'round';
-      ctx.strokeText(name.toUpperCase(), nameX, slot.nameY*sc);
+      if (_nmw > 0) ctx.strokeText(name.toUpperCase(), nameX, slot.nameY*sc, _nmw*sc);
+      else          ctx.strokeText(name.toUpperCase(), nameX, slot.nameY*sc);
     }
     ctx.fillStyle = nameColor;
-    ctx.fillText(name.toUpperCase(), nameX, slot.nameY*sc);
+    if (_nmw > 0) ctx.fillText(name.toUpperCase(), nameX, slot.nameY*sc, _nmw*sc);
+    else          ctx.fillText(name.toUpperCase(), nameX, slot.nameY*sc);
+    if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
+      .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360 });
     ctx.letterSpacing = '0px';
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
   }
