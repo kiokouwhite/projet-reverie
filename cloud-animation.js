@@ -147,6 +147,26 @@
     4: [[24, 30], [76, 28], [26, 74], [74, 72]],
     5: [[20, 28], [80, 24], [50, 56], [22, 78], [80, 74]],
   };
+  // Positions {x,y} en % pour N jeux quelconque. ≤5 → dispositions ci-dessus ;
+  // au-delà → grille adaptative (~16:10) avec dernière rangée centrée, pour
+  // répartir tous les jeux sans qu'ils se collent.
+  function spreadPositions(n) {
+    if (n <= 0) return [];
+    if (SPREAD_BY_COUNT[n]) return SPREAD_BY_COUNT[n].map(p => ({ x: p[0], y: p[1] }));
+    const cols = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * 1.6))));
+    const rows = Math.ceil(n / cols);
+    const xM = 13, yM = 16; // marges en %
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      const itemsThisRow = Math.min(cols, n - r * cols);
+      const x = itemsThisRow === 1 ? 50 : xM + (100 - 2 * xM) * (c / (itemsThisRow - 1));
+      const y = rows === 1 ? 50 : yM + (100 - 2 * yM) * (r / (rows - 1));
+      out.push({ x, y });
+    }
+    return out;
+  }
   function _hashStr(s) {
     let h = 0;
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -205,27 +225,23 @@
     // chaque jeu en partant d'un offset basé sur le hash des noms (donc
     // stable d'un re-render à l'autre pour le même tournoi, mais varié
     // entre deux tournois différents).
-    // Disposition : pour 1..5 jeux, grille garantie sans chevauchement
-    // (coins + centre) ; au-delà, fallback sur GAME_SLOTS.
-    const spread     = SPREAD_BY_COUNT[total] || null;
-    const slotCount  = spread ? spread.length : GAME_SLOTS.length;
-    const slotOffset = _hashStr(games.map(g => g.name || '').join('|')) % slotCount;
+    // Disposition adaptative pour TOUS les jeux (grille qui s'agrandit avec le
+    // nombre). On tourne l'ordre via slotOffset pour varier d'un tournoi à
+    // l'autre tout en gardant une position distincte par jeu (pas de collision).
+    const positions  = spreadPositions(total);
+    const slotOffset = _hashStr(games.map(g => g.name || '').join('|')) % positions.length;
+    // Plus il y a de jeux, plus on rétrécit les nuages et on réduit le jitter,
+    // pour qu'ils ne se chevauchent pas malgré la densité.
+    const sizeMax = total <= 5 ? 388 : Math.max(190, 360 - (total - 5) * 16);
+    const sizeMin = total <= 5 ? 300 : Math.max(150, sizeMax - 60);
+    const jitAmp  = total <= 6 ? 2 : (total <= 10 ? 1 : 0); // ±% de jitter
     layer.innerHTML = games.map((g, i) => {
-      let baseX, baseY;
-      if (spread) {
-        const p = spread[(slotOffset + i) % spread.length];
-        baseX = p[0]; baseY = p[1];
-      } else {
-        const slot = GAME_SLOTS[(slotOffset + i) % GAME_SLOTS.length];
-        baseX = slot.x; baseY = slot.y;
-      }
-      // Jitter réduit (±2%) : un peu de variété sans recoller les nuages.
-      const jitterX = ((_hashStr(g.name + '_x') % 40) - 20) / 10; // ±2%
-      const jitterY = ((_hashStr(g.name + '_y') % 40) - 20) / 10;
-      const xPct   = Math.max(10, Math.min(90, baseX + jitterX));
-      const yPct   = Math.max(12, Math.min(88, baseY + jitterY));
-      // Tailles un peu plus petites (300-388px) pour limiter le chevauchement.
-      const size   = 300 + ((_hashStr(g.name + '_sz') % 88));
+      const p = positions[(slotOffset + i) % positions.length];
+      const jitterX = jitAmp ? ((_hashStr(g.name + '_x') % (jitAmp * 20)) - jitAmp * 10) / 10 : 0;
+      const jitterY = jitAmp ? ((_hashStr(g.name + '_y') % (jitAmp * 20)) - jitAmp * 10) / 10 : 0;
+      const xPct   = Math.max(8,  Math.min(92, p.x + jitterX));
+      const yPct   = Math.max(12, Math.min(88, p.y + jitterY));
+      const size   = sizeMin + ((_hashStr(g.name + '_sz') % Math.max(1, sizeMax - sizeMin)));
       // Delays alignés sur ceux des filler clouds (0-0.48s) pour que les
       // cartes-jeux fassent partie de la même vague d'explosion au lieu
       // d'apparaître séparément ~1s plus tard.

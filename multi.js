@@ -153,7 +153,7 @@ async function importAllEvents() {
       });
       const cloudGames = Array.from(gameMap.values())
         .sort((a, b) => b.entrants - a.entrants)   // les plus gros jeux d'abord
-        .slice(0, 5)
+        // (plus de limite : on affiche TOUS les jeux du tournoi)
         .map(g => ({
           name:     g.name,
           imgUrl:   g.imgUrl,
