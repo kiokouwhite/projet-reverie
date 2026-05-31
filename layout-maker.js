@@ -290,6 +290,7 @@ const LM_SHAPES = [
   { id:'pentagon',      label:'Pentagone',        icon:'⬠',  desc:'5 côtés' },
   { id:'arch',          label:'Arche',            icon:'⌒',  desc:'Haut arrondi' },
   { id:'hexagon',       label:'Hexagone',         icon:'⬡',  desc:'6 côtés' },
+  { id:'circle',        label:'Rond',             icon:'◯',  desc:'Cercle / ovale' },
   { id:'custom_polygon', label:'Polygone custom',  icon:'✏️', desc:'Forme libre' },
 ];
 
@@ -1060,7 +1061,7 @@ function lmShowShapeControls() {
     const el = document.getElementById(id);
     if (el) el.style.display = vis ? 'flex' : 'none';
   };
-  show('lmCtrlRadius',   ['rounded','arch'].includes(LM.shape));
+  show('lmCtrlRadius',   LM.shape === 'rounded');
   show('lmCtrlSkew',     LM.shape === 'parallelogram');
   show('lmCtrlTrap',     LM.shape === 'trapezoid');
 }
@@ -2327,14 +2328,20 @@ function lmMakeShapePath(ctx, slot, sc, cfg) {
       break;
     }
     case 'arch': {
-      const r = Math.min(w, h)*0.95;
-      ctx.moveTo(cx-w, cy+h);
-      ctx.lineTo(cx-w, cy-h+r);
-      ctx.quadraticCurveTo(cx-w, cy-h, cx-w+r, cy-h);
-      ctx.arcTo(cx, cy-h-r*0.4, cx+w-r, cy-h, w);
-      ctx.lineTo(cx+w-r, cy-h);
-      ctx.quadraticCurveTo(cx+w, cy-h, cx+w, cy-h+r);
-      ctx.lineTo(cx+w, cy+h);
+      // Voûte = demi-ellipse au sommet de la carte, posée sur des côtés droits,
+      // BORNÉE à la boîte du slot. (L'ancienne version utilisait arcTo avec un
+      // rayon = largeur → la voûte débordait largement, d'où les arches géantes.)
+      const archH   = Math.min(h, w);    // hauteur de la voûte (≤ demi-hauteur)
+      const sideTop = cy - h + archH;    // y où la voûte démarre
+      ctx.moveTo(cx - w, cy + h);                         // bas-gauche
+      ctx.lineTo(cx - w, sideTop);                        // côté gauche
+      ctx.ellipse(cx, sideTop, w, archH, 0, Math.PI, 0, false); // sommet bombé (gauche→haut→droite)
+      ctx.lineTo(cx + w, cy + h);                         // côté droit
+      break;
+    }
+    case 'circle': {
+      // Cercle (ou ovale si la carte n'est pas carrée), rempli sur toute la boîte.
+      ctx.ellipse(cx, cy, w, h, 0, 0, Math.PI * 2);
       break;
     }
     case 'custom_polygon': {
