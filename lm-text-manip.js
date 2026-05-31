@@ -77,11 +77,16 @@
   // fausse pendant l'ouverture du modal). Le canvas est carré (réf 1400).
   function boxFromDesc(d) {
     const padY = d.size * 0.18;
+    const hRef = d.size * 1.15 + padY * 2;
     return {
       left: (d.cx - d.maxW / 2) / REF * 100,
       top:  (d.y - d.size * 0.92 - padY) / REF * 100,
       w:    d.maxW / REF * 100,
-      h:    (d.size * 1.15 + padY * 2) / REF * 100,
+      h:    hRef / REF * 100,
+      rot:  d.rot || 0,                               // rotation du texte (deg)
+      // Ancre verticale (la ligne de base) dans la boîte → la boîte tourne
+      // autour du même point que le texte.
+      originY: (d.size * 0.92 + padY) / hRef * 100,
     };
   }
 
@@ -103,6 +108,11 @@
       el.style.top = box.top + '%';
       el.style.width = box.w + '%';
       el.style.height = box.h + '%';
+      // La boîte tourne avec le texte (autour de la ligne de base centrée).
+      if (box.rot) {
+        el.style.transformOrigin = '50% ' + box.originY + '%';
+        el.style.transform = 'rotate(' + box.rot + 'deg)';
+      }
       el.title = (d.kind === 'name' ? 'Pseudo' : 'Titre') + ' — glisser pour déplacer, bords pour la zone';
       el.innerHTML = '<span class="etm-handle etm-w"></span><span class="etm-handle etm-e"></span>';
       ov.appendChild(el);

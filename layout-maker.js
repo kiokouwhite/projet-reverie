@@ -2429,7 +2429,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     else          ctx.fillText(name.toUpperCase(), _dx, _dy);
     ctx.restore();
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
-      .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360 });
+      .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
     ctx.letterSpacing = '0px';
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
   }
