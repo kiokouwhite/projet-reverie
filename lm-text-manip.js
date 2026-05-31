@@ -139,6 +139,19 @@
   function rerender() { if (typeof lmRenderPreview === 'function') lmRenderPreview(); }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+  // Reflète une valeur déplacée/redimensionnée à la souris dans le slider (+ son
+  // input number adjacent) du panneau de gauche. SANS ça, lmSyncRanks/Names/Title
+  // relit l'ANCIENNE valeur du slider au prochain réglage et écrase la position
+  // qu'on venait de glisser (→ "les classements bougent quand je change une option").
+  function syncInput(id, val) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = Math.round(val);
+    el.value = v;
+    const num = el.nextElementSibling;
+    if (num && num.tagName === 'INPUT' && num.type === 'number') num.value = v;
+  }
+
   function onDown(e) {
     const handle = e.target.closest('.etm-handle');
     const boxEl  = e.target.closest('.etm-box');
@@ -175,6 +188,7 @@
       _drag = { kind, ref: slot, mode, sc, startX: e.clientX, startY: e.clientY,
                 x0: nx0, y0: slot.nameY, maxW0: slot.nameMaxW || 360 };
     }
+    _drag.domId = boxEl.dataset.id;   // 'T1'/'T2'/'T3' (titre) ou index (rang/pseudo)
     boxEl.classList.add('etm-active');
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
@@ -189,6 +203,8 @@
       if (_drag.mode === 'move') {
         _drag.ref.x = clamp(_drag.x0 + dxRef, 0, REF);
         _drag.ref.y = clamp(_drag.y0 + dyRef, 0, REF);
+        syncInput('lm' + _drag.domId + 'x', _drag.ref.x);
+        syncInput('lm' + _drag.domId + 'y', _drag.ref.y);
       } else {
         _drag.ref.maxW = zoneW(_drag.maxW0);
       }
@@ -196,6 +212,8 @@
       if (_drag.mode === 'move') {
         _drag.ref.rankX = clamp(_drag.x0 + dxRef, 0, REF);
         _drag.ref.rankY = clamp(_drag.y0 + dyRef, 0, REF);
+        syncInput('lmRankX' + _drag.domId, _drag.ref.rankX);
+        syncInput('lmRankY' + _drag.domId, _drag.ref.rankY);
       } else if (_drag.mode === 'zoneE') {
         // Bord DROIT : largeur = largeur0 + dx (bord gauche figé sur rankX).
         _drag.ref.rankMaxW = clamp(Math.round(_drag.maxW0 + dxRef), 40, REF);
@@ -206,11 +224,14 @@
         const newX  = clamp(_drag.x0 + dxRef, 0, right - 40);
         _drag.ref.rankX    = newX;
         _drag.ref.rankMaxW = clamp(Math.round(right - newX), 40, REF);
+        syncInput('lmRankX' + _drag.domId, newX);   // rankX change aussi ici
       }
     } else {
       if (_drag.mode === 'move') {
         _drag.ref.nameX = clamp(_drag.x0 + dxRef, 0, REF);
         _drag.ref.nameY = clamp(_drag.y0 + dyRef, 0, REF);
+        syncInput('lmNameX' + _drag.domId, _drag.ref.nameX);
+        syncInput('lmNameY' + _drag.domId, _drag.ref.nameY);
       } else {
         _drag.ref.nameMaxW = zoneW(_drag.maxW0);
       }
