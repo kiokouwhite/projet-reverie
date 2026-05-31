@@ -14,10 +14,11 @@
   const REF = 1400;
   let _overlay = null;
   let _drag = null;
+  let _ro = null;   // ResizeObserver sur le canvas
 
   function lm()     { return (typeof LM !== 'undefined') ? LM : null; }
   function canvas() { return document.getElementById('lmPreviewCanvas'); }
-  function wrap()   { return document.querySelector('.lm-canvas-wrap'); }
+  function wrap()   { const c = canvas(); return c ? (c.closest('.lm-canvas-wrap') || c.parentElement) : null; }
 
   function isActive() {
     const c = canvas();
@@ -39,6 +40,14 @@
     if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
     w.appendChild(_overlay);
     _overlay.addEventListener('pointerdown', onDown);
+    // Le modal LM se met en page progressivement → la 1re mesure du canvas
+    // peut être trop petite. On re-place les poignées dès qu'il change de
+    // taille (sinon elles restent tassées en haut).
+    const c = canvas();
+    if (c && window.ResizeObserver && !_ro) {
+      _ro = new ResizeObserver(() => { if (isActive()) refresh(); });
+      _ro.observe(c);
+    }
     return _overlay;
   }
 
@@ -65,7 +74,7 @@
     const padY = d.size * 0.18;
     return {
       left: (d.cx - d.maxW / 2) / REF * 100,
-      top:  (d.base - d.size * 0.92 - padY) / REF * 100,
+      top:  (d.y - d.size * 0.92 - padY) / REF * 100,
       w:    d.maxW / REF * 100,
       h:    (d.size * 1.15 + padY * 2) / REF * 100,
     };
