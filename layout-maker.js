@@ -2655,48 +2655,56 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   }
 
   // Personnage(s)
-  const _multiImgs = (cfg.charsPerPlayer > 1 && Array.isArray(cfg.charImgsMulti))
-    ? (cfg.charImgsMulti[idx] || []).filter(Boolean) : [];
-  if (_multiImgs.length) {
-    const n = _multiImgs.length;
+  const _cuts = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean) : []);
+  const _imgsArr = (Array.isArray(cfg.charImgsMulti) ? (cfg.charImgsMulti[idx] || []) : []);
+  // Mode multi actif si plusieurs persos OU au moins une découpe. Les ZONES sont
+  // définies par les coupes (coupes+1) ; sinon bandes auto selon les images.
+  const _multiActive = (cfg.charsPerPlayer > 1 || _cuts.length > 0) && (_imgsArr.some(Boolean) || _cuts.length > 0);
+  if (_multiActive) {
     const left = cx - w/2, top = cy - h/2;
-    const cuts = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean) : []).slice(0, Math.max(0, n - 1));
-    if (cuts.length) {
-      // ── Découpe MANUELLE : lignes de coupe cliquées (coords carte 0-1) ──
+    if (_cuts.length) {
+      // ── Découpe MANUELLE : zones = coupes + 1. On oriente les coupes selon une
+      // normale de référence puis on les TRIE le long de cette normale → chaque
+      // zone k est la TRANCHE entre sorted[k-1] (côté +) et sorted[k] (côté -).
+      // (Une simple superposition perdrait les zones du milieu.)
+      const n = _cuts.length + 1;
       const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
       const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
-      // clip au demi-plan cross>0 (n=(-dy,dx)) d'une coupe (px).
-      const clipSidePos = (c) => {
-        const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
-        const ux=dx/len, uy=dy/len, nx=-uy, ny=ux, L=(Math.abs(w)+Math.abs(h))*4;
+      const nrm = (c) => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1; return { x:-dy/len, y:dx/len }; };
+      const cpxRaw = _cuts.map(cutPx);
+      const ref = nrm(cpxRaw[0]);
+      const oriented = cpxRaw.map(c => { const v=nrm(c); return (v.x*ref.x+v.y*ref.y) < 0 ? {x1:c.x2,y1:c.y2,x2:c.x1,y2:c.y1} : c; });
+      const proj = (c) => ((c.x1+c.x2)/2)*ref.x + ((c.y1+c.y2)/2)*ref.y;
+      const sorted = oriented.slice().sort((a,b) => proj(a)-proj(b));
+      const clipHalf = (c, pos) => {
+        const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+        const nx = pos?-uy:uy, ny = pos?ux:-ux, L=(Math.abs(w)+Math.abs(h))*4;
         const ax=c.x1-ux*L, ay=c.y1-uy*L, bx=c.x2+ux*L, by=c.y2+uy*L;
-        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by);
-        ctx.lineTo(bx+nx*L, by+ny*L); ctx.lineTo(ax+nx*L, ay+ny*L); ctx.closePath(); ctx.clip();
+        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(bx+nx*L,by+ny*L); ctx.lineTo(ax+nx*L,ay+ny*L); ctx.closePath(); ctx.clip();
       };
-      // Persos en COUCHES : char k visible côté cross>0 de cut[k-1], recouvert par k+1.
-      _multiImgs.forEach((im, k) => {
+      for (let k=0;k<n;k++){
+        const im=_imgsArr[k]; if(!im) continue;
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
-        if (k > 0 && cuts[k-1]) clipSidePos(cutPx(cuts[k-1]));
-        const scale = Math.max(w / im.naturalWidth, h / im.naturalHeight);
-        const dW = im.naturalWidth*scale, dH = im.naturalHeight*scale;
-        ctx.drawImage(im, cx - dW/2, top + (h - dH)*0.25, dW, dH);
+        if (k>0)   clipHalf(sorted[k-1], true);   // après la coupe précédente
+        if (k<n-1) clipHalf(sorted[k], false);    // avant la coupe suivante
+        const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
+        ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH);
         ctx.restore();
-      });
+      }
       if (cfg.charSplit !== false) {
-        // traits de coupe + numéros au centroïde de chaque région
         ctx.save(); lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.strokeStyle = cfg.strokeColor || '#7769DD';
         ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round';
         const L=(Math.abs(w)+Math.abs(h))*4;
-        cuts.forEach(cu => { const c=cutPx(cu), dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
+        cpxRaw.forEach(c => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
           ctx.beginPath(); ctx.moveTo(c.x1-dx/len*L, c.y1-dy/len*L); ctx.lineTo(c.x2+dx/len*L, c.y2+dy/len*L); ctx.stroke(); });
-        const GS=18, sumX=new Array(n).fill(0), sumY=new Array(n).fill(0), cnt=new Array(n).fill(0);
-        const cpx = cuts.map(cutPx);
+        const GS=20, sumX=new Array(n).fill(0), sumY=new Array(n).fill(0), cnt=new Array(n).fill(0);
         for (let gy=0; gy<GS; gy++) for (let gx=0; gx<GS; gx++) {
           const px=left+(gx+0.5)/GS*w, py=top+(gy+0.5)/GS*h;
-          let vis=0; for (let k=1;k<n;k++) if (cpx[k-1] && crossPx(cpx[k-1],px,py)>0) vis=k;
-          sumX[vis]+=px; sumY[vis]+=py; cnt[vis]++;
+          let v=0; for (let i=0;i<sorted.length;i++) if (crossPx(sorted[i],px,py)>0) v++;
+          if (v>n-1) v=n-1;
+          sumX[v]+=px; sumY[v]+=py; cnt[v]++;
         }
         const numSize=Math.min(w,h)*0.2;
         ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
@@ -2707,9 +2715,11 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.restore();
       }
     } else {
-      // ── Découpe AUTO : bandes verticales égales ──
+      // ── Découpe AUTO : bandes verticales égales (n = nb d'images chargées) ──
+      const imgs = _imgsArr.filter(Boolean);
+      const n = imgs.length;
       const stripW = w / n;
-      _multiImgs.forEach((im, k) => {
+      imgs.forEach((im, k) => {
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.beginPath(); ctx.rect(left + k*stripW, top, stripW, h); ctx.clip();
@@ -2915,9 +2925,7 @@ async function lmInitCoffreSelector() {
 // L'utilisateur clique 2 points pour tracer une ligne de coupe entre 2 persos.
 // N persos → N-1 coupes. Stocké dans LM.cuts (coords carte 0-1) ; appliqué à
 // chaque carte (rendu en couches, cf. lmDrawOneSlot).
-const LM_CE = { pending: null, SIZE: 360, MARGIN: 22, get DRAW() { return this.SIZE - 2*this.MARGIN; } };
-
-function lmCEMax() { return Math.max(0, (LM.charsPerPlayer || 1) - 1); }
+const LM_CE = { pending: null, MAX_CUTS: 4, SIZE: 360, MARGIN: 22, get DRAW() { return this.SIZE - 2*this.MARGIN; } };
 
 function lmOpenCutEditor() {
   const modal = document.getElementById('lmCutModal');
@@ -2939,10 +2947,11 @@ window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window
 
 function lmCEUpdateHint() {
   const h = document.getElementById('lmCutHint'); if (!h) return;
-  const max = lmCEMax(), cur = (LM.cuts || []).length;
-  if (max < 1) h.innerHTML = '⚠️ Règle d\'abord <strong>2 persos ou +</strong> par joueur (étape « Images des personnages ») pour pouvoir découper.';
-  else if (cur >= max) h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. « Effacer » pour recommencer.`;
-  else h.innerHTML = `🖱️ Clique <strong>2 points</strong> pour tracer la découpe ${cur+1}/${max}.` + (LM_CE.pending ? ' <em>(1er point posé)</em>' : '');
+  const cur = (LM.cuts || []).length;
+  if (LM_CE.pending) { h.innerHTML = '🖱️ Clique le <strong>2e point</strong> de la découpe.'; return; }
+  if (cur >= LM_CE.MAX_CUTS) { h.innerHTML = `✅ ${cur} découpes → ${cur+1} zones (max). « Effacer » pour recommencer.`; return; }
+  if (cur === 0) h.innerHTML = '🖱️ Clique <strong>2 points</strong> pour tracer une découpe (→ 2 zones).';
+  else h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. Clique encore <strong>2 points</strong> pour ajouter une zone.`;
 }
 function lmCEPos(e) {
   const cv = document.getElementById('lmCutCanvas'); const r = cv.getBoundingClientRect();
@@ -2950,13 +2959,17 @@ function lmCEPos(e) {
   return { nx: (x - LM_CE.MARGIN) / LM_CE.DRAW, ny: (y - LM_CE.MARGIN) / LM_CE.DRAW };
 }
 function lmCEClick(e) {
-  if (lmCEMax() < 1 || (LM.cuts || []).length >= lmCEMax()) return;
+  if ((LM.cuts || []).length >= LM_CE.MAX_CUTS) return;   // limite raisonnable
   const p = lmCEPos(e);
   const nx = Math.max(0, Math.min(1, p.nx)), ny = Math.max(0, Math.min(1, p.ny));
   if (!LM_CE.pending) { LM_CE.pending = { x: nx, y: ny }; }
   else {
     LM.cuts.push({ x1: LM_CE.pending.x, y1: LM_CE.pending.y, x2: nx, y2: ny });
     LM_CE.pending = null;
+    // Chaque découpe ajoute une ZONE → autant de persos. On remonte le compteur
+    // et on (re)charge le perso de la nouvelle zone depuis start.gg si dispo.
+    LM.charsPerPlayer = Math.max(LM.charsPerPlayer || 1, LM.cuts.length + 1);
+    if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
     lmRenderPreview();
   }
   lmCEUpdateHint(); lmCEDraw();
@@ -2966,28 +2979,34 @@ function lmCEDraw() {
   const ctx = cv.getContext('2d'); const S = LM_CE.SIZE, M = LM_CE.MARGIN, D = LM_CE.DRAW;
   ctx.clearRect(0, 0, S, S);
   const slot = { cx: S/2, cy: S/2, w: D, h: D };
-  const n = LM.charsPerPlayer || 1;
   const cuts = (LM.cuts || []).filter(Boolean);
+  const n = cuts.length + 1;                 // zones = coupes + 1
   const left = M, top = M, w = D, h = D;
-  const TINTS = ['rgba(255,90,90,0.5)','rgba(90,200,120,0.5)','rgba(90,150,255,0.5)','rgba(240,200,80,0.5)'];
+  const TINTS = ['rgba(255,90,90,0.5)','rgba(90,200,120,0.5)','rgba(90,150,255,0.5)','rgba(240,200,80,0.5)','rgba(200,120,255,0.5)'];
   const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
   const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
-  const clipSidePos = (c) => { const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,nx=-uy,ny=ux,L=(w+h)*4;
+  const nrm = (c) => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1; return { x:-dy/len, y:dx/len }; };
+  const cpxRaw = cuts.map(cutPx);
+  const ref = cpxRaw.length ? nrm(cpxRaw[0]) : {x:1,y:0};
+  const oriented = cpxRaw.map(c => { const v=nrm(c); return (v.x*ref.x+v.y*ref.y) < 0 ? {x1:c.x2,y1:c.y2,x2:c.x1,y2:c.y1} : c; });
+  const proj = (c) => ((c.x1+c.x2)/2)*ref.x + ((c.y1+c.y2)/2)*ref.y;
+  const sorted = oriented.slice().sort((a,b) => proj(a)-proj(b));
+  const clipHalf = (c, pos) => { const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,nx=pos?-uy:uy,ny=pos?ux:-ux,L=(w+h)*4;
     const ax=c.x1-ux*L,ay=c.y1-uy*L,bx=c.x2+ux*L,by=c.y2+uy*L;
     ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineTo(bx+nx*L,by+ny*L);ctx.lineTo(ax+nx*L,ay+ny*L);ctx.closePath();ctx.clip(); };
   // fond de la forme
   ctx.save(); lmMakeShapePath(ctx, slot, 1, LM); ctx.fillStyle = '#241640'; ctx.fill(); ctx.restore();
-  // régions teintées (couches)
-  for (let k=0;k<n;k++){ ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); if(k>0&&cuts[k-1]) clipSidePos(cutPx(cuts[k-1])); ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
+  // régions teintées (tranches entre coupes consécutives)
+  for (let k=0;k<n;k++){ ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); if(k>0)clipHalf(sorted[k-1],true); if(k<n-1)clipHalf(sorted[k],false); ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
   // traits de coupe
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; const L=(w+h)*4;
-  cuts.forEach(cu=>{const c=cutPx(cu),dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1;ctx.beginPath();ctx.moveTo(c.x1-dx/len*L,c.y1-dy/len*L);ctx.lineTo(c.x2+dx/len*L,c.y2+dy/len*L);ctx.stroke();});
+  cpxRaw.forEach(c=>{const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1;ctx.beginPath();ctx.moveTo(c.x1-dx/len*L,c.y1-dy/len*L);ctx.lineTo(c.x2+dx/len*L,c.y2+dy/len*L);ctx.stroke();});
   ctx.restore();
   // contour de la forme
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.strokeStyle='#7c5cff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore();
-  // numéros aux centroïdes
-  const cpx=cuts.map(cutPx), GS=18, sx=new Array(n).fill(0), sy=new Array(n).fill(0), cn=new Array(n).fill(0);
-  for(let gy=0;gy<GS;gy++)for(let gx=0;gx<GS;gx++){const px=left+(gx+0.5)/GS*w,py=top+(gy+0.5)/GS*h;let vis=0;for(let k=1;k<n;k++)if(cpx[k-1]&&crossPx(cpx[k-1],px,py)>0)vis=k;sx[vis]+=px;sy[vis]+=py;cn[vis]++;}
+  // numéros aux centroïdes (zone = nombre de coupes côté cross>0)
+  const GS=20, sx=new Array(n).fill(0), sy=new Array(n).fill(0), cn=new Array(n).fill(0);
+  for(let gy=0;gy<GS;gy++)for(let gx=0;gx<GS;gx++){const px=left+(gx+0.5)/GS*w,py=top+(gy+0.5)/GS*h;let v=0;for(let i=0;i<sorted.length;i++)if(crossPx(sorted[i],px,py)>0)v++;if(v>n-1)v=n-1;sx[v]+=px;sy[v]+=py;cn[v]++;}
   ctx.font='900 26px Montserrat, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
   for(let k=0;k<n;k++){if(!cn[k])continue;const mx=sx[k]/cn[k],my=sy[k]/cn[k];ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,0.85)';ctx.strokeText(String(k+1),mx,my);ctx.fillStyle='#fff';ctx.fillText(String(k+1),mx,my);}
   // point en attente
