@@ -55,15 +55,20 @@
   // est en flex:1 et bien plus grand que le canvas centré → on ne peut pas se
   // contenter d'inset:0). Renvoie false si le canvas n'est pas encore mesurable.
   function positionOverlay(ov) {
-    const c = canvas(), w = wrap();
-    if (!c || !w) return false;
-    const cr = c.getBoundingClientRect(), wr = w.getBoundingClientRect();
-    if (cr.width < 2 || cr.height < 2) return false;
+    const c = canvas();
+    if (!c || c.offsetWidth < 2) return false;
+    // On cale l'overlay sur la boîte NON transformée du canvas (offset* ignore
+    // les transforms), puis on lui applique la MÊME transform (pan/zoom) avec
+    // la même origine/transition → l'overlay et ses poignées suivent exactement
+    // le canvas, y compris pendant le pan/zoom de l'aperçu.
     ov.style.inset  = 'auto';
-    ov.style.left   = (cr.left - wr.left) + 'px';
-    ov.style.top    = (cr.top  - wr.top)  + 'px';
-    ov.style.width  = cr.width + 'px';
-    ov.style.height = cr.height + 'px';
+    ov.style.left   = c.offsetLeft + 'px';
+    ov.style.top    = c.offsetTop + 'px';
+    ov.style.width  = c.offsetWidth + 'px';
+    ov.style.height = c.offsetHeight + 'px';
+    ov.style.transformOrigin = '0 0';
+    ov.style.transition = 'transform 0.15s cubic-bezier(0.25,0.8,0.3,1)';
+    ov.style.transform = c.style.transform || 'none';
     return true;
   }
 
@@ -115,6 +120,7 @@
     const L = lm();
     if (!L) return;
     e.preventDefault();
+    e.stopPropagation();   // ne pas déclencher le pan du canvas en même temps
     const kind = boxEl.dataset.kind;
     const sc = dispScale() || 1;
     const mode = handle ? (handle.classList.contains('etm-e') ? 'zoneE' : 'zoneW') : 'move';

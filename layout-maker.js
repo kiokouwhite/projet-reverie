@@ -365,6 +365,9 @@ function lmInstallPreviewPanZoom(){
     canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
     indicator.textContent = Math.round(zoom * 100) + '%';
     indicator.classList.toggle('lm-zoom-visible', zoom > 1.01 || Math.abs(panX) > 1 || Math.abs(panY) > 1);
+    // Les poignées de manipulation doivent suivre le pan/zoom du canvas
+    // (l'overlay se recale sur la bbox transformée du canvas).
+    if (typeof lmTextManipRefresh === 'function') lmTextManipRefresh();
   }
 
   function reset(){
