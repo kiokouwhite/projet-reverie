@@ -2283,6 +2283,16 @@ canvas { width: 100%; display: block; }
 .etm-handle.etm-e { right: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 .etm-handle.etm-w { left:  -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 
+/* ── Sélecteur "persos par joueur" (Layout Maker, jeux d'équipe) ── */
+.lm-cpp-btn {
+  padding: 5px 13px; border-radius: 8px;
+  border: 1.5px solid #d9c7ec; background: #fff; color: #6a4f8f;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.lm-cpp-btn:hover { border-color: #b79bdf; }
+.lm-cpp-btn.lm-selected { background: #7c5cff; color: #fff; border-color: #7c5cff; }
+
 /* ── Indicateur d'auto-enregistrement (Layout Maker) ───────── */
 .lm-autosave-toast {
   position: fixed;

@@ -222,6 +222,12 @@ const LM = {
     {cx:0.5,cy:0.3,zoom:2.0},
   ],
   cropEditIdx: null,
+  // Multi-personnages (jeux d'équipe ex. DBFZ) : nombre de persos par joueur,
+  // détecté auto depuis start.gg (surchargeable). >1 → on compose plusieurs
+  // persos CÔTE À CÔTE dans chaque carte.
+  charsPerPlayer: 1,
+  charImgsMulti: [[], [], []],   // images chargées (runtime) par slot
+  charUrlsMulti: [[], [], []],   // URLs/dataURLs par slot (persisté)
 
   // Step 6 — Noms
   playerNames: ['','',''],
@@ -253,6 +259,7 @@ function lmResetForNew() {
   // celles du layout précédent ; elles seront rechargées au besoin.
   LM.bgImg = null; LM.gameImgImg = null; LM.overlayImg = null;
   LM.charImgs = [null, null, null];
+  LM.charImgsMulti = [[], [], []];
   // Efface les marqueurs d'édition : un nouveau layout ne doit JAMAIS écraser le
   // dernier layout édité au moment de la sauvegarde.
   LM._editIdx = null;
@@ -1141,12 +1148,40 @@ function lmInitChars() {
       document.getElementById(`lmCharHint${i}`).style.display = 'none';
     }
   });
+  lmHighlightCppBtn();
+}
+
+// Nombre de persos par joueur (jeux d'équipe). Met à jour le mode + ré-importe
+// les persos depuis start.gg avec ce nombre, puis re-rend.
+function lmSetCharsPerPlayer(n) {
+  LM.charsPerPlayer = Math.max(1, Math.min(3, n | 0));
+  lmHighlightCppBtn();
+  if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
+  lmRenderPreview();
+}
+window.lmSetCharsPerPlayer = lmSetCharsPerPlayer;
+function lmHighlightCppBtn() {
+  document.querySelectorAll('.lm-cpp-btn').forEach(b =>
+    b.classList.toggle('lm-selected', (+b.dataset.cpp) === (LM.charsPerPlayer || 1)));
 }
 
 // Auto-importe les images de personnages depuis les données start.gg déjà
 // chargées (global `players`). Pour chaque joueur du Top, on résout son
 // personnage (players[i].charId) en image d'art via getMuralArtUrl() et on
 // la place dans le slot correspondant.
+// Détecte le nombre de persos par joueur d'après le Top start.gg chargé
+// (players[i].chars rempli à l'import). 1..3. Sert à passer en multi-persos auto.
+function lmDetectCharsPerPlayer() {
+  if (typeof players === 'undefined' || !Array.isArray(players)) return 1;
+  let max = 1;
+  players.slice(0, 3).forEach(p => {
+    const n = (p && Array.isArray(p.chars)) ? p.chars.length : 0;
+    if (n > max) max = n;
+  });
+  return Math.max(1, Math.min(3, max));
+}
+window.lmDetectCharsPerPlayer = lmDetectCharsPerPlayer;
+
 function lmAutoImportChars() {
   const statusEl = document.getElementById('lmAutoImportStatus');
   const setStatus = (msg, ok = true) => {
@@ -1167,9 +1202,39 @@ function lmAutoImportChars() {
       setStatus(loaded > 0
         ? `✅ ${loaded} personnage(s) importé(s) depuis start.gg.`
         : 'ℹ️ Aucune image de personnage trouvée. Vérifie que les persos sont bien reportés sur start.gg, puis ré-importe le tournoi.', loaded > 0);
+      if (typeof lmInitChars === 'function') lmInitChars();   // rafraîchit les vignettes
     }
   };
 
+  const N = Math.max(1, Math.min(3, LM.charsPerPlayer || 1));
+
+  // ── Jeu d'ÉQUIPE (plusieurs persos par joueur) : on charge jusqu'à N persos
+  // par joueur depuis players[i].chars (URLs start.gg) → compositées côte à côte.
+  if (N > 1) {
+    players.slice(0, 3).forEach((p, i) => {
+      if (!p) return;
+      const chars = Array.isArray(p.chars) ? p.chars.slice(0, N) : [];
+      LM.charImgsMulti[i] = LM.charImgsMulti[i] || [];
+      LM.charUrlsMulti[i] = LM.charUrlsMulti[i] || [];
+      chars.forEach((c, k) => {
+        const url = c && c.url;
+        if (!url) return;
+        attempted++; pending++;
+        const apply = (img) => {
+          LM.charImgsMulti[i][k] = img; LM.charUrlsMulti[i][k] = url;
+          loaded++; lmRenderPreview(); pending--; finish();
+        };
+        const img = new Image(); img.crossOrigin = 'anonymous';
+        img.onload  = () => apply(img);
+        img.onerror = () => { const img2 = new Image(); img2.onload = () => apply(img2); img2.onerror = () => { pending--; finish(); }; img2.src = url; };
+        img.src = url;
+      });
+    });
+    if (attempted === 0) setStatus('ℹ️ Aucun perso trouvé sur start.gg pour ces joueurs.', false);
+    return;
+  }
+
+  // ── Jeu MONO-perso (comportement historique) ──
   // On ne traite que les 3 premiers slots (le layout a 3 emplacements).
   players.slice(0, 3).forEach((p, i) => {
     if (!p) return;
@@ -1515,6 +1580,18 @@ async function lmOpenForEdit(layoutId) {
   LM.charDataUrls  = [...(layout.charDataUrls || [null,null,null])];
   LM.charImgs      = [null, null, null];
   LM.charCrops     = (layout.charCrops || [{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2}]).map(c => ({...c}));
+  // Multi-personnages : restaure le nombre + les URLs, puis recharge les images.
+  LM.charsPerPlayer = layout.charsPerPlayer || 1;
+  LM.charUrlsMulti  = (layout.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]);
+  LM.charImgsMulti  = [[], [], []];
+  LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
+    if (!url) return;
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    const put = (x) => { LM.charImgsMulti[i] = LM.charImgsMulti[i] || []; LM.charImgsMulti[i][k] = x; lmRenderPreview(); };
+    im.onload = () => put(im);
+    im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
+    im.src = url;
+  }));
   LM.nameStyle     = {...(layout.nameStyle  || {})};
   LM.nameColors    = [...(layout.nameColors || [])];
   LM.playerNames   = [...(layout.playerNames || ['','',''])];
@@ -1666,6 +1743,8 @@ async function lmFinishAndSave(silent, keepEdit) {
     rankStyle:   {...LM.rankStyle},
     charDataUrls: [...LM.charDataUrls],
     charCrops:   LM.charCrops.map(c => ({...c})),
+    charsPerPlayer: LM.charsPerPlayer || 1,
+    charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
     nameStyle: {...LM.nameStyle},
     nameColors: [...LM.nameColors],
     playerNames: [...LM.playerNames],
@@ -1958,6 +2037,19 @@ function lmRegisterLayout(layout) {
     img.onload = () => { imgCache[key]._loaded = true; imgCache[key]._img = img; };
     img.src = url;
   });
+  // Multi-personnages : charge les images CÔTE À CÔTE dans layout.charImgsMulti
+  // (utilisé par drawCustomLMLayout pour le rendu final).
+  if ((layout.charsPerPlayer || 1) > 1 && Array.isArray(layout.charUrlsMulti)) {
+    layout.charImgsMulti = [[], [], []];
+    layout.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
+      if (!url) return;
+      const im = new Image(); im.crossOrigin = 'anonymous';
+      const put = (x) => { layout.charImgsMulti[i] = layout.charImgsMulti[i] || []; layout.charImgsMulti[i][k] = x; };
+      im.onload = () => put(im);
+      im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
+      im.src = url;
+    }));
+  }
 
   // Précharger l'image du jeu (logo)
   const gameImgSrc = layout.gameImgDataUrl || layout.gameImgUrl;
@@ -2551,8 +2643,26 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.fill();
   }
 
-  // Character image
-  if (img) {
+  // Personnage(s)
+  const _multiImgs = (cfg.charsPerPlayer > 1 && Array.isArray(cfg.charImgsMulti))
+    ? (cfg.charImgsMulti[idx] || []).filter(Boolean) : [];
+  if (_multiImgs.length) {
+    // Jeu d'ÉQUIPE : persos CÔTE À CÔTE. Chaque perso couvre sa bande verticale,
+    // découpé à la fois à sa bande ET à la forme de la carte (pas de débordement
+    // sur le voisin).
+    const n = _multiImgs.length;
+    const left = cx - w/2, top = cy - h/2, stripW = w / n;
+    _multiImgs.forEach((im, k) => {
+      ctx.save();
+      lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();                 // forme de la carte
+      ctx.beginPath(); ctx.rect(left + k*stripW, top, stripW, h); ctx.clip(); // bande du perso
+      const scale = Math.max(stripW / im.naturalWidth, h / im.naturalHeight);
+      const drawW = im.naturalWidth * scale, drawH = im.naturalHeight * scale;
+      // centré horizontalement dans sa bande, biais vers le haut (visages).
+      ctx.drawImage(im, left + k*stripW + (stripW - drawW)/2, top + (h - drawH)*0.25, drawW, drawH);
+      ctx.restore();
+    });
+  } else if (img) {
     ctx.save();
     lmMakeShapePath(ctx, slot, sc, cfg);
     ctx.clip();

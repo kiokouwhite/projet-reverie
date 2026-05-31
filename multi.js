@@ -386,6 +386,13 @@ async function importAllEvents() {
             console.log(`[MULTI] "${ev.name}" — ${playerName} : counts vides`, counts);
             return;
           }
+          // Liste COMPLÈTE des persos du joueur (triés par usage) avec leur image
+          // start.gg → permet de détecter les jeux d'équipe (DBFZ, Marvel…) et de
+          // composer plusieurs persos côte à côte par carte dans le Layout Maker.
+          evPlayers[i].chars = Object.entries(counts)
+            .sort((a,b) => b[1]-a[1])
+            .map(([cn]) => ({ name: cn, url: charImage[cn] || null }))
+            .filter(c => c.url);
           // Toujours stocker l'URL start.gg en fallback (au cas où le PNG
           // local n'existe pas, ex. Alex.png pas encore uploadé sur le repo).
           // drawMagnaCard tentera le local d'abord puis le fallback start.gg.
@@ -932,6 +939,11 @@ async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
     const el = document.getElementById(`lmPlayerName${i}`);
     if (el) el.value = LM.playerNames[i] || '';
   });
+  // Détecte auto le nombre de persos par joueur (jeux d'équipe ex. DBFZ) à partir
+  // du Top start.gg → active le mode multi-persos (surchargeable dans l'étape 6).
+  if (typeof lmDetectCharsPerPlayer === 'function') {
+    LM.charsPerPlayer = lmDetectCharsPerPlayer();
+  }
   if (typeof lmRenderPreview === 'function') lmRenderPreview();
 }
 
