@@ -118,7 +118,8 @@
         el.style.transformOrigin = box.originX + '% ' + box.originY + '%';
         el.style.transform = 'rotate(' + box.rot + 'deg)';
       }
-      el.title = (d.kind === 'name' ? 'Pseudo' : 'Titre') + ' — glisser pour déplacer, bords pour la zone';
+      const _lbl = d.kind === 'name' ? 'Pseudo' : d.kind === 'rank' ? 'Classement' : 'Titre';
+      el.title = _lbl + ' — glisser pour déplacer, bords pour la zone';
       el.innerHTML = '<span class="etm-handle etm-w"></span><span class="etm-handle etm-e"></span>';
       ov.appendChild(el);
     });
@@ -180,10 +181,12 @@
         _drag.ref.rankX = clamp(_drag.x0 + dxRef, 0, REF);
         _drag.ref.rankY = clamp(_drag.y0 + dyRef, 0, REF);
       } else {
-        // Poignées latérales → taille du classement (largeur du label ∝ taille).
+        // Poignées latérales → étire la ZONE de texte (et non la taille de police),
+        // comme pour les titres/pseudos. Le classement est aligné à gauche : son
+        // bord gauche reste figé sur rankX, donc la largeur varie de 1× le
+        // déplacement (≠ centré qui varie de 2×).
         const nw = _drag.mode === 'zoneE' ? _drag.maxW0 + dxRef : _drag.maxW0 - dxRef;
-        const ratio = clamp(nw / Math.max(20, _drag.maxW0), 0.3, 5);
-        _drag.ref.rankSize = clamp(Math.round(_drag.size0 * ratio), 20, 240);
+        _drag.ref.rankMaxW = clamp(Math.round(nw), 40, REF);
       }
     } else {
       if (_drag.mode === 'move') {

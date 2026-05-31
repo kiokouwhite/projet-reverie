@@ -2388,19 +2388,25 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   ctx.save();
   if (_rrot) { ctx.translate(slot.rankX*sc, slot.rankY*sc); ctx.rotate(_rrot); }
   const _rdx = _rrot ? 0 : slot.rankX*sc, _rdy = _rrot ? 0 : slot.rankY*sc;
+  const _rmw = slot.rankMaxW || 0;   // zone de texte (largeur dispo) ; 0 = naturelle
   if ((rs.strokeWidth||0) > 0) {
     ctx.strokeStyle = rs.strokeColor || '#000';
     ctx.lineWidth = rs.strokeWidth * sc;
     ctx.lineJoin = 'round';
-    ctx.strokeText(rankLabel, _rdx, _rdy);
+    if (_rmw > 0) ctx.strokeText(rankLabel, _rdx, _rdy, _rmw*sc);
+    else          ctx.strokeText(rankLabel, _rdx, _rdy);
   }
   ctx.fillStyle = numColor;
-  ctx.fillText(rankLabel, _rdx, _rdy);
+  if (_rmw > 0) ctx.fillText(rankLabel, _rdx, _rdy, _rmw*sc);
+  else          ctx.fillText(rankLabel, _rdx, _rdy);
   ctx.restore();
   // Capture du classement pour la poignée de manipulation (aligné à gauche).
+  // maxW = zone de texte si définie, sinon largeur naturelle du label → la boîte
+  // épouse le label tant qu'aucune zone n'a été étirée.
   if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
     kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
-    maxW: Math.max(40, ctx.measureText(rankLabel).width / sc), rot: rs.rotation || 0, align: 'left',
+    maxW: slot.rankMaxW || Math.max(40, ctx.measureText(rankLabel).width / sc),
+    rot: rs.rotation || 0, align: 'left',
   });
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
