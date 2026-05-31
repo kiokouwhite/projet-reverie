@@ -2283,6 +2283,24 @@ canvas { width: 100%; display: block; }
 .etm-handle.etm-e { right: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 .etm-handle.etm-w { left:  -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
 
+/* ── Indicateur d'auto-enregistrement (Layout Maker) ───────── */
+.lm-autosave-toast {
+  position: fixed;
+  bottom: 18px; right: 18px;
+  z-index: 100000;
+  background: rgba(46,163,106,0.96);
+  color: #fff;
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.28);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.lm-autosave-toast.show { opacity: 1; transform: translateY(0); }
+
 /* ── ÉDITEUR DE TITRES ──────────────────────────────────── */
 .title-row {
   display: grid;

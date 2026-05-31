@@ -490,6 +490,9 @@ function closeLayoutMaker() {
   // Reset guard de transition au cas où on aurait fermé en plein milieu
   // d'une transition — sinon la prochaine ouverture serait bloquée.
   LM._isTransitioning = false;
+  // Annule un éventuel auto-enregistrement en attente : la sauvegarde de
+  // fermeture ci-dessous est la sauvegarde finale.
+  if (typeof lmCancelAutoSave === 'function') lmCancelAutoSave();
   // En mode ÉDITION : auto-mettre à jour le layout à la fermeture, pour que
   // l'AFFICHAGE (le snapshot du multi-graph, figé à la dernière sauvegarde)
   // reflète les modifs sans devoir cliquer "Mettre à jour" manuellement.
@@ -1597,7 +1600,7 @@ async function lmOpenForEdit(layoutId) {
   lmRenderPreview();
 }
 
-async function lmFinishAndSave(silent) {
+async function lmFinishAndSave(silent, keepEdit) {
   const name = document.getElementById('lmLayoutNameInput')?.value.trim() || LM.gameName;
   // Mode édition : réutiliser le même id ; sinon, créer un nouvel id
   const id   = LM._editId || ('custom_' + Date.now());
@@ -1665,12 +1668,14 @@ async function lmFinishAndSave(silent) {
     console.error('[lmFinishAndSave] coffre corrompu :', e);
     coffre = [];
   }
+  // Index où écrire : on tente l'index d'édition, sinon on retrouve par id
+  // (robuste pour les auto-enregistrements répétés → jamais de doublon).
   const editIdx = LM._editIdx;
-  if (editIdx !== undefined && editIdx >= 0 && coffre[editIdx]?.id === id) {
-    coffre[editIdx] = lightLayout;
-  } else {
-    coffre.push(lightLayout);
-  }
+  let saveIdx = (editIdx !== undefined && editIdx >= 0 && coffre[editIdx]?.id === id)
+    ? editIdx
+    : coffre.findIndex(l => l && l.id === id);
+  if (saveIdx >= 0) coffre[saveIdx] = lightLayout;
+  else saveIdx = coffre.push(lightLayout) - 1;
   try {
     const serialized = JSON.stringify(coffre);
     localStorage.setItem('top8_coffre', serialized);
@@ -1698,9 +1703,15 @@ async function lmFinishAndSave(silent) {
     }
   }
 
-  // Réinitialiser les marqueurs d'édition
-  LM._editIdx = undefined;
-  LM._editId  = undefined;
+  // Réinitialiser les marqueurs d'édition — SAUF en auto-enregistrement (keepEdit),
+  // où l'on reste en mode édition pour les sauvegardes suivantes. On garde alors
+  // un index valide (saveIdx) pour pointer la bonne entrée du coffre.
+  if (keepEdit) {
+    LM._editIdx = saveIdx;
+  } else {
+    LM._editIdx = undefined;
+    LM._editId  = undefined;
+  }
 
   // Update game selector
   lmAddToSelector(layout);
@@ -2027,6 +2038,59 @@ function lmRenderPreview() {
   lmRenderToCanvas(canvas);
   window._lmtmCapture = false;
   if (typeof lmTextManipRefresh === 'function') lmTextManipRefresh();
+  // Tout changement passe par un re-rendu de l'aperçu → on planifie un
+  // auto-enregistrement (en mode édition uniquement, débounce).
+  lmScheduleAutoSave();
+}
+
+// ── AUTO-ENREGISTREMENT (mode édition) ─────────────────────────────────────────
+// À chaque modification (qui re-rend l'aperçu), on planifie une sauvegarde
+// SILENCIEUSE débounce ~1,4 s après le dernier changement. On reste en mode
+// édition (keepEdit) pour que les sauvegardes suivantes remplacent la même
+// entrée (jamais de doublon). N'agit QUE sur un layout déjà existant (en cours
+// d'édition) et quand le modal est ouvert.
+let _lmAutoSaveTimer = null;
+let _lmAutoSaving = false;
+let _lmAutoSaveDirty = false;
+function lmScheduleAutoSave() {
+  if (LM._editId == null) return;                         // pas en édition → rien
+  const modal = document.getElementById('lmModal');
+  if (!modal || modal.style.display === 'none') return;   // modal fermé → rien
+  _lmAutoSaveDirty = true;
+  if (_lmAutoSaveTimer) clearTimeout(_lmAutoSaveTimer);
+  _lmAutoSaveTimer = setTimeout(lmRunAutoSave, 1400);
+}
+window.lmScheduleAutoSave = lmScheduleAutoSave;
+function lmCancelAutoSave() {
+  if (_lmAutoSaveTimer) { clearTimeout(_lmAutoSaveTimer); _lmAutoSaveTimer = null; }
+  _lmAutoSaveDirty = false;
+}
+window.lmCancelAutoSave = lmCancelAutoSave;
+async function lmRunAutoSave() {
+  _lmAutoSaveTimer = null;
+  if (LM._editId == null) return;
+  if (_lmAutoSaving) { _lmAutoSaveDirty = true; return; }  // déjà en cours → replanifié à la fin
+  _lmAutoSaving = true;
+  _lmAutoSaveDirty = false;
+  try {
+    await lmFinishAndSave(true, true);    // silencieux + garde le mode édition
+    lmShowAutoSavedToast();
+  } catch (e) { console.warn('[LM] auto-enregistrement :', e); }
+  _lmAutoSaving = false;
+  if (_lmAutoSaveDirty) lmScheduleAutoSave();   // une modif est arrivée pendant la sauvegarde
+}
+function lmShowAutoSavedToast() {
+  let el = document.getElementById('lmAutoSaveToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lmAutoSaveToast';
+    el.className = 'lm-autosave-toast';
+    el.textContent = '✓ Enregistré';
+    document.body.appendChild(el);
+  }
+  el.classList.add('show');
+  clearTimeout(el._hideT);
+  el._hideT = setTimeout(() => el.classList.remove('show'), 1300);
 }
 
 function lmRenderToCanvas(canvas) {
