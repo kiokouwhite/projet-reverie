@@ -629,6 +629,15 @@ async function addCustomLayoutGraph(layout) {
   // Si le layout existe déjà comme graphe (édition), le remplacer ; sinon ajouter
   const existingIdx = graphs.findIndex(g => g.game === layout.id && g.isCustomLayout);
 
+  // Image de fond du PILL multi (le bouton en haut). Sans ça, le bouton du
+  // layout fraîchement créé est vide : son image n'était câblée qu'au
+  // ré-import (via _startggBg), d'où le besoin de "refresh". On utilise le
+  // fond du layout comme cover, sinon l'image de jeu / le thumbnail.
+  const _layReg = (typeof LAYOUTS !== 'undefined') ? LAYOUTS[layout.id] : null;
+  const _pillImg = layout.bgDataUrl || _layReg?._lm?.bgDataUrl
+                || layout.gameImgDataUrl || _layReg?._lm?.gameImgDataUrl
+                || layout.gameImgUrl || layout.thumbnail || null;
+
   const newGraph = {
     eventSlug:      null,
     eventName:      layout.name,
@@ -637,6 +646,7 @@ async function addCustomLayoutGraph(layout) {
     players:        evPlayers,
     tournamentName: graphs[0]?.tournamentName || '',
     isCustomLayout: true,
+    videogameImageUrl: _pillImg,
   };
 
   // Sauvegarder le contexte global puis basculer sur le nouveau graphe pour rendre le canvas
