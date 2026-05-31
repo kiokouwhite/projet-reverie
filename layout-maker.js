@@ -1648,6 +1648,8 @@ async function lmFinishAndSave() {
 
   // Update game selector
   lmAddToSelector(layout);
+  // Le template est aussi un "format" → l'ajouter au menu Format.
+  if (typeof lmRefreshFormatSelect === 'function') lmRefreshFormatSelect();
 
   // Ajouter le layout comme nouveau graphe dans la nav multi (haut-droite)
   try {
@@ -1659,6 +1661,57 @@ async function lmFinishAndSave() {
   // Show celebration
   lmShowCelebration(layout);
 }
+
+// ── FORMATS CUSTOM (templates Layout Maker exposés dans le menu Format) ───────
+// Remplit l'optgroup "🎨 Mes formats" du menu Format avec les templates du coffre.
+function lmRefreshFormatSelect() {
+  const og = document.getElementById('formatCustomOptGroup');
+  if (!og) return;
+  let coffre = [];
+  try { coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]'); } catch (_) {}
+  og.innerHTML = coffre.map(l =>
+    `<option value="${l.id}">${String(l.name || 'Format').replace(/</g, '&lt;')}</option>`
+  ).join('');
+  // Resélectionne le format custom actif s'il existe encore.
+  const sel = document.getElementById('formatSelect');
+  if (sel && window._formatLayoutId && coffre.some(l => l.id === window._formatLayoutId)) {
+    sel.value = window._formatLayoutId;
+  }
+}
+window.lmRefreshFormatSelect = lmRefreshFormatSelect;
+
+// Applique un template du coffre comme FORMAT de rendu, SANS réinitialiser les
+// joueurs (contrairement à lmApplyLayout qui les écrase). Orthogonal au jeu :
+// renderCanvas utilise window._formatLayoutId pour rendre les joueurs importés
+// avec ce template, peu importe le jeu détecté.
+async function lmApplyFormat(layoutId) {
+  let coffre = [];
+  try { coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]'); } catch (_) {}
+  const layout = coffre.find(l => l.id === layoutId);
+  if (!layout) return false;
+  try { await coffreLoadImagesFromIDB(layout); } catch (e) { console.warn('[format] IDB load', e); }
+  lmRegisterLayout(layout);
+  window._formatLayoutId = layoutId;
+  if (typeof currentFormat !== 'undefined') currentFormat = 'lorem'; // pas Magna
+  try { localStorage.setItem('top8_format', layoutId); } catch (_) {}
+  // Fond du template.
+  if (layout.bgDataUrl) {
+    const img = new Image();
+    img.onload  = () => { bgImg = img; if (typeof generatePreview === 'function') generatePreview(); };
+    img.onerror = () => { if (typeof generatePreview === 'function') generatePreview(); };
+    img.src = layout.bgDataUrl;
+  } else {
+    bgImg = null;
+  }
+  lmRefreshFormatSelect();
+  const fsel = document.getElementById('formatSelect');
+  if (fsel) fsel.value = layoutId;
+  if (typeof applyMagnaUI === 'function') applyMagnaUI();
+  if (typeof renderSlots === 'function') renderSlots();
+  if (typeof generatePreview === 'function') generatePreview();
+  return true;
+}
+window.lmApplyFormat = lmApplyFormat;
 
 function lmAddToSelector(layout) {
   const og = document.getElementById('lmCustomOptGroup');
@@ -2472,6 +2525,17 @@ async function lmInitCoffreSelector() {
   // Rendu inline du slide 4 (remplace l'ancien coffre) — les images IDB
   // sont maintenant chargées, donc les thumbnails s'afficheront tout de suite.
   if (typeof lmRenderCoffreGrid === 'function') lmRenderCoffreGrid();
+
+  // Peuple le menu Format avec les templates custom (= "formats").
+  if (typeof lmRefreshFormatSelect === 'function') lmRefreshFormatSelect();
+  // Restaure un format custom précédemment choisi (best-effort, avant import).
+  try {
+    const sf = localStorage.getItem('top8_format');
+    if (sf && sf !== 'lorem' && sf !== 'magna'
+        && coffre.some(l => l.id === sf) && typeof lmApplyFormat === 'function') {
+      lmApplyFormat(sf);
+    }
+  } catch (_) {}
 }
 
 // Download current LM preview at 1400px

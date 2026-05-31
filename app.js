@@ -11,6 +11,11 @@ let currentGame = 'ssbu';
 // (Magna Arena, fond rouge rayé + cartes sombres, multi-jeux adaptatif).
 // Restauré depuis localStorage à l'init (cf. updateFormat / init bloc).
 let currentFormat = 'lorem';
+// Format CUSTOM : id d'un template Layout Maker (coffre) choisi comme format
+// de rendu. Orthogonal au jeu : on garde les joueurs importés + l'art des
+// persos, on remplace seulement le template de rendu. null = format intégré
+// (lorem/magna). Cf. updateFormat / lmApplyFormat / renderCanvas.
+window._formatLayoutId = window._formatLayoutId || null;
 // Nombre de joueurs Magna (single mode). En multi mode, dérivé du nombre
 // de standings retournés par l'event (ignoré).
 let magnaPlayerCount = 8;
@@ -982,7 +987,14 @@ function initHeaderScroll() {
 // Persiste en localStorage et re-render. Le sélecteur de jeu reste utile en
 // Lorem (un layout par jeu) ; en Magna le jeu est par-joueur (Phase 3).
 function updateFormat(newFormat) {
-  if (newFormat !== 'lorem' && newFormat !== 'magna') return;
+  // Format CUSTOM (template Layout Maker du coffre) : appliqué SANS écraser les
+  // joueurs importés. Délégué à lmApplyFormat (layout-maker.js).
+  if (newFormat !== 'lorem' && newFormat !== 'magna') {
+    if (typeof lmApplyFormat === 'function') lmApplyFormat(newFormat);
+    return;
+  }
+  // Format intégré : on quitte un éventuel format custom.
+  window._formatLayoutId = null;
   currentFormat = newFormat;
   try { localStorage.setItem('top8_format', newFormat); } catch {}
   // Sync le dropdown UI au cas où l'appel vient d'un auto-detect
@@ -2530,7 +2542,11 @@ function renderCanvas(canvas, size) {
   const sc = size/CONFIG.REF_SIZE;
 
   // ── Layout custom (créé via Layout Maker) ──────────────────
-  const layout = LAYOUTS[currentGame];
+  // Si un FORMAT custom est actif (_formatLayoutId), il prime sur le layout
+  // du jeu : on rend les joueurs importés avec ce template, peu importe le jeu.
+  const _fmtLayout = (window._formatLayoutId && LAYOUTS[window._formatLayoutId]?.slotType === 'custom_lm')
+    ? LAYOUTS[window._formatLayoutId] : null;
+  const layout = _fmtLayout || LAYOUTS[currentGame];
   if (layout?.slotType === 'custom_lm' && layout._lm) {
     const lmData = layout._lm;
     // Utiliser lmDrawBg pour appliquer pan / zoom / blur / darken sauvegardés
