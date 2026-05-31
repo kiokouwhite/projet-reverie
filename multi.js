@@ -847,8 +847,10 @@ function threadOpenAll() {
 async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
   const apiKey = document.getElementById('apiKey')?.value?.trim();
 
-  // Reset les noms dans LM
-  if (typeof LM !== 'undefined') LM.playerNames = ['', '', ''];
+  // Ouvre le LM EN PREMIER : openLayoutMaker réinitialise tout l'état (géométrie,
+  // style, noms, marqueurs d'édition) pour repartir d'un layout vierge. On
+  // remplit donc les noms APRÈS, sinon ce reset les écraserait.
+  openLayoutMaker(gameName, gameImgUrl || null);
 
   // Pré-remplir depuis players[] si c'est le bon event (fallback). On inclut
   // la TEAM (prefix) via lmFormatPlayerName, sinon le nom de team n'apparaît pas.
@@ -886,7 +888,12 @@ async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
     }
   }
 
-  openLayoutMaker(gameName, gameImgUrl || null);
+  // Refléter les noms dans les inputs (étape 6) + l'aperçu (le reset les avait vidés).
+  [0,1,2].forEach(i => {
+    const el = document.getElementById(`lmPlayerName${i}`);
+    if (el) el.value = LM.playerNames[i] || '';
+  });
+  if (typeof lmRenderPreview === 'function') lmRenderPreview();
 }
 
 // ── SECTION JEUX SANS LAYOUT ──────────────────────────────────────────────────

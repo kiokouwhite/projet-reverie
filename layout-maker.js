@@ -237,6 +237,28 @@ const LM = {
   thumbnail: null,
 };
 
+// Instantané (clone profond) des valeurs par défaut de LM, pris à l'état VIERGE
+// juste après la définition ci-dessus. Sert à réinitialiser proprement un
+// NOUVEAU layout : sans ça, openLayoutMaker héritait de toute la géométrie/du
+// style (forme, slots, classements, titres, persos…) du dernier layout créé ou
+// édité — d'où le bug « créer un layout RoA2 charge les paramètres SoulCalibur ».
+const _LM_DEFAULTS = JSON.parse(JSON.stringify(LM));
+function lmResetForNew() {
+  const d = JSON.parse(JSON.stringify(_LM_DEFAULTS));
+  Object.keys(d).forEach(k => {
+    if (k === 'step' || k === 'gameName') return;   // gérés par l'appelant
+    LM[k] = d[k];
+  });
+  // Images (non sérialisables) : on les vide explicitement pour ne pas garder
+  // celles du layout précédent ; elles seront rechargées au besoin.
+  LM.bgImg = null; LM.gameImgImg = null; LM.overlayImg = null;
+  LM.charImgs = [null, null, null];
+  // Efface les marqueurs d'édition : un nouveau layout ne doit JAMAIS écraser le
+  // dernier layout édité au moment de la sauvegarde.
+  LM._editIdx = null;
+  LM._editId  = null;
+}
+
 // ── POLICES DISPONIBLES ───────────────────────────────────────────────────────
 const LM_FONTS = [
   { id:'Montserrat',          label:'Montserrat',         sample:'TOURNAMENT' },
@@ -281,6 +303,12 @@ LM_DEFAULT_OVERLAY.src = 'overlay-default.png';
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function openLayoutMaker(gameName, gameImgUrl) {
+  // NOUVEAU layout : on repart d'un état par défaut propre pour ne pas hériter
+  // de la géométrie/du style du layout précédemment créé ou édité (sinon, ex. :
+  // créer un layout RoA2 reprend la forme/les positions du layout SoulCalibur).
+  // ⚠️ Les noms des joueurs sont remis à vide ici → openLayoutMakerForEvent les
+  // re-remplit APRÈS cet appel.
+  lmResetForNew();
   LM.gameName = gameName || 'Mon Jeu';
   // Reset complet du state pour garantir un démarrage propre sur step 1,
   // même si on a fermé le LM en plein milieu d'une transition (auquel
