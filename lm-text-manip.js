@@ -58,16 +58,16 @@
     return true;
   }
 
-  // Boîte d'affichage en px RELATIFS au canvas (= à l'overlay, qui le recouvre).
+  // Boîte en POURCENTAGES du canvas (overlay = canvas via positionOverlay).
+  // Robuste : indépendant de la largeur d'affichage mesurée (qui peut être
+  // fausse pendant l'ouverture du modal). Le canvas est carré (réf 1400).
   function boxFromDesc(d) {
-    const sc = dispScale();
-    if (!sc) return null;
     const padY = d.size * 0.18;
     return {
-      left: (d.cx - d.maxW / 2) * sc,
-      top:  (d.base - d.size * 0.92 - padY) * sc,
-      w:    d.maxW * sc,
-      h:    (d.size * 1.15 + padY * 2) * sc,
+      left: (d.cx - d.maxW / 2) / REF * 100,
+      top:  (d.base - d.size * 0.92 - padY) / REF * 100,
+      w:    d.maxW / REF * 100,
+      h:    (d.size * 1.15 + padY * 2) / REF * 100,
     };
   }
 
@@ -80,15 +80,15 @@
     (window._lmtmRegions || []).forEach(d => {
       if (!d || !(d.maxW > 0)) return;
       const box = boxFromDesc(d);
-      if (!box || box.w < 4) return;
+      if (!box || box.w < 1) return;
       const el = document.createElement('div');
       el.className = 'etm-box etm-' + d.kind;
       el.dataset.kind = d.kind;
       el.dataset.id = d.id != null ? d.id : d.idx;
-      el.style.left = box.left + 'px';
-      el.style.top = box.top + 'px';
-      el.style.width = box.w + 'px';
-      el.style.height = box.h + 'px';
+      el.style.left = box.left + '%';
+      el.style.top = box.top + '%';
+      el.style.width = box.w + '%';
+      el.style.height = box.h + '%';
       el.title = (d.kind === 'name' ? 'Pseudo' : 'Titre') + ' — glisser pour déplacer, bords pour la zone';
       el.innerHTML = '<span class="etm-handle etm-w"></span><span class="etm-handle etm-e"></span>';
       ov.appendChild(el);
