@@ -268,29 +268,28 @@
                           style="flex:0 0 36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-weight:800;cursor:pointer;">+</button>
                 </div>
               </div>
-              <!-- Le sélecteur "Jeu" reste pertinent en Lorem (un layout par jeu).
-                   En Magna, le jeu est par-joueur (Phase 3) — pour l'instant on
-                   garde le selecteur visible mais sa logique ne s'applique pas
-                   au rendu Magna. -->
-              <label class="field-label">Jeu</label>
-              <!-- Sélecteur visuel pill : caché (le user préfère le dropdown
-                   natif classique ci-dessous). Conservé en display:none au
-                   cas où un autre module y fait référence. -->
-              <div id="gameSelectorPill" style="display:none;"></div>
-              <!-- Dropdown natif classique — source de vérité pour updateGame() -->
-              <select id="gameSelect" onchange="updateGame()" style="width:100%;margin-bottom:8px;">
-                <optgroup label="🎮 Avec layout">
-                  <option value="ssbu">Super Smash Bros. Ultimate</option>
-                  <option value="ggst">Guilty Gear -Strive-</option>
-                  <option value="tekken8">Tekken 8</option>
-                  <option value="2xko">2XKO</option>
-                  <option value="sf6">Street Fighter 6</option>
-                </optgroup>
-                <optgroup label="🔓 Sans layout">
-                  <option value="dbfz">Dragon Ball FighterZ</option>
-                </optgroup>
-                <optgroup label="🎨 Mes layouts" id="lmCustomOptGroup"></optgroup>
-              </select>
+              <!-- Champ "Jeu" RETIRÉ de l'affichage : le jeu est désormais
+                   déterminé automatiquement par l'import start.gg, donc le
+                   sélecteur manuel n'est plus nécessaire. On CONSERVE #gameSelect
+                   (et #gameSelectorPill) cachés dans le DOM car updateGame(),
+                   lmAddToSelector() et le game-selector s'appuient dessus comme
+                   source de vérité du jeu courant. -->
+              <div style="display:none;" aria-hidden="true">
+                <div id="gameSelectorPill"></div>
+                <select id="gameSelect" onchange="updateGame()">
+                  <optgroup label="🎮 Avec layout">
+                    <option value="ssbu">Super Smash Bros. Ultimate</option>
+                    <option value="ggst">Guilty Gear -Strive-</option>
+                    <option value="tekken8">Tekken 8</option>
+                    <option value="2xko">2XKO</option>
+                    <option value="sf6">Street Fighter 6</option>
+                  </optgroup>
+                  <optgroup label="🔓 Sans layout">
+                    <option value="dbfz">Dragon Ball FighterZ</option>
+                  </optgroup>
+                  <optgroup label="🎨 Mes layouts" id="lmCustomOptGroup"></optgroup>
+                </select>
+              </div>
             </div>
 
             <!-- Slide Fond retiré : le fond est éditable via l'éditeur de
