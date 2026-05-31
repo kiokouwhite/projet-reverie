@@ -2241,7 +2241,9 @@ function drawLayoutSlots(ctx, layout, sc) {
         ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
         ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
         ctx.fillStyle = p.name ? (nc.color || '#ffffff') : 'rgba(255,255,255,0.35)';
-        ctx.fillText(displayName, (sc2.cx + nc.xOffset)*sc, (sc2.nameY + nc.yOffset)*sc, sc2.w*sc*1.5);
+        const _mwN = nc.maxW || sc2.w * 1.5;   // zone de texte (maxW)
+        ctx.fillText(displayName, (sc2.cx + nc.xOffset)*sc, (sc2.nameY + nc.yOffset)*sc, _mwN*sc);
+        _etmCapName(i, sc2.cx + nc.xOffset, sc2.nameY + nc.yOffset, nc.size, _mwN);
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       }
 
@@ -2355,7 +2357,9 @@ function drawLayoutSlots(ctx, layout, sc) {
         ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
         ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
         ctx.fillStyle = p.name ? (nc.color || '#ffffff') : 'rgba(255,255,255,0.35)';
-        ctx.fillText(displayName, (cxG + slant/2 + nc.xOffset)*sc, (nameY + nc.yOffset)*sc, (w*2+gap)*sc*1.3);
+        const _mwN2 = nc.maxW || (w*2+gap) * 1.3;   // zone de texte (maxW)
+        ctx.fillText(displayName, (cxG + slant/2 + nc.xOffset)*sc, (nameY + nc.yOffset)*sc, _mwN2*sc);
+        _etmCapName(i, cxG + slant/2 + nc.xOffset, nameY + nc.yOffset, nc.size, _mwN2);
         ctx.letterSpacing = '0px';
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       }
@@ -2471,7 +2475,10 @@ function drawLayoutSlots(ctx, layout, sc) {
       } else {
         ctx.textBaseline='alphabetic'; ctx.textAlign='center';
         ctx.letterSpacing=`${7*sc}px`;
-        ctx.fillText(displayName, (slot.cx+nc2.xOffset)*sc, (slot.nameY+nc2.yOffset)*sc);
+        const _nx = slot.cx + nc2.xOffset, _ny = slot.nameY + nc2.yOffset;
+        if (nc2.maxW) ctx.fillText(displayName, _nx*sc, _ny*sc, nc2.maxW*sc);
+        else          ctx.fillText(displayName, _nx*sc, _ny*sc);
+        _etmCapName(i, _nx, _ny, nc2.size, nc2.maxW || 360);
         ctx.letterSpacing='0px';
       }
       ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
@@ -2596,7 +2603,10 @@ function renderCanvas(canvas, size) {
       ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=6*sc;
       ctx.shadowOffsetX=1*sc; ctx.shadowOffsetY=1*sc;
       ctx.fillStyle = ncSSBU.color || SSBU_NAME_COLORS[i] || '#ffffff';
-      ctx.fillText(displayName, (slotCfg.nameX + ncSSBU.xOffset)*sc, (slotCfg.nameY + ncSSBU.yOffset)*sc);
+      const _sx = slotCfg.nameX + ncSSBU.xOffset, _sy = slotCfg.nameY + ncSSBU.yOffset;
+      if (ncSSBU.maxW) ctx.fillText(displayName, _sx*sc, _sy*sc, ncSSBU.maxW*sc);
+      else             ctx.fillText(displayName, _sx*sc, _sy*sc);
+      _etmCapName(i, _sx, _sy, ncSSBU.size, ncSSBU.maxW || 360);
       ctx.letterSpacing='0px';
       ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
     }
@@ -3396,8 +3406,12 @@ function onEditorBgClick(e) {
 function renderEditorCanvas() {
   const c = document.getElementById('editorCanvas');
   if (!c || document.getElementById('editorModal').style.display === 'none') return;
+  // Capture les positions des pseudos PENDANT ce rendu (pour les poignées).
+  window._etmNameRegions = [];
+  window._etmCapture = true;
   renderCanvas(c, 700);
-  // Repositionne les poignées de manipulation directe des titres.
+  window._etmCapture = false;
+  // Repositionne les poignées de manipulation directe (titres + pseudos).
   if (typeof editorTextManipRefresh === 'function') editorTextManipRefresh();
 }
 
@@ -3893,6 +3907,15 @@ function savePlayerNameCfg(i, data) {
   _saveNameCfgsToStorage();
 }
 function loadNameConfig() { /* no-op — per-player now */ }
+
+// Capture la position d'un pseudo pendant le rendu de l'éditeur (flag
+// window._etmCapture). Sert à poser les poignées de manipulation directe.
+// Additif et gardé : aucun effet sur le rendu normal (flag à false).
+function _etmCapName(i, cxRef, yRef, sizeRef, maxWRef) {
+  if (!window._etmCapture) return;
+  (window._etmNameRegions = window._etmNameRegions || [])
+    .push({ idx: i, cx: cxRef, y: yRef, size: sizeRef, maxW: maxWRef });
+}
 
 // ── Police globale des pseudos (par jeu) ───────────────────────────────
 // Stockée dans _nameCfgsMem[currentGame].globalFont. Vide = police par

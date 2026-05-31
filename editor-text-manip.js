@@ -92,47 +92,48 @@
   }
 
   // Calcule la boîte d'un titre en pixels relatifs au canvas (donc à l'overlay).
-  function titleBox(key) {
-    const cfg = (typeof CONFIG !== 'undefined') ? CONFIG[key] : null;
-    if (!cfg) return null;
-    const text = titleText(key);
-    if (!text) return null;
+  // Boîte d'affichage (px relatifs à l'overlay) depuis un descripteur en coords
+  // REF : {cx (centre), base (baseline), size, maxW (largeur de zone)}.
+  function boxFromDesc(d) {
     const sc = dispScale();
     if (!sc) return null;
-    // La boîte représente la ZONE DE TEXTE disponible (= maxW dans drawTitles),
-    // centrée sur cfg.x. C'est cette zone qu'on étire avec les poignées
-    // latérales : plus large = le texte a plus de place (moins condensé) ;
-    // plus étroite = le texte est resserré dans la zone.
-    const maxW = defaultMaxW(key, cfg);
-    const padY = cfg.s * 0.18;
-    const leftRef = cfg.x - maxW / 2;
-    const topRef  = cfg.y - cfg.s * 0.92 - padY;       // ascendante approx
-    const wBoxRef = maxW;
-    const hBoxRef = cfg.s * 1.15 + padY * 2;
-    // Position du canvas relative à l'ORIGINE de l'overlay (et non du wrap, qui
-    // a une bordure) → alignement exact des boîtes sur le canvas.
+    const padY = d.size * 0.18;
+    const leftRef = d.cx - d.maxW / 2;
+    const topRef  = d.base - d.size * 0.92 - padY;
+    const wBoxRef = d.maxW;
+    const hBoxRef = d.size * 1.15 + padY * 2;
+    // Position du canvas relative à l'ORIGINE de l'overlay (le wrap a une
+    // bordure) → alignement exact des boîtes sur le canvas.
     const c = canvas();
     let offX = 0, offY = 0;
     if (c && _overlay) {
       const cr = c.getBoundingClientRect(), or = _overlay.getBoundingClientRect();
       offX = cr.left - or.left; offY = cr.top - or.top;
     }
-    return {
-      left: offX + leftRef * sc,
-      top:  offY + topRef  * sc,
-      w:    wBoxRef * sc,
-      h:    hBoxRef * sc,
-    };
+    return { left: offX + leftRef * sc, top: offY + topRef * sc, w: wBoxRef * sc, h: hBoxRef * sc };
   }
 
-  // Écrit x/y/s dans CONFIG + sliders, persiste, re-rend.
-  function applyTitle(key, patch, livePreview) {
+  // Zones éditables = titres (CONFIG.Tx) + pseudos (capturés pendant le rendu).
+  function collectDescs() {
+    const list = [];
+    KEYS.forEach(key => {
+      const cfg = (typeof CONFIG !== 'undefined') ? CONFIG[key] : null;
+      if (!cfg || !titleText(key)) return;
+      list.push({ kind: 'title', id: key, cx: cfg.x, base: cfg.y, size: cfg.s, maxW: defaultMaxW(key, cfg) });
+    });
+    (window._etmNameRegions || []).forEach(r => {
+      if (r && r.maxW > 0) list.push({ kind: 'name', id: r.idx, cx: r.cx, base: r.y, size: r.size, maxW: r.maxW });
+    });
+    return list;
+  }
+
+  // Titre : écrit x/y/maxW dans CONFIG.Tx + sliders, persiste, re-rend.
+  function applyTitle(key, patch) {
     const T = (typeof CONFIG !== 'undefined') ? CONFIG[key] : null;
     if (!T) return;
     Object.assign(T, patch);
     T.x = Math.max(0, Math.min(REF, T.x));
     T.y = Math.max(0, Math.min(REF, T.y));
-    T.s = Math.max(10, Math.min(220, T.s));
     if ('maxW' in patch) T.maxW = Math.max(60, Math.min(REF, T.maxW));
     const p = key.toLowerCase();
     const setEl = (suf, val) => {
@@ -141,10 +142,19 @@
     };
     if ('x' in patch) setEl('x', T.x);
     if ('y' in patch) setEl('y', T.y);
-    if ('s' in patch) setEl('s', T.s);
     if (typeof saveTitleConfig === 'function') saveTitleConfig();
     if (typeof renderEditorCanvas === 'function') renderEditorCanvas();
-    if (livePreview && typeof generatePreview === 'function') generatePreview();
+  }
+
+  // Pseudo : écrit décalage / zone dans la config joueur, persiste, re-rend.
+  function applyName(idx, patch) {
+    if (typeof savePlayerNameCfg !== 'function') return;
+    const clean = {};
+    if ('xOffset' in patch) clean.xOffset = Math.round(patch.xOffset);
+    if ('yOffset' in patch) clean.yOffset = Math.round(patch.yOffset);
+    if ('maxW' in patch) clean.maxW = Math.max(60, Math.min(REF, Math.round(patch.maxW)));
+    savePlayerNameCfg(idx, clean);
+    if (typeof renderEditorCanvas === 'function') renderEditorCanvas();
   }
 
   function refresh() {
@@ -153,16 +163,20 @@
     if (!isActive()) { ov.style.display = 'none'; return; }
     ov.style.display = 'block';
     ov.innerHTML = '';
-    KEYS.forEach(key => {
-      const box = titleBox(key);
+    collectDescs().forEach(d => {
+      const box = boxFromDesc(d);
       if (!box || box.w < 4) return;
       const el = document.createElement('div');
-      el.className = 'etm-box';
-      el.dataset.key = key;
+      el.className = 'etm-box etm-' + d.kind;
+      el.dataset.kind = d.kind;
+      el.dataset.id = d.id;
       el.style.left = box.left + 'px';
       el.style.top = box.top + 'px';
       el.style.width = box.w + 'px';
       el.style.height = box.h + 'px';
+      el.title = d.kind === 'name'
+        ? 'Pseudo — glisser pour déplacer, bords pour la zone'
+        : 'Titre — glisser pour déplacer, bords pour la zone';
       el.innerHTML = '<span class="etm-handle etm-w"></span><span class="etm-handle etm-e"></span>';
       ov.appendChild(el);
     });
@@ -174,19 +188,27 @@
     const handle = e.target.closest('.etm-handle');
     const boxEl  = e.target.closest('.etm-box');
     if (!boxEl) return;
-    const key = boxEl.dataset.key;
-    const cfg = (typeof CONFIG !== 'undefined') ? CONFIG[key] : null;
-    if (!cfg) return;
     e.preventDefault();
+    const kind = boxEl.dataset.kind;
     const sc = dispScale() || 1;
     const mode = handle
       ? (handle.classList.contains('etm-e') ? 'zoneE' : 'zoneW')
       : 'move';
-    _drag = {
-      key, mode,
-      startX: e.clientX, startY: e.clientY,
-      x0: cfg.x, y0: cfg.y, maxW0: defaultMaxW(key, cfg), sc,
-    };
+    if (kind === 'title') {
+      const id = boxEl.dataset.id;
+      const cfg = (typeof CONFIG !== 'undefined') ? CONFIG[id] : null;
+      if (!cfg) return;
+      _drag = { kind, id, mode, sc, startX: e.clientX, startY: e.clientY,
+                x0: cfg.x, y0: cfg.y, maxW0: defaultMaxW(id, cfg) };
+    } else {
+      const idx = +boxEl.dataset.id;
+      const cfg = (typeof getPlayerNameCfg === 'function') ? getPlayerNameCfg(idx) : null;
+      if (!cfg) return;
+      const reg = (window._etmNameRegions || []).find(r => r.idx === idx);
+      _drag = { kind, id: idx, mode, sc, startX: e.clientX, startY: e.clientY,
+                ox0: cfg.xOffset || 0, oy0: cfg.yOffset || 0,
+                maxW0: cfg.maxW || (reg ? reg.maxW : 360) };
+    }
     boxEl.classList.add('etm-active');
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
@@ -194,29 +216,27 @@
 
   function onMove(e) {
     if (!_drag) return;
-    const dx = e.clientX - _drag.startX;
-    const dy = e.clientY - _drag.startY;
-    if (_drag.mode === 'move') {
-      applyTitle(_drag.key, {
-        x: _drag.x0 + dx / _drag.sc,
-        y: _drag.y0 + dy / _drag.sc,
-      }, false);
+    const dxRef = (e.clientX - _drag.startX) / _drag.sc;
+    const dyRef = (e.clientY - _drag.startY) / _drag.sc;
+    // Zone centrée → tirer un bord l'élargit/rétrécit symétriquement.
+    const zoneW = (m0) => _drag.mode === 'zoneE' ? m0 + 2 * dxRef : m0 - 2 * dxRef;
+    if (_drag.kind === 'title') {
+      if (_drag.mode === 'move') applyTitle(_drag.id, { x: _drag.x0 + dxRef, y: _drag.y0 + dyRef });
+      else                       applyTitle(_drag.id, { maxW: zoneW(_drag.maxW0) });
     } else {
-      // Étirement de la zone de texte (maxW). Zone centrée sur x → tirer un bord
-      // l'élargit/rétrécit symétriquement (le bord suit le curseur).
-      const dxRef = dx / _drag.sc;
-      const newMaxW = _drag.mode === 'zoneE'
-        ? _drag.maxW0 + 2 * dxRef    // bord droit vers la droite = plus large
-        : _drag.maxW0 - 2 * dxRef;   // bord gauche vers la gauche (dx<0) = plus large
-      applyTitle(_drag.key, { maxW: newMaxW }, false);
+      if (_drag.mode === 'move') applyName(_drag.id, { xOffset: _drag.ox0 + dxRef, yOffset: _drag.oy0 + dyRef });
+      else                       applyName(_drag.id, { maxW: zoneW(_drag.maxW0) });
     }
     refresh();
   }
 
   function onUp() {
     window.removeEventListener('pointermove', onMove);
-    if (_drag && typeof generatePreview === 'function') generatePreview();
+    const wasName = _drag && _drag.kind === 'name';
     _drag = null;
+    // Sync des sliders pseudos + aperçu principal au relâchement.
+    if (wasName && typeof renderNameEditor === 'function') renderNameEditor();
+    if (typeof generatePreview === 'function') generatePreview();
     refresh();
   }
 

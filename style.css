@@ -2253,6 +2253,12 @@ canvas { width: 100%; display: block; }
   background: rgba(124,92,255,0.16);
   border-color: rgba(124,92,255,1);
 }
+/* Pseudos en vert pour les distinguer des titres (violet). */
+.etm-box.etm-name { border-color: rgba(70,209,143,0.85); background: rgba(70,209,143,0.05); }
+.etm-box.etm-name:hover, .etm-box.etm-name.etm-active {
+  background: rgba(70,209,143,0.16); border-color: rgba(70,209,143,1);
+}
+.etm-box.etm-name .etm-handle { border-color: #2ea36a; }
 .etm-handle {
   position: absolute;
   width: 13px; height: 13px;
