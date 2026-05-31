@@ -1303,6 +1303,7 @@ function lmInitNames() {
   setV('lmNsSw', ns.strokeWidth);
   setV('lmNsSp', ns.spacing);
   setV('lmNsRot', ns.rotation || 0);
+  setV('lmNsArc', ns.arc || 0);
 }
 
 function lmSyncNames() {
@@ -1330,6 +1331,7 @@ function lmSyncNames() {
   ns.strokeWidth = syncRange('lmNsSw');
   ns.spacing     = syncRange('lmNsSp');
   ns.rotation    = syncRange('lmNsRot');
+  ns.arc         = syncRange('lmNsArc');
   lmRenderPreview();
 }
 
@@ -1361,6 +1363,7 @@ function lmInitRanks() {
     // existe et que le rang n'a pas encore le sien, on le reprend.
     const _rsp = (LM.slots[i].rankSpacing != null) ? LM.slots[i].rankSpacing : (rs.spacing || 0);
     setV(`lmRankSp${i}`,     _rsp);
+    setV(`lmRankArc${i}`,    LM.slots[i].rankArc || 0);
   });
   // Highlight active weight button
   document.querySelectorAll('.lm-rw-btn').forEach(b =>
@@ -1393,6 +1396,7 @@ function lmSyncRanks() {
     LM.slots[i].rankX       = syncRange(`lmRankX${i}`);
     LM.slots[i].rankY       = syncRange(`lmRankY${i}`);
     LM.slots[i].rankSpacing = syncRange(`lmRankSp${i}`);
+    LM.slots[i].rankArc     = syncRange(`lmRankArc${i}`);
   });
   lmUpdateRankLabelPreviews();
   lmRenderPreview();
@@ -2371,6 +2375,65 @@ function lmFormatPlayerName(playerOrName, fallback) {
   return playerOrName || fallback;
 }
 
+// Dessine un texte centré en (x,y) [px canvas], éventuellement COURBÉ en arc
+// et/ou tourné. bendDeg : 0 = droit ; >0 = voûte vers le HAUT (arc-en-ciel) ;
+// <0 = vers le BAS. rotDeg : rotation d'ensemble autour de (x,y). Le ctx doit
+// déjà avoir font / textBaseline / shadow configurés. Trace le contour (stroke)
+// puis le remplissage (fill). Utilisé pour les pseudos ET les classements.
+function lmDrawArcableText(ctx, text, x, y, o) {
+  const bendDeg   = o.bendDeg || 0;
+  const rotDeg    = o.rotDeg  || 0;
+  const ls        = o.letterSpacing || 0;
+  const hasStroke = !!(o.stroke && o.stroke.width > 0);
+  const chars = Array.from(text);
+  ctx.save();
+  if (rotDeg) { ctx.translate(x, y); ctx.rotate(rotDeg * Math.PI / 180); x = 0; y = 0; }
+  ctx.textAlign = 'center';
+
+  // ── Texte DROIT (comportement historique, inchangé quand bendDeg = 0) ──
+  if (!bendDeg || chars.length < 2) {
+    ctx.letterSpacing = `${ls}px`;
+    const mw = o.maxWidth > 0 ? o.maxWidth : 0;
+    if (hasStroke) {
+      ctx.strokeStyle = o.stroke.color; ctx.lineWidth = o.stroke.width; ctx.lineJoin = 'round';
+      mw ? ctx.strokeText(text, x, y, mw) : ctx.strokeText(text, x, y);
+    }
+    if (o.fill) { ctx.fillStyle = o.fill; mw ? ctx.fillText(text, x, y, mw) : ctx.fillText(text, x, y); }
+    ctx.letterSpacing = '0px';
+    ctx.restore();
+    return;
+  }
+
+  // ── Texte en ARC : chaque caractère est posé le long d'un cercle ──
+  ctx.letterSpacing = '0px';                       // espacement géré manuellement
+  const widths = chars.map(c => ctx.measureText(c).width);
+  let totalW = widths.reduce((a, b) => a + b, 0) + ls * (chars.length - 1);
+  let squeeze = 1;                                  // condensation si on dépasse la zone
+  if (o.maxWidth > 0 && totalW > o.maxWidth) { squeeze = o.maxWidth / totalW; totalW = o.maxWidth; }
+  const bend   = bendDeg * Math.PI / 180;
+  const absB   = Math.abs(bend);
+  const radius = totalW / absB;                     // longueur d'arc = largeur du texte
+  const up     = bend > 0;
+  const ccy    = up ? y + radius : y - radius;       // centre du cercle
+  if (hasStroke) { ctx.strokeStyle = o.stroke.color; ctx.lineWidth = o.stroke.width; ctx.lineJoin = 'round'; }
+  let acc = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const w   = widths[i] * squeeze;
+    const ang = ((acc + w / 2) / totalW - 0.5) * absB;   // angle du centre du glyphe depuis l'apex
+    acc += w + ls * squeeze;
+    const px = x + radius * Math.sin(ang);
+    const py = up ? ccy - radius * Math.cos(ang) : ccy + radius * Math.cos(ang);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(up ? ang : -ang);
+    if (squeeze !== 1) ctx.scale(squeeze, 1);
+    if (hasStroke) ctx.strokeText(chars[i], 0, 0);
+    if (o.fill) { ctx.fillStyle = o.fill; ctx.fillText(chars[i], 0, 0); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   const cx = slot.cx*sc, cy = slot.cy*sc;
   const w = slot.w*sc, h = slot.h*sc;
@@ -2434,20 +2497,16 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   const _rnat = ctx.measureText(rankLabel).width / sc;   // largeur naturelle (REF, espacement inclus)
   const _rmw  = slot.rankMaxW || Math.max(40, _rnat);    // zone (REF)
   const _rcx  = slot.rankX + _rmw / 2;                   // centre de la zone (REF)
-  // Rotation des classements (autour du centre de la zone / ligne de base).
-  const _rrot = (rs.rotation || 0) * Math.PI / 180;
-  ctx.save();
-  if (_rrot) { ctx.translate(_rcx*sc, slot.rankY*sc); ctx.rotate(_rrot); }
-  const _rdx = _rrot ? 0 : _rcx*sc, _rdy = _rrot ? 0 : slot.rankY*sc;
-  if ((rs.strokeWidth||0) > 0) {
-    ctx.strokeStyle = rs.strokeColor || '#000';
-    ctx.lineWidth = rs.strokeWidth * sc;
-    ctx.lineJoin = 'round';
-    ctx.strokeText(rankLabel, _rdx, _rdy, _rmw*sc);
-  }
-  ctx.fillStyle = numColor;
-  ctx.fillText(rankLabel, _rdx, _rdy, _rmw*sc);
-  ctx.restore();
+  // Dessin du classement : droit, tourné (rs.rotation) et/ou courbé en arc
+  // (slot.rankArc), centré sur (_rcx, rankY).
+  lmDrawArcableText(ctx, rankLabel, _rcx*sc, slot.rankY*sc, {
+    bendDeg: slot.rankArc || 0,
+    rotDeg:  rs.rotation || 0,
+    letterSpacing: _rsp * sc,
+    fill:   numColor,
+    stroke: { color: rs.strokeColor || '#000', width: (rs.strokeWidth || 0) * sc },
+    maxWidth: _rmw * sc,
+  });
   // Capture pour la poignée : boîte = [rankX, rankX+zone] (bord gauche = rankX) ;
   // le texte y est centré (l'overlay tourne autour du centre de la boîte).
   if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
@@ -2470,22 +2529,16 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.letterSpacing = `${(ns.spacing||4)*sc}px`;
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
     ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
-    // Rotation des pseudos (autour de leur ancre). _dx/_dy = point de dessin.
-    const _nrot = (ns.rotation || 0) * Math.PI / 180;
-    ctx.save();
-    if (_nrot) { ctx.translate(nameX, slot.nameY*sc); ctx.rotate(_nrot); }
-    const _dx = _nrot ? 0 : nameX, _dy = _nrot ? 0 : slot.nameY*sc;
-    if ((ns.strokeWidth||0) > 0) {
-      ctx.strokeStyle = ns.strokeColor || '#000';
-      ctx.lineWidth = ns.strokeWidth * sc;
-      ctx.lineJoin = 'round';
-      if (_nmw > 0) ctx.strokeText(name.toUpperCase(), _dx, _dy, _nmw*sc);
-      else          ctx.strokeText(name.toUpperCase(), _dx, _dy);
-    }
-    ctx.fillStyle = nameColor;
-    if (_nmw > 0) ctx.fillText(name.toUpperCase(), _dx, _dy, _nmw*sc);
-    else          ctx.fillText(name.toUpperCase(), _dx, _dy);
-    ctx.restore();
+    // Dessin du pseudo : droit, tourné (ns.rotation) et/ou courbé en arc
+    // (ns.arc), centré sur (nameX, nameY).
+    lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
+      bendDeg: ns.arc || 0,
+      rotDeg:  ns.rotation || 0,
+      letterSpacing: (ns.spacing || 4) * sc,
+      fill:   nameColor,
+      stroke: { color: ns.strokeColor || '#000', width: (ns.strokeWidth || 0) * sc },
+      maxWidth: _nmw > 0 ? _nmw * sc : 0,
+    });
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
       .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:(ns.size||34), maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
     ctx.letterSpacing = '0px';
