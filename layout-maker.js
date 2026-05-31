@@ -2581,6 +2581,46 @@ function lmFormatPlayerName(playerOrName, fallback) {
   return playerOrName || fallback;
 }
 
+// ── DÉCOUPE EN RÉGIONS (subdivision récursive) ───────────────────────────────
+// Chaque coupe DIVISE la région qui contient son milieu (la ligne s'arrête donc
+// aux coupes précédentes au lieu de traverser toute la carte). Coords carte 0-1.
+function lmPointInPoly(p, poly) {
+  let c = false;
+  for (let i=0, j=poly.length-1; i<poly.length; j=i++) {
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if (((yi>p.y) !== (yj>p.y)) && (p.x < (xj-xi)*(p.y-yi)/((yj-yi)||1e-9) + xi)) c = !c;
+  }
+  return c;
+}
+function lmClipPolyHalf(poly, cut, keepPos) {
+  const cr = (p) => (cut.x2-cut.x1)*(p.y-cut.y1) - (cut.y2-cut.y1)*(p.x-cut.x1);
+  const out = [];
+  for (let i=0; i<poly.length; i++) {
+    const A=poly[i], B=poly[(i+1)%poly.length], ca=cr(A), cb=cr(B);
+    const inA = keepPos ? ca>=0 : ca<=0, inB = keepPos ? cb>=0 : cb<=0;
+    if (inA) out.push(A);
+    if (inA !== inB) { const t = ca/((ca-cb)||1e-9); out.push({ x:A.x+t*(B.x-A.x), y:A.y+t*(B.y-A.y) }); }
+  }
+  return out;
+}
+function lmComputeCutRegions(cuts) {
+  let regions = [[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]];
+  (cuts||[]).forEach(cut => {
+    if (!cut) return;
+    const mid = { x:(cut.x1+cut.x2)/2, y:(cut.y1+cut.y2)/2 };
+    let ri = regions.findIndex(pl => lmPointInPoly(mid, pl));
+    if (ri < 0) ri = regions.length - 1;
+    const neg = lmClipPolyHalf(regions[ri], cut, false), pos = lmClipPolyHalf(regions[ri], cut, true);
+    if (neg.length >= 3 && pos.length >= 3) regions.splice(ri, 1, neg, pos);
+  });
+  return regions;
+}
+function lmPolyCentroid(poly) { let x=0, y=0; poly.forEach(p => { x+=p.x; y+=p.y; }); return { x:x/poly.length, y:y/poly.length }; }
+function lmEdgeOnBox(A, B) {
+  return (Math.abs(A.x)<1e-4&&Math.abs(B.x)<1e-4) || (Math.abs(A.x-1)<1e-4&&Math.abs(B.x-1)<1e-4)
+      || (Math.abs(A.y)<1e-4&&Math.abs(B.y)<1e-4) || (Math.abs(A.y-1)<1e-4&&Math.abs(B.y-1)<1e-4);
+}
+
 // Dessine un texte centré en (x,y) [px canvas], éventuellement COURBÉ en arc
 // et/ou tourné. bendDeg : 0 = droit ; >0 = voûte vers le HAUT (arc-en-ciel) ;
 // <0 = vers le BAS. rotDeg : rotation d'ensemble autour de (x,y). Le ctx doit
@@ -2663,31 +2703,18 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   if (_multiActive) {
     const left = cx - w/2, top = cy - h/2;
     if (_cuts.length) {
-      // ── Découpe MANUELLE : zones = coupes + 1. On oriente les coupes selon une
-      // normale de référence puis on les TRIE le long de cette normale → chaque
-      // zone k est la TRANCHE entre sorted[k-1] (côté +) et sorted[k] (côté -).
-      // (Une simple superposition perdrait les zones du milieu.)
-      const n = _cuts.length + 1;
-      const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
-      const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
-      const nrm = (c) => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1; return { x:-dy/len, y:dx/len }; };
-      const cpxRaw = _cuts.map(cutPx);
-      const ref = nrm(cpxRaw[0]);
-      const oriented = cpxRaw.map(c => { const v=nrm(c); return (v.x*ref.x+v.y*ref.y) < 0 ? {x1:c.x2,y1:c.y2,x2:c.x1,y2:c.y1} : c; });
-      const proj = (c) => ((c.x1+c.x2)/2)*ref.x + ((c.y1+c.y2)/2)*ref.y;
-      const sorted = oriented.slice().sort((a,b) => proj(a)-proj(b));
-      const clipHalf = (c, pos) => {
-        const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
-        const nx = pos?-uy:uy, ny = pos?ux:-ux, L=(Math.abs(w)+Math.abs(h))*4;
-        const ax=c.x1-ux*L, ay=c.y1-uy*L, bx=c.x2+ux*L, by=c.y2+uy*L;
-        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(bx+nx*L,by+ny*L); ctx.lineTo(ax+nx*L,ay+ny*L); ctx.closePath(); ctx.clip();
-      };
+      // ── Découpe MANUELLE : SUBDIVISION RÉCURSIVE — chaque coupe divise la zone
+      // qui contient son milieu, donc sa ligne s'ARRÊTE aux coupes précédentes
+      // (pas de croisements parasites). Zones = coupes + 1.
+      const regions = lmComputeCutRegions(_cuts);
+      const n = regions.length;
+      const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
       for (let k=0;k<n;k++){
         const im=_imgsArr[k]; if(!im) continue;
+        const poly = regions[k].map(toPx);
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
-        if (k>0)   clipHalf(sorted[k-1], true);   // après la coupe précédente
-        if (k<n-1) clipHalf(sorted[k], false);    // avant la coupe suivante
+        ctx.beginPath(); poly.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.clip();
         const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
         ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH);
         ctx.restore();
@@ -2695,21 +2722,14 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       if (cfg.charSplit !== false) {
         ctx.save(); lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.strokeStyle = cfg.strokeColor || '#7769DD';
-        ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round';
-        const L=(Math.abs(w)+Math.abs(h))*4;
-        cpxRaw.forEach(c => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1;
-          ctx.beginPath(); ctx.moveTo(c.x1-dx/len*L, c.y1-dy/len*L); ctx.lineTo(c.x2+dx/len*L, c.y2+dy/len*L); ctx.stroke(); });
-        const GS=20, sumX=new Array(n).fill(0), sumY=new Array(n).fill(0), cnt=new Array(n).fill(0);
-        for (let gy=0; gy<GS; gy++) for (let gx=0; gx<GS; gx++) {
-          const px=left+(gx+0.5)/GS*w, py=top+(gy+0.5)/GS*h;
-          let v=0; for (let i=0;i<sorted.length;i++) if (crossPx(sorted[i],px,py)>0) v++;
-          if (v>n-1) v=n-1;
-          sumX[v]+=px; sumY[v]+=py; cnt[v]++;
-        }
+        ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round'; ctx.lineJoin='round';
+        // ne tracer que les arêtes INTÉRIEURES (les coupes), pas le bord de la carte.
+        regions.forEach(pl => { for (let i=0;i<pl.length;i++){ const A=pl[i], B=pl[(i+1)%pl.length]; if (lmEdgeOnBox(A,B)) continue;
+          const a=toPx(A), b=toPx(B); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); } });
         const numSize=Math.min(w,h)*0.2;
         ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
         ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
-        for (let k=0;k<n;k++){ if(!cnt[k]) continue; const mx=sumX[k]/cnt[k], my=sumY[k]/cnt[k];
+        for (let k=0;k<n;k++){ const c=toPx(lmPolyCentroid(regions[k])); const mx=c.x, my=c.y;
           ctx.lineWidth=numSize*0.18; ctx.strokeStyle='rgba(0,0,0,0.82)'; ctx.strokeText(String(k+1),mx,my);
           ctx.fillStyle='#ffffff'; ctx.fillText(String(k+1),mx,my); }
         ctx.restore();
@@ -2980,35 +3000,26 @@ function lmCEDraw() {
   ctx.clearRect(0, 0, S, S);
   const slot = { cx: S/2, cy: S/2, w: D, h: D };
   const cuts = (LM.cuts || []).filter(Boolean);
-  const n = cuts.length + 1;                 // zones = coupes + 1
   const left = M, top = M, w = D, h = D;
   const TINTS = ['rgba(255,90,90,0.5)','rgba(90,200,120,0.5)','rgba(90,150,255,0.5)','rgba(240,200,80,0.5)','rgba(200,120,255,0.5)'];
-  const cutPx = (cu) => ({ x1: left+cu.x1*w, y1: top+cu.y1*h, x2: left+cu.x2*w, y2: top+cu.y2*h });
-  const crossPx = (c, px, py) => (c.x2-c.x1)*(py-c.y1) - (c.y2-c.y1)*(px-c.x1);
-  const nrm = (c) => { const dx=c.x2-c.x1, dy=c.y2-c.y1, len=Math.hypot(dx,dy)||1; return { x:-dy/len, y:dx/len }; };
-  const cpxRaw = cuts.map(cutPx);
-  const ref = cpxRaw.length ? nrm(cpxRaw[0]) : {x:1,y:0};
-  const oriented = cpxRaw.map(c => { const v=nrm(c); return (v.x*ref.x+v.y*ref.y) < 0 ? {x1:c.x2,y1:c.y2,x2:c.x1,y2:c.y1} : c; });
-  const proj = (c) => ((c.x1+c.x2)/2)*ref.x + ((c.y1+c.y2)/2)*ref.y;
-  const sorted = oriented.slice().sort((a,b) => proj(a)-proj(b));
-  const clipHalf = (c, pos) => { const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,nx=pos?-uy:uy,ny=pos?ux:-ux,L=(w+h)*4;
-    const ax=c.x1-ux*L,ay=c.y1-uy*L,bx=c.x2+ux*L,by=c.y2+uy*L;
-    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineTo(bx+nx*L,by+ny*L);ctx.lineTo(ax+nx*L,ay+ny*L);ctx.closePath();ctx.clip(); };
+  const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
+  const regions = lmComputeCutRegions(cuts);   // subdivision récursive (coupes s'arrêtent)
+  const n = regions.length;
   // fond de la forme
   ctx.save(); lmMakeShapePath(ctx, slot, 1, LM); ctx.fillStyle = '#241640'; ctx.fill(); ctx.restore();
-  // régions teintées (tranches entre coupes consécutives)
-  for (let k=0;k<n;k++){ ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); if(k>0)clipHalf(sorted[k-1],true); if(k<n-1)clipHalf(sorted[k],false); ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
-  // traits de coupe
-  ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; const L=(w+h)*4;
-  cpxRaw.forEach(c=>{const dx=c.x2-c.x1,dy=c.y2-c.y1,len=Math.hypot(dx,dy)||1;ctx.beginPath();ctx.moveTo(c.x1-dx/len*L,c.y1-dy/len*L);ctx.lineTo(c.x2+dx/len*L,c.y2+dy/len*L);ctx.stroke();});
+  // régions teintées (polygones)
+  for (let k=0;k<n;k++){ const poly=regions[k].map(toPx); ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip();
+    ctx.beginPath(); poly.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.clip();
+    ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
+  // traits de coupe = arêtes intérieures des régions
+  ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
+  regions.forEach(pl=>{ for(let i=0;i<pl.length;i++){ const A=pl[i],B=pl[(i+1)%pl.length]; if(lmEdgeOnBox(A,B))continue; const a=toPx(A),b=toPx(B); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); } });
   ctx.restore();
   // contour de la forme
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.strokeStyle='#7c5cff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore();
-  // numéros aux centroïdes (zone = nombre de coupes côté cross>0)
-  const GS=20, sx=new Array(n).fill(0), sy=new Array(n).fill(0), cn=new Array(n).fill(0);
-  for(let gy=0;gy<GS;gy++)for(let gx=0;gx<GS;gx++){const px=left+(gx+0.5)/GS*w,py=top+(gy+0.5)/GS*h;let v=0;for(let i=0;i<sorted.length;i++)if(crossPx(sorted[i],px,py)>0)v++;if(v>n-1)v=n-1;sx[v]+=px;sy[v]+=py;cn[v]++;}
+  // numéros aux centroïdes des régions
   ctx.font='900 26px Montserrat, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
-  for(let k=0;k<n;k++){if(!cn[k])continue;const mx=sx[k]/cn[k],my=sy[k]/cn[k];ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,0.85)';ctx.strokeText(String(k+1),mx,my);ctx.fillStyle='#fff';ctx.fillText(String(k+1),mx,my);}
+  for(let k=0;k<n;k++){const c=toPx(lmPolyCentroid(regions[k]));ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,0.85)';ctx.strokeText(String(k+1),c.x,c.y);ctx.fillStyle='#fff';ctx.fillText(String(k+1),c.x,c.y);}
   // point en attente
   if(LM_CE.pending){const px=left+LM_CE.pending.x*w,py=top+LM_CE.pending.y*h;ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fillStyle='#ffd34d';ctx.fill();ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();}
 }
