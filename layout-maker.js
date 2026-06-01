@@ -1001,7 +1001,17 @@ function lmSetFontWeight(w) {
 // ── STEP 3 — TITRES ────────────────────────────────────────────────────────────
 function lmInitTitles() {
   ['T1','T2','T3'].forEach(t => {
-    const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    // Met aussi à jour l'afficheur voisin (input number .value OU span .textContent)
+    // pour que la valeur affichée soit correcte dès l'ouverture (ex. contour).
+    const setV = (id, v) => {
+      const el = document.getElementById(id); if (!el) return;
+      el.value = v;
+      const sib = el.nextElementSibling;
+      if (sib) {
+        if (sib.type === 'number') sib.value = v;
+        else if (sib.tagName === 'SPAN') sib.textContent = v;
+      }
+    };
     const cfg = LM[t];
     setV(`lm${t}x`,    cfg.x);
     setV(`lm${t}y`,    cfg.y);
@@ -1017,8 +1027,14 @@ function lmSyncTitle(t) {
   const syncRange = id => {
     const el = document.getElementById(id);
     if (!el) return null;
-    const num = el.nextElementSibling;
-    if (num && num.type === 'number') num.value = el.value;
+    // Met à jour l'afficheur de valeur voisin : input number (.value) OU
+    // span (.textContent). Le contour des titres utilise un <span> → sans ça,
+    // la valeur restait bloquée (« ça met pas de chiffres »).
+    const sib = el.nextElementSibling;
+    if (sib) {
+      if (sib.type === 'number') sib.value = el.value;
+      else if (sib.tagName === 'SPAN') sib.textContent = el.value;
+    }
     return parseFloat(el.value);
   };
   const g = id => { const el = document.getElementById(id); return el ? el.value : null; };
