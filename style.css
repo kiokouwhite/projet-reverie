@@ -2293,6 +2293,18 @@ canvas { width: 100%; display: block; }
 .lm-cpp-btn:hover { border-color: #b79bdf; }
 .lm-cpp-btn.lm-selected { background: #7c5cff; color: #fff; border-color: #7c5cff; }
 
+/* Upload manuel par perso (jeux d'équipe) */
+.lm-multiup-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lm-multiup-cells { display: flex; gap: 8px; flex-wrap: wrap; }
+.lm-multiup-cell {
+  position: relative; width: 62px; height: 62px; border-radius: 10px;
+  border: 2px dashed #c9b3e8; background: #f3ecfb; cursor: pointer; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; transition: border-color 0.12s;
+}
+.lm-multiup-cell:hover { border-color: #7c5cff; }
+.lm-multiup-cell img { width: 100%; height: 100%; object-fit: cover; display: none; }
+.lm-multiup-num { position: absolute; font-weight: 900; font-size: 20px; color: #7c5cff; pointer-events: none; text-shadow: 0 1px 3px #fff, 0 0 2px #fff; }
+
 /* ── Indicateur d'auto-enregistrement (Layout Maker) ───────── */
 .lm-autosave-toast {
   position: fixed;

@@ -79,6 +79,17 @@ async function coffreStripImagesToIDB(layout) {
     }
     delete layout.charDataUrls;
   }
+  // Multi-persos : images par zone (souvent des dataURL d'upload manuel) → IDB,
+  // pour ne pas saturer le localStorage.
+  if (Array.isArray(layout.charUrlsMulti)) {
+    for (let i = 0; i < layout.charUrlsMulti.length; i++) {
+      const arr = layout.charUrlsMulti[i] || [];
+      for (let k = 0; k < arr.length; k++) {
+        if (arr[k]) await coffreIdbPut(`${layout.id}:multi:${i}:${k}`, arr[k]);
+      }
+    }
+    delete layout.charUrlsMulti;
+  }
 }
 
 // Récupère les images depuis IndexedDB et les ré-attache à l'objet layout.
@@ -101,6 +112,17 @@ async function coffreLoadImagesFromIDB(layout) {
         const v = await coffreIdbGet(`${layout.id}:char:${i}`);
         if (v) layout.charDataUrls[i] = v;
       } catch(e) { console.warn(`[IDB] get ${layout.id}:char:${i}:`, e); }
+    }
+  }
+  // Multi-persos : restaure les images par zone depuis IDB (max 3 joueurs × 5 zones).
+  if (!Array.isArray(layout.charUrlsMulti)) layout.charUrlsMulti = [[],[],[]];
+  for (let i = 0; i < 3; i++) {
+    layout.charUrlsMulti[i] = layout.charUrlsMulti[i] || [];
+    for (let k = 0; k < 5; k++) {
+      if (!layout.charUrlsMulti[i][k]) {
+        try { const v = await coffreIdbGet(`${layout.id}:multi:${i}:${k}`); if (v) layout.charUrlsMulti[i][k] = v; }
+        catch(e) { /* ignore */ }
+      }
     }
   }
   return layout;
@@ -1156,15 +1178,57 @@ function lmInitChars() {
       document.getElementById(`lmCharHint${i}`).style.display = 'none';
     }
   });
+  // Multi-persos : on masque l'upload simple (1 image/joueur) et on montre une
+  // grille d'upload par perso (1 image par zone) — indispensable pour les jeux
+  // sans images start.gg (DBFZ, etc.).
+  const multi = (LM.charsPerPlayer || 1) > 1;
+  document.querySelectorAll('.lm-step-panel[data-step="6"] .lm-char-slot').forEach(el => el.style.display = multi ? 'none' : '');
+  const mc = document.getElementById('lmMultiUploads');
+  if (mc) { mc.style.display = multi ? 'block' : 'none'; if (multi) lmBuildMultiUploads(mc); }
   lmHighlightCppBtn();
 }
 
+// Construit la grille d'upload manuel par perso (joueur × zone).
+function lmBuildMultiUploads(container) {
+  const N = LM.charsPerPlayer || 1, ranks = ['🥇','🥈','🥉'];
+  container.innerHTML = [0,1,2].map(i => `
+    <div class="lm-multiup-row">
+      <span class="lm-name-rank lm-rank-${i+1}" style="font-size:18px;">${ranks[i]}</span>
+      <div class="lm-multiup-cells">
+        ${Array.from({length:N},(_,k)=>`
+          <div class="lm-multiup-cell" onclick="document.getElementById('lmMU_${i}_${k}').click()" title="Joueur ${i+1} — perso ${k+1}">
+            <input type="file" id="lmMU_${i}_${k}" accept="image/*" style="display:none" onchange="lmLoadCharMulti(event,${i},${k})">
+            <img id="lmMUthumb_${i}_${k}" alt="">
+            <span class="lm-multiup-num">${k+1}</span>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  [0,1,2].forEach(i => { for (let k=0;k<N;k++){ const url=(LM.charUrlsMulti[i]||[])[k]; const im=document.getElementById(`lmMUthumb_${i}_${k}`); if (im && url){ im.src=url; im.style.display='block'; } } });
+}
+function lmLoadCharMulti(e, i, k) {
+  const file = e.target.files && e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const url = ev.target.result;
+    LM.charUrlsMulti[i] = LM.charUrlsMulti[i] || [];
+    LM.charImgsMulti[i] = LM.charImgsMulti[i] || [];
+    LM.charUrlsMulti[i][k] = url;
+    const img = new Image();
+    img.onload = () => { LM.charImgsMulti[i][k] = img; lmRenderPreview(); };
+    img.src = url;
+    const thumb = document.getElementById(`lmMUthumb_${i}_${k}`); if (thumb){ thumb.src=url; thumb.style.display='block'; }
+  };
+  reader.readAsDataURL(file);
+}
+window.lmLoadCharMulti = lmLoadCharMulti;
+
 // Nombre de persos par joueur (jeux d'équipe). Met à jour le mode + ré-importe
-// les persos depuis start.gg avec ce nombre, puis re-rend.
+// les persos depuis start.gg avec ce nombre, rafraîchit l'UI d'upload, puis re-rend.
 function lmSetCharsPerPlayer(n) {
   LM.charsPerPlayer = Math.max(1, Math.min(3, n | 0));
   lmHighlightCppBtn();
   if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
+  lmInitChars();
   lmRenderPreview();
 }
 window.lmSetCharsPerPlayer = lmSetCharsPerPlayer;
