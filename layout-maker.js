@@ -2884,6 +2884,33 @@ function lmEdgeOnBox(A, B) {
   return (Math.abs(A.x)<1e-4&&Math.abs(B.x)<1e-4) || (Math.abs(A.x-1)<1e-4&&Math.abs(B.x-1)<1e-4)
       || (Math.abs(A.y)<1e-4&&Math.abs(B.y)<1e-4) || (Math.abs(A.y-1)<1e-4&&Math.abs(B.y-1)<1e-4);
 }
+// Polygone (en PX) d'une zone, dont les arêtes de COUPE sont rentrées de g2px vers
+// l'intérieur (les bords de carte ne bougent pas). Sert à tracer le contour de
+// CHAQUE zone séparée (et non plus seulement le tour de la carte).
+function lmInsetRegionPx(regN, left, top, w, h, g2px) {
+  let poly = regN.map(p => ({ x: left + p.x*w, y: top + p.y*h }));
+  const cN = lmPolyCentroid(regN);
+  const ctr = { x: left + cN.x*w, y: top + cN.y*h };
+  const LN = regN.length;
+  for (let i = 0; i < LN; i++) {
+    const A = regN[i], B = regN[(i+1)%LN];
+    if (lmEdgeOnBox(A, B)) continue;   // bord de carte : pas d'inset
+    const Apx = { x: left+A.x*w, y: top+A.y*h }, Bpx = { x: left+B.x*w, y: top+B.y*h };
+    const dx = Bpx.x-Apx.x, dy = Bpx.y-Apx.y, len = Math.hypot(dx,dy)||1, ux = dx/len, uy = dy/len;
+    let nx = -uy, ny = ux; if ((ctr.x-Apx.x)*nx + (ctr.y-Apx.y)*ny < 0) { nx = -nx; ny = -ny; }
+    const ox = Apx.x + nx*g2px, oy = Apx.y + ny*g2px;
+    // Clip du polygone par le demi-plan intérieur { P : (P-O)·n >= 0 }
+    const out = [], n2 = poly.length;
+    for (let k = 0; k < n2; k++) {
+      const C = poly[k], D = poly[(k+1)%n2];
+      const dC = (C.x-ox)*nx + (C.y-oy)*ny, dD = (D.x-ox)*nx + (D.y-oy)*ny;
+      if (dC >= 0) out.push(C);
+      if ((dC >= 0) !== (dD >= 0)) { const t = dC/((dC-dD)||1e-9); out.push({ x: C.x+t*(D.x-C.x), y: C.y+t*(D.y-C.y) }); }
+    }
+    poly = out;
+  }
+  return poly;
+}
 
 // Dessine un texte centré en (x,y) [px canvas], éventuellement COURBÉ en arc
 // et/ou tourné. bendDeg : 0 = droit ; >0 = voûte vers le HAUT (arc-en-ciel) ;
@@ -3103,15 +3130,35 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.restore();
   }
 
-  // Stroke
+  // Stroke (contour)
   if ((cfg.strokeWidth||0) > 0) {
-    lmMakeShapePath(ctx, slot, sc, cfg);
     ctx.strokeStyle = cfg.strokeColor || '#7769DD';
     ctx.lineWidth   = cfg.strokeWidth * sc;
-    ctx.lineJoin    = 'round';
+    ctx.lineJoin    = 'round'; ctx.lineCap = 'round';
     ctx.shadowColor = (cfg.strokeColor||'#7769DD') + '88';
-    ctx.shadowBlur  = 14*sc;
-    ctx.stroke();
+    const _cutsS = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean) : []);
+    const _slotGapS = (slot.cutGap != null) ? slot.cutGap : (cfg.cutGap || 0);
+    const _g2S = (_slotGapS * sc) / 2;
+    if (_cutsS.length && _g2S > 0.5) {
+      // Zones SÉPARÉES (espacement > 0) : un contour autour de CHAQUE zone, pas
+      // seulement le tour de la carte. Arêtes de coupe rentrées du gap (g2).
+      // Halo réduit (borné au demi-écart) pour ne pas "remplir" l'écart.
+      ctx.shadowBlur = Math.min(8*sc, _g2S);
+      const left = cx - w/2, top = cy - h/2;
+      lmComputeCutRegions(_cutsS).forEach(regN => {
+        const poly = lmInsetRegionPx(regN, left, top, w, h, _g2S);
+        if (poly.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+        ctx.closePath();
+        ctx.stroke();
+      });
+    } else {
+      ctx.shadowBlur = 14*sc;
+      lmMakeShapePath(ctx, slot, sc, cfg);
+      ctx.stroke();
+    }
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
   }
 
