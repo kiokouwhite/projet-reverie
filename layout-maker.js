@@ -1323,10 +1323,13 @@ async function lmAutoImportChars() {
       try { const fetched = await lmFetchEventChars(slug, apiKey); if (fetched.some(c => c && c.length)) cbp = fetched; }
       catch(e) { console.warn('[LM] fetch chars :', e); }
     }
+    // Si on a des persos à importer, on repart de slots PROPRES pour ne pas garder
+    // ceux d'un ancien layout/event (ex. RoA2 restant sur une carte DBFZ).
+    const _hasData = cbp.some(c => c && c.length);
     [0,1,2].forEach(i => {
       const chars = (cbp[i] || []).slice(0, N);
-      LM.charImgsMulti[i] = LM.charImgsMulti[i] || [];
-      LM.charUrlsMulti[i] = LM.charUrlsMulti[i] || [];
+      if (_hasData) { LM.charImgsMulti[i] = []; LM.charUrlsMulti[i] = []; }
+      else { LM.charImgsMulti[i] = LM.charImgsMulti[i] || []; LM.charUrlsMulti[i] = LM.charUrlsMulti[i] || []; }
       chars.forEach((c, k) => {
         const url = c && c.url; if (!url) return;
         attempted++; pending++;
@@ -1702,6 +1705,16 @@ async function lmOpenForEdit(layoutId) {
     im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
     im.src = url;
   }));
+  // Restaure l'event start.gg associé pour que l'auto-import des persos puisse
+  // ré-interroger CET event. Layouts sauvegardés avant cette version : pas de
+  // eventSlug → on tente de retrouver le graph par nom de jeu (fallback).
+  LM._eventSlug = layout.eventSlug || null;
+  if (!LM._eventSlug && typeof graphs !== 'undefined' && Array.isArray(graphs)) {
+    const gn = (layout.gameName || layout.name || '').trim().toLowerCase();
+    const g = gn && graphs.find(gr => gr && gr.eventSlug &&
+      ((gr.game || '').trim().toLowerCase() === gn || (gr.eventName || '').trim().toLowerCase() === gn));
+    if (g) LM._eventSlug = g.eventSlug;
+  }
   LM.nameStyle     = {...(layout.nameStyle  || {})};
   LM.nameColors    = [...(layout.nameColors || [])];
   LM.playerNames   = [...(layout.playerNames || ['','',''])];
@@ -1858,6 +1871,9 @@ async function lmFinishAndSave(silent, keepEdit) {
     charSplit:      LM.charSplit !== false,
     cuts:           (LM.cuts || []).map(c => ({...c})),
     cutGap:         LM.cutGap || 0,
+    // Event start.gg associé (flux "jeux sans layout") : permet de ré-interroger
+    // start.gg pour CET event à la ré-édition (auto-import des persos fiable).
+    eventSlug:      LM._eventSlug || null,
     nameStyle: {...LM.nameStyle},
     nameColors: [...LM.nameColors],
     playerNames: [...LM.playerNames],
