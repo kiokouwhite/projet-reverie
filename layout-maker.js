@@ -289,6 +289,7 @@ function lmResetForNew() {
   // dernier layout édité au moment de la sauvegarde.
   LM._editIdx = null;
   LM._editId  = null;
+  LM._eventSlug = null;   // évite d'interroger un ancien event à l'auto-import
 }
 
 // ── POLICES DISPONIBLES ───────────────────────────────────────────────────────
@@ -1254,7 +1255,32 @@ function lmDetectCharsPerPlayer() {
 }
 window.lmDetectCharsPerPlayer = lmDetectCharsPerPlayer;
 
-function lmAutoImportChars() {
+// Interroge start.gg pour le Top 3 d'un event + leurs persos (avec image).
+// Renvoie [[{name,url}...], ...] dans l'ordre du classement. Sert de repli quand
+// les persos ne sont pas pré-chargés (flux "jeux sans layout").
+async function lmFetchEventChars(slug, apiKey) {
+  const sd = await gqlFetch(apiKey, `query($slug:String!){ event(slug:$slug){
+    standings(query:{perPage:3,page:1}){ nodes { placement entrant{id} } } } }`, { slug });
+  const nodes = (sd?.data?.event?.standings?.nodes || []).sort((a,b)=>a.placement-b.placement).slice(0,3);
+  const entrantIds = nodes.map(s => s.entrant?.id);
+  const setsData = await gqlFetch(apiKey, `query($slug:String!){ event(slug:$slug){
+    sets(page:1,perPage:50,sortType:STANDARD){ nodes { games { selections { entrant{id} character{id name images{url type}} } } } } } }`, { slug });
+  const charCount = {}, charImage = {};
+  (setsData?.data?.event?.sets?.nodes || []).forEach(set => (set.games||[]).forEach(game => (game.selections||[]).forEach(sel => {
+    const eid = sel?.entrant?.id, ch = sel?.character, cn = ch?.name; if (!eid || !cn) return;
+    charCount[eid] = charCount[eid] || {}; charCount[eid][cn] = (charCount[eid][cn]||0)+1;
+    if (!charImage[cn] && Array.isArray(ch.images) && ch.images.length) {
+      const pr = ch.images.find(im=>im.type==='primary') || ch.images[0]; if (pr?.url) charImage[cn] = pr.url;
+    }
+  })));
+  return entrantIds.map(eid => {
+    const counts = eid ? charCount[eid] : null; if (!counts) return [];
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([cn])=>({ name:cn, url:charImage[cn]||null })).filter(c=>c.url);
+  });
+}
+window.lmFetchEventChars = lmFetchEventChars;
+
+async function lmAutoImportChars() {
   const statusEl = document.getElementById('lmAutoImportStatus');
   const setStatus = (msg, ok = true) => {
     if (!statusEl) return;
@@ -1280,29 +1306,36 @@ function lmAutoImportChars() {
 
   const N = Math.max(1, Math.min(3, LM.charsPerPlayer || 1));
 
-  // ── Jeu d'ÉQUIPE (plusieurs persos par joueur) : on charge jusqu'à N persos
-  // par joueur depuis players[i].chars (URLs start.gg) → compositées côte à côte.
+  // ── Jeu d'ÉQUIPE (plusieurs persos par joueur) ──
   if (N > 1) {
-    players.slice(0, 3).forEach((p, i) => {
-      if (!p) return;
-      const chars = Array.isArray(p.chars) ? p.chars.slice(0, N) : [];
+    // chars par joueur : depuis players[i].chars si dispo ; SINON on interroge
+    // start.gg directement (flux "jeux sans layout" où les persos ne sont pas
+    // pré-chargés). cbp = [[{name,url}...], ...] dans l'ordre du Top.
+    let cbp = players.slice(0, 3).map(p => (p && Array.isArray(p.chars) && p.chars.length) ? p.chars : null);
+    if (!cbp.some(Boolean)) {
+      const apiKey = (document.getElementById('apiKey')?.value || '').trim();
+      const gi = (typeof currentGraphIdx !== 'undefined') ? currentGraphIdx : 0;
+      const slug = LM._eventSlug || (typeof graphs !== 'undefined' && graphs[gi]?.eventSlug) || null;
+      if (slug && apiKey && typeof gqlFetch === 'function') {
+        setStatus('⏳ Recherche des personnages sur start.gg…');
+        try { cbp = await lmFetchEventChars(slug, apiKey); } catch(e) { console.warn('[LM] fetch chars :', e); }
+      }
+    }
+    [0,1,2].forEach(i => {
+      const chars = (cbp[i] || []).slice(0, N);
       LM.charImgsMulti[i] = LM.charImgsMulti[i] || [];
       LM.charUrlsMulti[i] = LM.charUrlsMulti[i] || [];
       chars.forEach((c, k) => {
-        const url = c && c.url;
-        if (!url) return;
+        const url = c && c.url; if (!url) return;
         attempted++; pending++;
-        const apply = (img) => {
-          LM.charImgsMulti[i][k] = img; LM.charUrlsMulti[i][k] = url;
-          loaded++; lmRenderPreview(); pending--; finish();
-        };
+        const apply = (img) => { LM.charImgsMulti[i][k] = img; LM.charUrlsMulti[i][k] = url; loaded++; lmRenderPreview(); pending--; finish(); };
         const img = new Image(); img.crossOrigin = 'anonymous';
         img.onload  = () => apply(img);
         img.onerror = () => { const img2 = new Image(); img2.onload = () => apply(img2); img2.onerror = () => { pending--; finish(); }; img2.src = url; };
         img.src = url;
       });
     });
-    if (attempted === 0) setStatus('ℹ️ Aucun perso trouvé sur start.gg pour ces joueurs.', false);
+    if (attempted === 0) setStatus('ℹ️ Aucun perso trouvé sur start.gg (non reportés, ou sans image côté start.gg). Utilise l\'upload manuel ci-dessous.', false);
     return;
   }
 

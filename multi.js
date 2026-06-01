@@ -897,6 +897,9 @@ async function openLayoutMakerForEvent(slug, gameName, gameImgUrl) {
   // style, noms, marqueurs d'édition) pour repartir d'un layout vierge. On
   // remplit donc les noms APRÈS, sinon ce reset les écraserait.
   openLayoutMaker(gameName, gameImgUrl || null);
+  // Mémorise l'event pour que l'auto-import des persos puisse interroger start.gg
+  // (les persos ne sont pas pré-chargés dans ce flux "jeux sans layout").
+  if (typeof LM !== 'undefined') LM._eventSlug = slug || null;
 
   // Pré-remplir depuis players[] si c'est le bon event (fallback). On inclut
   // la TEAM (prefix) via lmFormatPlayerName, sinon le nom de team n'apparaît pas.
