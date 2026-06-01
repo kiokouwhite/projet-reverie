@@ -1312,14 +1312,16 @@ async function lmAutoImportChars() {
     // start.gg directement (flux "jeux sans layout" où les persos ne sont pas
     // pré-chargés). cbp = [[{name,url}...], ...] dans l'ordre du Top.
     let cbp = players.slice(0, 3).map(p => (p && Array.isArray(p.chars) && p.chars.length) ? p.chars : null);
-    if (!cbp.some(Boolean)) {
-      const apiKey = (document.getElementById('apiKey')?.value || '').trim();
-      const gi = (typeof currentGraphIdx !== 'undefined') ? currentGraphIdx : 0;
-      const slug = LM._eventSlug || (typeof graphs !== 'undefined' && graphs[gi]?.eventSlug) || null;
-      if (slug && apiKey && typeof gqlFetch === 'function') {
-        setStatus('⏳ Recherche des personnages sur start.gg…');
-        try { cbp = await lmFetchEventChars(slug, apiKey); } catch(e) { console.warn('[LM] fetch chars :', e); }
-      }
+    const apiKey = (document.getElementById('apiKey')?.value || '').trim();
+    const gi = (typeof currentGraphIdx !== 'undefined') ? currentGraphIdx : 0;
+    const slug = LM._eventSlug || (typeof graphs !== 'undefined' && graphs[gi]?.eventSlug) || null;
+    // On interroge start.gg si aucune donnée pré-chargée OU si on connaît l'event
+    // précis (flux "jeux sans layout") → données fiables pour CET event. On ne
+    // remplace cbp que si le fetch ramène effectivement des persos.
+    if (slug && apiKey && typeof gqlFetch === 'function' && (!cbp.some(Boolean) || LM._eventSlug)) {
+      setStatus('⏳ Recherche des personnages sur start.gg…');
+      try { const fetched = await lmFetchEventChars(slug, apiKey); if (fetched.some(c => c && c.length)) cbp = fetched; }
+      catch(e) { console.warn('[LM] fetch chars :', e); }
     }
     [0,1,2].forEach(i => {
       const chars = (cbp[i] || []).slice(0, N);
