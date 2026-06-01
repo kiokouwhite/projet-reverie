@@ -4472,7 +4472,7 @@ function formatPlayerForTweet(p) {
 }
 
 // Template de tweet personnalisable (sauvegardé en localStorage)
-const DEFAULT_TWEET_TEMPLATE = '🏆 {tournament} — {game}{suffix}\n\n{top}\n\nMerci à toustes ! 🎮 #FGC #{tag}';
+const DEFAULT_TWEET_TEMPLATE = '🏆 {tournament} — {game}\n\n{top}\n\nMerci à toustes ! 🎮 #FGC #{tag}';
 function getTweetTemplate() {
   try { return localStorage.getItem('tweet_template') || DEFAULT_TWEET_TEMPLATE; }
   catch { return DEFAULT_TWEET_TEMPLATE; }
@@ -4523,7 +4523,9 @@ function buildTweetText(tournamentName, gameName, playersList, idx, total) {
     .map((p,j) => `${emojis[j]} ${formatPlayerForTweet(p)}`)
     .join('\n');
   const tag = (gameName || '').replace(/[^a-zA-Z0-9]/g,'');
-  const suffix = total > 1 ? ` (${idx+1}/${total})` : '';
+  // Numérotation d'event (ex. "(4/5)") retirée des tweets sur demande : {suffix}
+  // rend désormais une chaîne vide (même pour un ancien template custom enregistré).
+  const suffix = '';
 
   return applyTweetTemplate(getTweetTemplate(), {
     '{tournament}': tournamentName || '',
