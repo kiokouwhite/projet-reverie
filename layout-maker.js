@@ -2745,12 +2745,14 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.save(); lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.strokeStyle = cfg.strokeColor || '#7769DD';
         ctx.lineWidth = Math.max(2, (cfg.strokeWidth||4)*sc); ctx.lineCap='round'; ctx.lineJoin='round';
-        // bord de chaque zone le long des coupes (décalé de g2 → matérialise l'espacement).
-        regions.forEach(pl => { const ctr=toPx(lmPolyCentroid(pl)), L=pl.length;
-          for (let i=0;i<L;i++){ const A=pl[i], B=pl[(i+1)%L]; if (lmEdgeOnBox(A,B)) continue;
-            const a=toPx(A), b=toPx(B), dx=b.x-a.x, dy=b.y-a.y, ln=Math.hypot(dx,dy)||1; let nx=-dy/ln, ny=dx/ln;
-            if ((ctr.x-a.x)*nx+(ctr.y-a.y)*ny < 0) { nx=-nx; ny=-ny; }
-            ctx.beginPath(); ctx.moveTo(a.x+nx*g2, a.y+ny*g2); ctx.lineTo(b.x+nx*g2, b.y+ny*g2); ctx.stroke(); } });
+        // Traits de coupe SEULEMENT quand il n'y a pas d'espacement : avec un
+        // écart, c'est l'écart (fond visible) qui sépare → on ne trace pas de
+        // ligne (sinon "ligne | écart | ligne", pas net).
+        if (g2 <= 0.5) {
+          regions.forEach(pl => { const ctr=toPx(lmPolyCentroid(pl)), L=pl.length;
+            for (let i=0;i<L;i++){ const A=pl[i], B=pl[(i+1)%L]; if (lmEdgeOnBox(A,B)) continue;
+              const a=toPx(A), b=toPx(B); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); } });
+        }
         const numSize=Math.min(w,h)*0.2;
         ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
         ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
@@ -3101,12 +3103,13 @@ function lmCEDraw() {
     ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip();
     for(let i=0;i<LN;i++){ const off=lmEdgeOnBox(ptsN[i],ptsN[(i+1)%LN])?0:g2; clipEdgeHalf(pts[i],pts[(i+1)%LN],ctr,off); }
     ctx.fillStyle=TINTS[k%TINTS.length]; ctx.fillRect(0,0,S,S); ctx.restore(); }
-  // traits de coupe = arêtes intérieures (décalées de g2)
-  ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
-  regions.forEach(pl=>{ const ctr=toPx(lmPolyCentroid(pl)); for(let i=0;i<pl.length;i++){ const A=pl[i],B=pl[(i+1)%pl.length]; if(lmEdgeOnBox(A,B))continue;
-    const a=toPx(A),b=toPx(B),dx=b.x-a.x,dy=b.y-a.y,ln=Math.hypot(dx,dy)||1; let nx=-dy/ln,ny=dx/ln; if((ctr.x-a.x)*nx+(ctr.y-a.y)*ny<0){nx=-nx;ny=-ny;}
-    ctx.beginPath();ctx.moveTo(a.x+nx*g2,a.y+ny*g2);ctx.lineTo(b.x+nx*g2,b.y+ny*g2);ctx.stroke(); } });
-  ctx.restore();
+  // traits de coupe seulement SANS espacement (sinon l'écart suffit à séparer)
+  if (g2 <= 0.5) {
+    ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.clip(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.lineJoin='round';
+    regions.forEach(pl=>{ for(let i=0;i<pl.length;i++){ const A=pl[i],B=pl[(i+1)%pl.length]; if(lmEdgeOnBox(A,B))continue;
+      const a=toPx(A),b=toPx(B); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); } });
+    ctx.restore();
+  }
   // contour de la forme
   ctx.save(); lmMakeShapePath(ctx,slot,1,LM); ctx.strokeStyle='#7c5cff'; ctx.lineWidth=2.5; ctx.stroke(); ctx.restore();
   // numéros aux centroïdes des régions
