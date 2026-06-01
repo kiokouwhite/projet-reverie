@@ -4871,26 +4871,64 @@ async function postToInstagram() {
   const filename = 'top8_' + (typeof currentGame !== 'undefined' ? currentGame + '_' : '') + name.replace(/\s/g, '_') + '.png';
   let pngBase64;
   try {
-    pngBase64 = preview.toDataURL('image/png');
+    // Réduit à ~1080px (résolution d'affichage Instagram) → upload bien plus léger.
+    // Un gros PNG (1400px) peut faire échouer le POST (limites proxy/Azure) ; 1080
+    // suffit largement pour Instagram et fiabilise l'envoi.
+    let srcCanvas = preview;
+    const MAXW = 1080;
+    if (preview.width > MAXW) {
+      const tmp = document.createElement('canvas');
+      const k = MAXW / preview.width;
+      tmp.width = MAXW; tmp.height = Math.round(preview.height * k);
+      const tctx = tmp.getContext('2d');
+      tctx.imageSmoothingEnabled = true; tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(preview, 0, 0, tmp.width, tmp.height);
+      srcCanvas = tmp;
+    }
+    pngBase64 = srcCanvas.toDataURL('image/png');
   } catch (e) {
     alert('Impossible de lire l\'aperçu : ' + e.message);
     return;
   }
   // Affiche la modale en état "chargement" pendant l'upload
   showInstaQRModal({ loading: true });
-  try {
-    const r = await fetch(`${botUrl}/insta-share/upload`, {
+  // Secret aussi en query + body : robuste si un proxy (Azure) filtre l'en-tête x-secret.
+  const upUrl = `${botUrl}/insta-share/upload?secret=${encodeURIComponent(secret)}`;
+  const doUpload = async () => {
+    const r = await fetch(upUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify({ pngBase64, text, filename }),
+      body: JSON.stringify({ pngBase64, text, filename, secret }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if (!data.url) throw new Error('Réponse invalide du serveur');
+    return data;
+  };
+  try {
+    let data;
+    try {
+      data = await doUpload();
+    } catch (e1) {
+      // Échec RÉSEAU (TypeError) : le bot Azure peut être "endormi" (cold start) →
+      // 2e tentative après une courte pause. Les erreurs HTTP ne sont PAS réessayées.
+      if (e1 instanceof TypeError) { await new Promise(res => setTimeout(res, 2500)); data = await doUpload(); }
+      else throw e1;
+    }
     showInstaQRModal({ url: data.url });
   } catch (e) {
     closeInstaQRModal();
-    alert('Erreur d\'upload : ' + e.message);
+    const networkFail = (e instanceof TypeError) || /NetworkError|Failed to fetch|fetch resource/i.test(e.message || '');
+    if (networkFail) {
+      alert("Erreur d'upload Instagram : impossible de joindre le bot.\n\n" +
+            "À vérifier :\n" +
+            "• l'URL du bot est correcte et commence par https:// (onglet Configuration)\n" +
+            "• le bot tourne bien (Azure) et est à jour\n" +
+            "• réessaie dans ~30 s : le bot peut être en veille et mettre un instant à se réveiller\n\n" +
+            "Détail technique : " + (e.message || 'NetworkError'));
+    } else {
+      alert("Erreur d'upload Instagram : le bot a répondu une erreur (" + e.message + ").");
+    }
   }
 }
 
