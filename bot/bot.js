@@ -344,6 +344,22 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// ── GARDE-FOUS ANTI-CRASH ────────────────────────────────────────────────────
+// Sans ça, la moindre promesse rejetée non gérée (route Express, event Discord,
+// intervalle, fetch…) fait QUITTER le process Node (≥18) → bot HORS LIGNE. Ici on
+// logue l'erreur et on CONTINUE, pour que le bot reste connecté à Discord.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+// Erreurs de la connexion Discord : on logue (discord.js se reconnecte tout seul).
+client.on('error',           (err)     => console.error('[discord client error]', err));
+client.on('shardError',      (err)     => console.error('[discord shard error]', err));
+client.on('shardDisconnect', (ev, id)  => console.warn(`[discord] shard ${id} déconnecté (code ${ev && ev.code}) — reconnexion auto…`));
+client.on('shardReconnecting', (id)    => console.warn(`[discord] shard ${id} en reconnexion…`));
+
 client.login(process.env.DISCORD_TOKEN).catch(err => {
   console.error('❌ Impossible de se connecter à Discord :', err.message);
   process.exit(1);
