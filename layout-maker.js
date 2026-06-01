@@ -1145,6 +1145,8 @@ function lmInitSlotPositions() {
     setV(`lmSlotRankX${i}`, s.rankX);
     setV(`lmSlotRankY${i}`, s.rankY);
     setV(`lmSlotRankS${i}`, s.rankSize);
+    // Espacement des zones par carte : repli sur le global (éditeur de découpe).
+    setV(`lmSlotGap${i}`, (s.cutGap != null ? s.cutGap : (LM.cutGap || 0)));
   });
 }
 
@@ -1165,6 +1167,7 @@ function lmSyncSlot(i) {
   s.rankX    = syncRange(`lmSlotRankX${i}`);
   s.rankY    = syncRange(`lmSlotRankY${i}`);
   s.rankSize = syncRange(`lmSlotRankS${i}`);
+  s.cutGap   = syncRange(`lmSlotGap${i}`);   // espacement des zones (par carte)
   lmRenderPreview();
 }
 
@@ -2384,8 +2387,10 @@ function lmRenderPreview() {
   // le rendu de la carte finale / du téléchargement.
   window._lmtmRegions = [];
   window._lmtmCapture = true;
+  window._lmShowZoneNums = true;   // numéros 1/2/3 visibles SEULEMENT dans l'aperçu d'édition
   lmRenderToCanvas(canvas);
   window._lmtmCapture = false;
+  window._lmShowZoneNums = false;
   if (typeof lmTextManipRefresh === 'function') lmTextManipRefresh();
   // Tout changement passe par un re-rendu de l'aperçu → on planifie un
   // auto-enregistrement (en mode édition uniquement, débounce).
@@ -2935,7 +2940,10 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   // l'écart entre zones prendrait la couleur de fond — c'était le "noir" gênant) ;
   // on remplit chaque zone individuellement (plus bas), l'écart laisse voir le
   // FOND derrière la carte.
-  const _gapMode = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean).length : 0) > 0 && (cfg.cutGap || 0) > 0;
+  // Espacement entre zones : par CARTE (slot.cutGap) avec repli sur le global
+  // (cfg.cutGap, réglé dans l'éditeur de découpe) → chaque carte peut avoir le sien.
+  const _slotGap = (slot.cutGap != null) ? slot.cutGap : (cfg.cutGap || 0);
+  const _gapMode = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean).length : 0) > 0 && _slotGap > 0;
 
   // Clip + fill
   lmMakeShapePath(ctx, slot, sc, cfg);
@@ -2959,7 +2967,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
       const regions = lmComputeCutRegions(_cuts);
       const n = regions.length;
       const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
-      const g2 = ((cfg.cutGap || 0) * sc) / 2;   // demi-espacement entre zones (px)
+      const g2 = (_slotGap * sc) / 2;   // demi-espacement entre zones (px, par carte)
       // clip au demi-plan intérieur (côté centroïde) de l'arête A→B, décalé vers
       // l'intérieur de `off` px (0 pour les bords de carte, g2 pour les coupes).
       const clipEdgeHalf = (A, B, ctr, off) => {
@@ -2999,12 +3007,16 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
             for (let i=0;i<L;i++){ const A=pl[i], B=pl[(i+1)%L]; if (lmEdgeOnBox(A,B)) continue;
               const a=toPx(A), b=toPx(B); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); } });
         }
-        const numSize=Math.min(w,h)*0.2;
-        ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
-        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
-        for (let k=0;k<n;k++){ const c=toPx(lmPolyCentroid(regions[k])); const mx=c.x, my=c.y;
-          ctx.lineWidth=numSize*0.18; ctx.strokeStyle='rgba(0,0,0,0.82)'; ctx.strokeText(String(k+1),mx,my);
-          ctx.fillStyle='#ffffff'; ctx.fillText(String(k+1),mx,my); }
+        // Numéros 1/2/3 : repère d'ÉDITION uniquement (window._lmShowZoneNums),
+        // jamais dans le visuel final / l'export / la vignette.
+        if (window._lmShowZoneNums) {
+          const numSize=Math.min(w,h)*0.2;
+          ctx.font=`900 ${Math.round(numSize)}px ${cfg.font||'Montserrat'}, sans-serif`;
+          ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineJoin='round';
+          for (let k=0;k<n;k++){ const c=toPx(lmPolyCentroid(regions[k])); const mx=c.x, my=c.y;
+            ctx.lineWidth=numSize*0.18; ctx.strokeStyle='rgba(0,0,0,0.82)'; ctx.strokeText(String(k+1),mx,my);
+            ctx.fillStyle='#ffffff'; ctx.fillText(String(k+1),mx,my); }
+        }
         ctx.restore();
       }
     } else {
@@ -3027,14 +3039,17 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.strokeStyle = cfg.strokeColor || '#7769DD';
         ctx.lineWidth = Math.max(2, (cfg.strokeWidth || 4) * sc); ctx.lineCap = 'round';
         for (let k = 1; k < n; k++) { const xd = left + k*stripW; ctx.beginPath(); ctx.moveTo(xd, top); ctx.lineTo(xd, top + h); ctx.stroke(); }
-        const numSize = Math.min(stripW * 0.5, h * 0.3);
-        ctx.font = `900 ${Math.round(numSize)}px ${cfg.font || 'Montserrat'}, sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
-        for (let k = 0; k < n; k++) {
-          const xc = left + k*stripW + stripW/2, yc = top + h*0.93;
-          ctx.lineWidth = numSize * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.82)';
-          ctx.strokeText(String(k+1), xc, yc);
-          ctx.fillStyle = '#ffffff'; ctx.fillText(String(k+1), xc, yc);
+        // Numéros 1/2/3 : repère d'ÉDITION uniquement, pas dans le visuel final.
+        if (window._lmShowZoneNums) {
+          const numSize = Math.min(stripW * 0.5, h * 0.3);
+          ctx.font = `900 ${Math.round(numSize)}px ${cfg.font || 'Montserrat'}, sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+          for (let k = 0; k < n; k++) {
+            const xc = left + k*stripW + stripW/2, yc = top + h*0.93;
+            ctx.lineWidth = numSize * 0.18; ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+            ctx.strokeText(String(k+1), xc, yc);
+            ctx.fillStyle = '#ffffff'; ctx.fillText(String(k+1), xc, yc);
+          }
         }
         ctx.restore();
       }
