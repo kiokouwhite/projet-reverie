@@ -90,6 +90,13 @@ async function coffreStripImagesToIDB(layout) {
     }
     delete layout.charUrlsMulti;
   }
+  // Images de remplacement des rangs (dataURL) → IDB.
+  if (Array.isArray(layout.rankImgUrls)) {
+    for (let i = 0; i < layout.rankImgUrls.length; i++) {
+      if (layout.rankImgUrls[i]) await coffreIdbPut(`${layout.id}:rankimg:${i}`, layout.rankImgUrls[i]);
+    }
+    delete layout.rankImgUrls;
+  }
 }
 
 // Récupère les images depuis IndexedDB et les ré-attache à l'objet layout.
@@ -123,6 +130,14 @@ async function coffreLoadImagesFromIDB(layout) {
         try { const v = await coffreIdbGet(`${layout.id}:multi:${i}:${k}`); if (v) layout.charUrlsMulti[i][k] = v; }
         catch(e) { /* ignore */ }
       }
+    }
+  }
+  // Images de remplacement des rangs : restaure depuis IDB.
+  if (!Array.isArray(layout.rankImgUrls)) layout.rankImgUrls = [null,null,null];
+  for (let i = 0; i < 3; i++) {
+    if (!layout.rankImgUrls[i]) {
+      try { const v = await coffreIdbGet(`${layout.id}:rankimg:${i}`); if (v) layout.rankImgUrls[i] = v; }
+      catch(e) { /* ignore */ }
     }
   }
   return layout;
@@ -234,6 +249,8 @@ const LM = {
     numbersOnly: false,
     rotation: 0,   // rotation des classements (degrés)
   },
+  rankImgUrls: [null, null, null],  // image remplaçant le texte du rang (dataURL, persisté)
+  rankImgImgs: [null, null, null],  // images chargées (runtime)
 
   // Step 5 — Personnages
   charImgs:     [null, null, null],
@@ -286,6 +303,7 @@ function lmResetForNew() {
   LM.bgImg = null; LM.gameImgImg = null; LM.overlayImg = null;
   LM.charImgs = [null, null, null];
   LM.charImgsMulti = [[], [], []];
+  LM.rankImgImgs = [null, null, null];
   // Efface les marqueurs d'édition : un nouveau layout ne doit JAMAIS écraser le
   // dernier layout édité au moment de la sauvegarde.
   LM._editIdx = null;
@@ -1575,6 +1593,7 @@ function lmInitRanks() {
     const _rsp = (LM.slots[i].rankSpacing != null) ? LM.slots[i].rankSpacing : (rs.spacing || 0);
     setV(`lmRankSp${i}`,     _rsp);
     setV(`lmRankArc${i}`,    LM.slots[i].rankArc || 0);
+    lmRefreshRankImgUI(i);
   });
   // Highlight active weight button
   document.querySelectorAll('.lm-rw-btn').forEach(b =>
@@ -1634,6 +1653,68 @@ function lmUpdateRankLabelPreviews() {
   });
 }
 
+// ── Image de remplacement d'un rang (1ER/2ÈME/3ÈME → image) ──────────────────
+function lmRankUploadImg(i) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      LM.rankImgUrls = LM.rankImgUrls || [null,null,null];
+      LM.rankImgUrls[i] = r.result;
+      const img = new Image();
+      img.onload = () => {
+        LM.rankImgImgs = LM.rankImgImgs || [null,null,null];
+        LM.rankImgImgs[i] = img;
+        lmRefreshRankImgUI(i);
+        lmRenderPreview();
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+window.lmRankUploadImg = lmRankUploadImg;
+
+function lmRankClearImg(i) {
+  if (LM.rankImgUrls) LM.rankImgUrls[i] = null;
+  if (LM.rankImgImgs) LM.rankImgImgs[i] = null;
+  lmRefreshRankImgUI(i);
+  lmRenderPreview();
+}
+window.lmRankClearImg = lmRankClearImg;
+
+// Reflète l'état (image présente ou non) sur le bouton + le bouton "retirer".
+function lmRefreshRankImgUI(i) {
+  const url = (LM.rankImgUrls && LM.rankImgUrls[i]) || '';
+  const btn = document.getElementById(`lmRankImgBtn${i}`);
+  const clr = document.getElementById(`lmRankImgClear${i}`);
+  if (btn) {
+    if (url) {
+      btn.style.backgroundImage = `url('${url}')`;
+      btn.classList.add('has-img');
+      btn.textContent = '';
+      btn.title = "Changer l'image du rang";
+    } else {
+      btn.style.backgroundImage = '';
+      btn.classList.remove('has-img');
+      btn.textContent = '🖼️';
+      btn.title = "Remplacer le rang par une image";
+    }
+  }
+  if (clr) clr.style.display = url ? 'inline-flex' : 'none';
+  // Grise les réglages de texte (couleur, espacement, courbure) quand une image
+  // est active — ils n'ont plus d'effet sur un rang en image.
+  ['lmRankColor','lmRankSp','lmRankArc'].forEach(p => {
+    const el = document.getElementById(`${p}${i}`); if (el) el.disabled = !!url;
+  });
+  const lbl = document.getElementById(`lmRankLabel${i}`);
+  if (lbl) lbl.disabled = !!url || LM.rankStyle.numbersOnly;
+}
+window.lmRefreshRankImgUI = lmRefreshRankImgUI;
+
 // ── STEP 7 — FINALISER ─────────────────────────────────────────────────────────
 function lmFinalStep() {
   // Generate thumbnail
@@ -1688,6 +1769,15 @@ async function lmOpenForEdit(layoutId) {
   LM.rankLabels    = [...(layout.rankLabels || ['1ER','2ÈME','3ÈME'])];
   LM.rankColors    = [...(layout.rankColors || [])];
   LM.rankStyle     = {...(layout.rankStyle  || {})};
+  // Images de remplacement des rangs : restaure les URLs puis recharge les images.
+  LM.rankImgUrls   = [...(layout.rankImgUrls || [null,null,null])];
+  LM.rankImgImgs   = [null,null,null];
+  LM.rankImgUrls.forEach((url, i) => {
+    if (!url) return;
+    const im = new Image();
+    im.onload = () => { LM.rankImgImgs[i] = im; lmRenderPreview(); };
+    im.src = url;
+  });
   LM.charDataUrls  = [...(layout.charDataUrls || [null,null,null])];
   LM.charImgs      = [null, null, null];
   LM.charCrops     = (layout.charCrops || [{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2},{cx:0.5,cy:0.3,zoom:2}]).map(c => ({...c}));
@@ -1866,6 +1956,7 @@ async function lmFinishAndSave(silent, keepEdit) {
     rankLabels: [...LM.rankLabels],
     rankColors:  [...LM.rankColors],
     rankStyle:   {...LM.rankStyle},
+    rankImgUrls: [...(LM.rankImgUrls || [null,null,null])],
     charDataUrls: [...LM.charDataUrls],
     charCrops:   LM.charCrops.map(c => ({...c})),
     charsPerPlayer: LM.charsPerPlayer || 1,
@@ -2172,6 +2263,16 @@ function lmRegisterLayout(layout) {
   // Multi-personnages : charge les images CÔTE À CÔTE dans layout.charImgsMulti
   // (utilisé par drawCustomLMLayout pour le rendu final).
   if (!Array.isArray(layout.charCropsMulti)) layout.charCropsMulti = [[],[],[]];
+  // Images de remplacement des rangs → chargées pour le rendu de l'app principale.
+  if (Array.isArray(layout.rankImgUrls)) {
+    layout.rankImgImgs = layout.rankImgImgs || [null,null,null];
+    layout.rankImgUrls.forEach((url, i) => {
+      if (!url) return;
+      const im = new Image();
+      im.onload = () => { layout.rankImgImgs[i] = im; };
+      im.src = url;
+    });
+  }
   if ((layout.charsPerPlayer || 1) > 1 && Array.isArray(layout.charUrlsMulti)) {
     layout.charImgsMulti = [[], [], []];
     layout.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -2965,9 +3066,35 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
 
   ctx.restore();
 
+  // Rank : IMAGE de remplacement (si fournie) OU texte/numéro
+  const rs = cfg.rankStyle || {};
+  const _rankImg = (cfg.rankImgImgs && cfg.rankImgImgs[idx]) || null;
+  if (_rankImg && _rankImg.naturalWidth) {
+    // ── Image remplaçant le classement ── Taille = HAUTEUR de l'image ; même
+    // ancrage que le texte (centrée horizontalement dans la zone, bas calé sur la
+    // « baseline » Y) → basculer texte↔image ne déplace pas le rang.
+    const hImg = (slot.rankSize || 80) * sc;
+    const wImg = hImg * (_rankImg.naturalWidth / _rankImg.naturalHeight);
+    ctx.font = `900 ${Math.round((slot.rankSize||80)*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
+    ctx.textAlign = 'center';
+    const _lbl  = (cfg.rankLabels || ['1ER','2ÈME','3ÈME'])[idx] || String(idx + 1);
+    const _rnat = ctx.measureText(_lbl).width / sc;
+    const _rmw  = slot.rankMaxW || Math.max(40, _rnat);
+    const _rcx  = slot.rankX + _rmw / 2;
+    ctx.save();
+    ctx.translate(_rcx * sc, slot.rankY * sc - hImg / 2);
+    const _rot = (rs.rotation || 0) * Math.PI / 180; if (_rot) ctx.rotate(_rot);
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8 * sc; ctx.shadowOffsetY = 2 * sc;
+    ctx.drawImage(_rankImg, -wImg / 2, -hImg / 2, wImg, hImg);
+    ctx.restore();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
+      kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
+      maxW: _rmw, rot: rs.rotation || 0, align: 'left',
+    });
+  } else {
   // Rank number/label
   const numColor = rankColors[idx] || '#ffffff';
-  const rs = cfg.rankStyle || {};
   const rankWeight = rs.weight || '900';
   const rankLabel = rs.numbersOnly
     ? String(idx + 1)
@@ -3004,6 +3131,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   });
   ctx.letterSpacing = '0px';
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  }
 
   // Name
   if (name) {
