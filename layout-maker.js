@@ -1612,6 +1612,8 @@ function lmInitRanks() {
     const _rsp = (LM.slots[i].rankSpacing != null) ? LM.slots[i].rankSpacing : (rs.spacing || 0);
     setV(`lmRankSp${i}`,     _rsp);
     setV(`lmRankArc${i}`,    LM.slots[i].rankArc || 0);
+    // Rotation par rang : repli sur la rotation globale (rs.rotation).
+    setV(`lmRankRot${i}`,    (LM.slots[i].rankRot != null) ? LM.slots[i].rankRot : (rs.rotation || 0));
     lmRefreshRankImgUI(i);
   });
   // Highlight active weight button
@@ -1646,10 +1648,28 @@ function lmSyncRanks() {
     LM.slots[i].rankY       = syncRange(`lmRankY${i}`);
     LM.slots[i].rankSpacing = syncRange(`lmRankSp${i}`);
     LM.slots[i].rankArc     = syncRange(`lmRankArc${i}`);
+    LM.slots[i].rankRot     = syncRange(`lmRankRot${i}`);
   });
   lmUpdateRankLabelPreviews();
   lmRenderPreview();
 }
+
+// Rotation GLOBALE des classements = « tout faire pivoter » : on propage la
+// valeur à chaque rang (curseurs + slot.rankRot), puis lmSyncRanks rend. Ainsi
+// le curseur global et les curseurs par rang restent cohérents.
+function lmSetAllRankRot(v) {
+  v = parseFloat(v) || 0;
+  const put = (id) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.value = v;
+    const n = el.nextElementSibling;
+    if (n && n.type === 'number') n.value = v;
+  };
+  put('lmRsRot');
+  [0,1,2].forEach(i => put(`lmRankRot${i}`));
+  lmSyncRanks();
+}
+window.lmSetAllRankRot = lmSetAllRankRot;
 
 function lmSetRankWeight(w) {
   LM.rankStyle.weight = w;
@@ -3099,6 +3119,8 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
 
   // Rank : IMAGE de remplacement (si fournie) OU texte/numéro
   const rs = cfg.rankStyle || {};
+  // Rotation PAR RANG (slot.rankRot) avec repli sur la rotation globale (rs.rotation).
+  const _rankRot = (slot.rankRot != null) ? slot.rankRot : (rs.rotation || 0);
   const _rankImg = (cfg.rankImgImgs && cfg.rankImgImgs[idx]) || null;
   if (_rankImg && _rankImg.naturalWidth) {
     // ── Image remplaçant le classement ── Taille = HAUTEUR de l'image ; même
@@ -3114,14 +3136,14 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     const _rcx  = slot.rankX + _rmw / 2;
     ctx.save();
     ctx.translate(_rcx * sc, slot.rankY * sc - hImg / 2);
-    const _rot = (rs.rotation || 0) * Math.PI / 180; if (_rot) ctx.rotate(_rot);
+    const _rot = _rankRot * Math.PI / 180; if (_rot) ctx.rotate(_rot);
     ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8 * sc; ctx.shadowOffsetY = 2 * sc;
     ctx.drawImage(_rankImg, -wImg / 2, -hImg / 2, wImg, hImg);
     ctx.restore();
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
       kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
-      maxW: _rmw, rot: rs.rotation || 0, align: 'left',
+      maxW: _rmw, rot: _rankRot, align: 'left',
     });
   } else {
   // Rank number/label
@@ -3148,7 +3170,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   // (slot.rankArc), centré sur (_rcx, rankY).
   lmDrawArcableText(ctx, rankLabel, _rcx*sc, slot.rankY*sc, {
     bendDeg: slot.rankArc || 0,
-    rotDeg:  rs.rotation || 0,
+    rotDeg:  _rankRot,
     letterSpacing: _rsp * sc,
     fill:   numColor,
     stroke: { color: rs.strokeColor || '#000', width: (rs.strokeWidth || 0) * sc },
@@ -3158,7 +3180,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   // le texte y est centré (l'overlay tourne autour du centre de la boîte).
   if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || []).push({
     kind: 'rank', idx, cx: slot.rankX, y: slot.rankY, size: (slot.rankSize || 80),
-    maxW: _rmw, rot: rs.rotation || 0, align: 'left',
+    maxW: _rmw, rot: _rankRot, align: 'left',
   });
   ctx.letterSpacing = '0px';
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
