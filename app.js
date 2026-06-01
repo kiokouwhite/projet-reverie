@@ -1335,6 +1335,18 @@ function renderSlots() {
   const rankDisp = layout?.rankDisplay || CONFIG.RANKS_DISPLAY;
   const slotCount = getSlotCountToShow();
   players.slice(0, slotCount).forEach((p, i) => {
+    // Layout custom MULTI-PERSOS (DBFZ, découpes…) : panneau dédié permettant de
+    // charger ET cadrer chaque perso individuellement (cf. lm-panel-multichar.js).
+    if (typeof lmPanelSlotHTML === 'function') {
+      const lmHtml = lmPanelSlotHTML(p, i);
+      if (lmHtml) {
+        const d = document.createElement('div');
+        d.className = 'slot';
+        d.innerHTML = lmHtml;
+        grid.appendChild(d);
+        return;
+      }
+    }
     const is2xko = currentGame === '2xko';
     let char  = p.charId  ? GAMES[currentGame].chars.find(c=>c.id===p.charId)  : null;
     let char2 = (is2xko && p.charId2) ? GAMES[currentGame].chars.find(c=>c.id===p.charId2) : null;

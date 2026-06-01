@@ -250,6 +250,7 @@ const LM = {
   charsPerPlayer: 1,
   charImgsMulti: [[], [], []],   // images chargées (runtime) par slot
   charUrlsMulti: [[], [], []],   // URLs/dataURLs par slot (persisté)
+  charCropsMulti: [[], [], []],  // cadrage {cx,cy,zoom} par perso et par slot (persisté)
   charSplit: true,               // multi-persos : trait de séparation + n° par perso
   cuts: [],                      // découpe manuelle : lignes {x1,y1,x2,y2} en coords carte 0-1
   cutGap: 0,                     // espacement entre les zones découpées (px réf)
@@ -1696,6 +1697,7 @@ async function lmOpenForEdit(layoutId) {
   LM.cuts           = (layout.cuts || []).map(c => ({...c}));
   LM.cutGap         = layout.cutGap || 0;
   LM.charUrlsMulti  = (layout.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]);
+  LM.charCropsMulti = (layout.charCropsMulti || [[],[],[]]).map(a => (a||[]).map(c => c ? {...c} : null));
   LM.charImgsMulti  = [[], [], []];
   LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
     if (!url) return;
@@ -1868,6 +1870,7 @@ async function lmFinishAndSave(silent, keepEdit) {
     charCrops:   LM.charCrops.map(c => ({...c})),
     charsPerPlayer: LM.charsPerPlayer || 1,
     charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
+    charCropsMulti: (LM.charCropsMulti || [[],[],[]]).map(a => (a||[]).map(c => c ? {...c} : null)),
     charSplit:      LM.charSplit !== false,
     cuts:           (LM.cuts || []).map(c => ({...c})),
     cutGap:         LM.cutGap || 0,
@@ -2168,6 +2171,7 @@ function lmRegisterLayout(layout) {
   });
   // Multi-personnages : charge les images CÔTE À CÔTE dans layout.charImgsMulti
   // (utilisé par drawCustomLMLayout pour le rendu final).
+  if (!Array.isArray(layout.charCropsMulti)) layout.charCropsMulti = [[],[],[]];
   if ((layout.charsPerPlayer || 1) > 1 && Array.isArray(layout.charUrlsMulti)) {
     layout.charImgsMulti = [[], [], []];
     layout.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -2798,6 +2802,27 @@ function lmDrawArcableText(ctx, text, x, y, o) {
   ctx.restore();
 }
 
+// Dessine une image de perso recadrée pour REMPLIR le rectangle dest (dx,dy,dw,dh),
+// piloté par crop={cx,cy,zoom} (cx/cy ∈ [0,1] = point visé, zoom≥1). zoom=1 → "cover".
+// Utilisé pour le cadrage individuel des persos en mode multi (DBFZ, etc.).
+function lmDrawCharInRect(ctx, im, dx, dy, dw, dh, crop) {
+  if (!im || !im.naturalWidth) return;
+  const c = crop || { cx:0.5, cy:0.28, zoom:1 };
+  const iw = im.naturalWidth, ih = im.naturalHeight;
+  const z = Math.max(0.2, c.zoom || 1);
+  const destAR = Math.abs(dw / dh) || 1;
+  // rectangle source de base = plus grand rect au ratio dest tenant dans l'image
+  let sW, sH;
+  if (iw / ih > destAR) { sH = ih; sW = ih * destAR; } else { sW = iw; sH = iw / destAR; }
+  sW /= z; sH /= z;
+  let sx = iw * (c.cx ?? 0.5) - sW / 2;
+  let sy = ih * (c.cy ?? 0.28) - sH / 2;
+  sx = Math.max(0, Math.min(iw - sW, sx));
+  sy = Math.max(0, Math.min(ih - sH, sy));
+  ctx.drawImage(im, sx, sy, sW, sH, dx, dy, dw, dh);
+}
+window.lmDrawCharInRect = lmDrawCharInRect;
+
 function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   const cx = slot.cx*sc, cy = slot.cy*sc;
   const w = slot.w*sc, h = slot.h*sc;
@@ -2852,8 +2877,13 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         // ici — pas toute la carte — pour que l'écart reste transparent (fond visible).
         if (_gapMode && cfg.fillColor && cfg.fillColor !== 'transparent') { ctx.fillStyle = cfg.fillColor; ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height); }
         const im=_imgsArr[k];
-        if (im) { const scale=Math.max(w/im.naturalWidth, h/im.naturalHeight), dW=im.naturalWidth*scale, dH=im.naturalHeight*scale;
-          ctx.drawImage(im, cx-dW/2, top+(h-dH)*0.25, dW, dH); }
+        if (im) {
+          // Cadrage par perso : on remplit la bounding-box de la ZONE (le clip
+          // polygonal au-dessus garde la forme exacte), pilotée par charCropsMulti.
+          const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+          const bx=Math.min(...xs), byy=Math.min(...ys), bw=Math.max(...xs)-bx, bh=Math.max(...ys)-byy;
+          lmDrawCharInRect(ctx, im, bx, byy, bw, bh, cfg.charCropsMulti?.[idx]?.[k]);
+        }
         ctx.restore();
       }
       if (cfg.charSplit !== false) {
@@ -2877,19 +2907,19 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
         ctx.restore();
       }
     } else {
-      // ── Découpe AUTO : bandes verticales égales (n = nb d'images chargées) ──
-      const imgs = _imgsArr.filter(Boolean);
-      const n = imgs.length;
+      // ── Découpe AUTO : N bandes verticales égales (N = persos/joueur) ──
+      // Indexées par k pour rester alignées avec charCropsMulti/charImgsMulti.
+      const n = Math.max(1, cfg.charsPerPlayer || _imgsArr.filter(Boolean).length || 1);
       const stripW = w / n;
-      imgs.forEach((im, k) => {
+      for (let k=0;k<n;k++) {
+        const im = _imgsArr[k];
+        if (!im) continue;
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
         ctx.beginPath(); ctx.rect(left + k*stripW, top, stripW, h); ctx.clip();
-        const scale = Math.max(stripW / im.naturalWidth, h / im.naturalHeight);
-        const drawW = im.naturalWidth * scale, drawH = im.naturalHeight * scale;
-        ctx.drawImage(im, left + k*stripW + (stripW - drawW)/2, top + (h - drawH)*0.25, drawW, drawH);
+        lmDrawCharInRect(ctx, im, left + k*stripW, top, stripW, h, cfg.charCropsMulti?.[idx]?.[k]);
         ctx.restore();
-      });
+      }
       if (n > 1 && cfg.charSplit !== false) {
         ctx.save();
         lmMakeShapePath(ctx, slot, sc, cfg); ctx.clip();
