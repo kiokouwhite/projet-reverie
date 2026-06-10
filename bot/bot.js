@@ -6,6 +6,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
+const fs      = require('fs');     // requis EN HAUT : utilisé dès la config persistance
+const path    = require('path');   // (sinon ReferenceError "Cannot access 'path' before initialization")
 const {
   Client, GatewayIntentBits, EmbedBuilder, Partials, AttachmentBuilder,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -441,8 +443,7 @@ app.post('/backup', (req, res) => {
 // est posté dont le slug contient un mot-clé, propose un embed avec 2
 // boutons (Enregistrer / Ignorer). Persisté dans un JSON file local pour
 // survivre aux redéploiements Railway (best-effort).
-const fs = require('fs');
-const path = require('path');
+// (fs et path sont désormais requis tout en haut du fichier.)
 // Migration : les anciennes versions stockaient ces fichiers dans __dirname
 // (= /home/site/wwwroot/ sur Azure), qui est ÉCRASÉ à chaque déploiement →
 // la config était perdue à chaque push. On les déplace désormais vers
