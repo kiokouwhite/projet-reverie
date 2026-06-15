@@ -4734,11 +4734,16 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
 }
 /* Slide 0 : URL start.gg — input + bouton empilés (centrage vertical
    géré globalement sur .left-slide). */
-/* Slide Import : centrage vertical strict dès le 1er rendu (le `safe center`
-   du .left-slide général retombe parfois sur flex-start au moment où la carte
-   tarot grandit en transition, ce qui faisait sauter le contenu du haut vers
-   le milieu une fois la carte stabilisée). */
-#dcSlide0, #dcSlide1, #dcSlide2, #dcSlide3 { justify-content: center; }
+/* Slide Import (dcSlide0) : contenu court qui tient toujours → centrage vertical
+   strict dès le 1er rendu (le `safe center` retombait sur flex-start pendant que
+   la carte tarot grandit en transition → le contenu sautait du haut vers le
+   milieu une fois stabilisé). */
+#dcSlide0 { justify-content: center; }
+/* Slides à contenu long/variable (Texte+horaires, Événements, Poster) : on GARDE
+   `safe center` (hérité de .left-slide) → centré quand ça tient, mais aligné en
+   HAUT quand ça déborde. Sinon le centrage poussait les 1ers éléments AU-DESSUS
+   de la zone scrollable → sommet de la liste inatteignable au scroll. */
+#dcSlide1, #dcSlide2, #dcSlide3 { justify-content: safe center; }
 #dcSlide0 .dc-url-row {
   flex-direction: column;
   align-items: stretch;
