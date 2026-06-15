@@ -468,6 +468,10 @@ async function importAllEvents() {
     // 4. Afficher le premier
     currentGraphIdx = 0;
     renderMultiPreview();
+    // Filet de sécurité : re-rendu différé si des images (fond, art start.gg,
+    // logos, overlay) finissent de charger APRÈS ce 1er rendu — évite un snapshot
+    // figé noir/incomplet sans avoir à cliquer « Rafraîchir ».
+    scheduleMultiSafetyRerender();
     // Affiche le pill multi dès qu'il y a au moins 1 graph importé
     // (indicateur visuel du jeu courant + nav désactivée s'il n'y en a qu'un).
     showMultiNav(graphs.length >= 1);
@@ -545,6 +549,25 @@ async function generateAllGraphs() {
     if (typeof loadTitleConfig === 'function') loadTitleConfig(); // restaurer config jeu principal
   }
 }
+
+// Filet de sécurité anti-canvas-noir : après un import (ou l'ajout d'un layout
+// custom), certaines images (fond, art start.gg/local, logos de jeu, overlay)
+// peuvent finir de charger JUSTE APRÈS le 1er rendu → le snapshot figé du graph
+// reste alors noir/incomplet. On régénère les snapshots un court instant plus
+// tard (images alors en cache) puis on ré-affiche. Idempotent : aucun effet
+// visible si tout était déjà correct. Deux passes pour couvrir les réseaux lents.
+function scheduleMultiSafetyRerender() {
+  clearTimeout(window._multiSafe1);
+  clearTimeout(window._multiSafe2);
+  const pass = async (tag) => {
+    if (typeof graphs === 'undefined' || !graphs || !graphs.length) return;
+    try { await generateAllGraphs(); renderMultiPreview(); }
+    catch (e) { console.warn('[multi] filet de sécurité (' + tag + ') :', e); }
+  };
+  window._multiSafe1 = setTimeout(() => pass('900ms'), 900);
+  window._multiSafe2 = setTimeout(() => pass('2.8s'), 2800);
+}
+window.scheduleMultiSafetyRerender = scheduleMultiSafetyRerender;
 
 // Le nom du tournoi (panneau principal) a changé. En mode multi-graph il est
 // PARTAGÉ par tous les graphs → on met à jour leur tournamentName ET on régénère
@@ -746,6 +769,9 @@ async function addCustomLayoutGraph(layout) {
 
   // Rafraîchir l'UI multi-graphes
   renderMultiPreview();
+  // Filet de sécurité : les images d'un layout custom se chargent en async →
+  // re-rendu différé pour éviter un snapshot figé noir/incomplet.
+  scheduleMultiSafetyRerender();
   showMultiNav(graphs.length > 1);
   if (typeof updateMultiTweet === 'function') updateMultiTweet();
 }
