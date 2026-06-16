@@ -724,6 +724,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await document.fonts.load('800 40px Montserrat');
   await document.fonts.load('900 40px Montserrat'); // Black weight (encore utilisé ailleurs)
   await document.fonts.load('400 40px Anton');
+  // Tex Gyre Termes (serif auto-hébergée) : précharge régulier + gras pour le canvas.
+  document.fonts.load('400 40px "Tex Gyre Termes"').catch(() => {});
+  document.fonts.load('700 40px "Tex Gyre Termes"').catch(() => {});
   // Précharge TOUTES les polices display/graffiti dispo dans le sélecteur de
   // titres (TITLE_FONTS). Sans ça, canvas ne les utilise pas tant qu'aucun
   // élément DOM ne les a déclenchées → l'utilisateur voit Montserrat fallback.
@@ -3299,6 +3302,7 @@ const TITLE_FONTS = [
   { value: 'Rubik Beastly',      label: 'Beastly',        weight: '400' },
   { value: 'Press Start 2P',     label: 'Pixel',          weight: '400' },
   { value: 'Black Han Sans',     label: 'Black Han Sans', weight: '400' },
+  { value: 'Tex Gyre Termes',    label: 'Tex Gyre Termes', weight: '700' },
 ];
 function _fontMeta(fontVal) {
   return TITLE_FONTS.find(f => f.value === fontVal) || TITLE_FONTS[0];

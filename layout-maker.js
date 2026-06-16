@@ -328,6 +328,7 @@ const LM_FONTS = [
   { id:'Teko',                label:'Teko',               sample:'TOURNAMENT' },
   { id:"'Chakra Petch'",      label:'Chakra Petch',       sample:'TOURNAMENT' },
   { id:"'Black Han Sans'",    label:'Black Han Sans',     sample:'TOURNAMENT' },
+  { id:"'Tex Gyre Termes'",   label:'Tex Gyre Termes',    sample:'Tournament' },
 ];
 
 // ── FORMES DISPONIBLES ────────────────────────────────────────────────────────

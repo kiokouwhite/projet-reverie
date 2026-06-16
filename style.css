@@ -1,5 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
 
+/* Tex Gyre Termes — serif libre (licence GUST), auto-hébergée car absente de
+   Google Fonts. Régulier + gras, servis depuis /fonts. */
+@font-face {
+  font-family: 'Tex Gyre Termes';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/texgyretermes-regular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Tex Gyre Termes';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('fonts/texgyretermes-bold.otf') format('opentype');
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
