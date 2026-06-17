@@ -97,6 +97,13 @@ async function coffreStripImagesToIDB(layout) {
     }
     delete layout.rankImgUrls;
   }
+  // Images de FOND par carte (dataURL) → IDB.
+  if (Array.isArray(layout.slotBgUrls)) {
+    for (let i = 0; i < layout.slotBgUrls.length; i++) {
+      if (layout.slotBgUrls[i]) await coffreIdbPut(`${layout.id}:slotbg:${i}`, layout.slotBgUrls[i]);
+    }
+    delete layout.slotBgUrls;
+  }
 }
 
 // Récupère les images depuis IndexedDB et les ré-attache à l'objet layout.
@@ -137,6 +144,14 @@ async function coffreLoadImagesFromIDB(layout) {
   for (let i = 0; i < 3; i++) {
     if (!layout.rankImgUrls[i]) {
       try { const v = await coffreIdbGet(`${layout.id}:rankimg:${i}`); if (v) layout.rankImgUrls[i] = v; }
+      catch(e) { /* ignore */ }
+    }
+  }
+  // Images de FOND par carte : restaure depuis IDB.
+  if (!Array.isArray(layout.slotBgUrls)) layout.slotBgUrls = [null,null,null];
+  for (let i = 0; i < 3; i++) {
+    if (!layout.slotBgUrls[i]) {
+      try { const v = await coffreIdbGet(`${layout.id}:slotbg:${i}`); if (v) layout.slotBgUrls[i] = v; }
       catch(e) { /* ignore */ }
     }
   }
@@ -252,6 +267,16 @@ const LM = {
   rankImgUrls: [null, null, null],  // image remplaçant le texte du rang (dataURL, persisté)
   rankImgImgs: [null, null, null],  // images chargées (runtime)
 
+  // Step 5 — Image de fond PAR CARTE (par slot), avec cadrage zoom/position.
+  // Dessinée clippée à la forme, SOUS le personnage. Mirroir du système perso.
+  slotBgUrls:  [null, null, null],  // dataURL par slot (persisté → déporté en IDB)
+  slotBgImgs:  [null, null, null],  // images chargées (runtime)
+  slotBgCrops: [
+    {cx:0.5, cy:0.5, zoom:1.0},
+    {cx:0.5, cy:0.5, zoom:1.0},
+    {cx:0.5, cy:0.5, zoom:1.0},
+  ],
+
   // Step 5 — Personnages
   charImgs:     [null, null, null],
   charDataUrls: [null, null, null],
@@ -304,6 +329,7 @@ function lmResetForNew() {
   LM.charImgs = [null, null, null];
   LM.charImgsMulti = [[], [], []];
   LM.rankImgImgs = [null, null, null];
+  LM.slotBgImgs = [null, null, null];   // fonds par carte : pas de fuite entre layouts
   // Efface les marqueurs d'édition : un nouveau layout ne doit JAMAIS écraser le
   // dernier layout édité au moment de la sauvegarde.
   LM._editIdx = null;
@@ -1506,6 +1532,71 @@ function lmUpdateCropZoom(idx, val) {
   lmRenderPreview();
 }
 
+// ── STEP 5 — IMAGE DE FOND PAR CARTE (upload + cadrage zoom/position) ──────────
+// Upload d'une image de fond pour la carte du slot idx (1er=0, 2e=1, 3e=2).
+function lmLoadSlotBg(event, idx) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const url = ev.target.result;
+    LM.slotBgUrls[idx] = url;
+    if (!LM.slotBgCrops[idx]) LM.slotBgCrops[idx] = { cx:0.5, cy:0.5, zoom:1 };
+    const img = new Image();
+    img.onload = () => { LM.slotBgImgs[idx] = img; lmShowSlotBgUI(idx); lmRenderPreview(); };
+    img.src = url;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Retire l'image de fond d'une carte.
+function lmClearSlotBg(idx) {
+  LM.slotBgUrls[idx] = null;
+  LM.slotBgImgs[idx] = null;
+  const ctrls = document.getElementById(`lmSlotBgCtrls${idx}`);
+  if (ctrls) ctrls.style.display = 'none';
+  const fileInput = document.getElementById(`lmSlotBgFile${idx}`);
+  if (fileInput) fileInput.value = '';
+  lmRenderPreview();
+}
+
+// Lit les sliders (zoom / X / Y) et applique le cadrage du fond du slot idx.
+function lmUpdateSlotBg(idx) {
+  const gv = id => parseFloat(document.getElementById(id)?.value);
+  const z = gv(`lmSlotBgZoom${idx}`); const x = gv(`lmSlotBgX${idx}`); const y = gv(`lmSlotBgY${idx}`);
+  LM.slotBgCrops[idx] = { cx: isNaN(x)?0.5:x, cy: isNaN(y)?0.5:y, zoom: isNaN(z)?1:z };
+  lmRenderSlotBgMini(idx);
+  lmRenderPreview();
+}
+
+// Affiche/masque les contrôles + recale les sliders sur le cadrage courant.
+function lmShowSlotBgUI(idx) {
+  const ctrls = document.getElementById(`lmSlotBgCtrls${idx}`);
+  if (ctrls) ctrls.style.display = LM.slotBgImgs[idx] ? 'block' : 'none';
+  const c = LM.slotBgCrops[idx] || { cx:0.5, cy:0.5, zoom:1 };
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set(`lmSlotBgZoom${idx}`, c.zoom); set(`lmSlotBgX${idx}`, c.cx); set(`lmSlotBgY${idx}`, c.cy);
+  lmRenderSlotBgMini(idx);
+}
+
+// Mini-aperçu carré du cadrage (aide visuelle ; le rendu exact est dans l'aperçu principal).
+function lmRenderSlotBgMini(idx) {
+  const canvas = document.getElementById(`lmSlotBgCanvas${idx}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width || 56, H = canvas.height || 56;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#1a1040'; ctx.fillRect(0, 0, W, H);
+  const img = LM.slotBgImgs[idx];
+  if (!img || !img.naturalWidth) return;
+  const c = LM.slotBgCrops[idx] || { cx:0.5, cy:0.5, zoom:1 };
+  const z = Math.max(0.2, c.zoom || 1);
+  const srcSize = Math.min(img.naturalWidth, img.naturalHeight) / z;
+  const sx = Math.max(0, Math.min(img.naturalWidth  - srcSize, img.naturalWidth  * (c.cx ?? 0.5) - srcSize/2));
+  const sy = Math.max(0, Math.min(img.naturalHeight - srcSize, img.naturalHeight * (c.cy ?? 0.5) - srcSize/2));
+  ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, W, H);
+}
+
 // ── STEP 6 — NOMS ──────────────────────────────────────────────────────────────
 function lmInitNames() {
   const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
@@ -1837,6 +1928,16 @@ async function lmOpenForEdit(layoutId) {
     im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
     im.src = url;
   }));
+  // Image de fond par carte : restaure les URLs + cadrages, puis recharge les images.
+  LM.slotBgUrls    = [...(layout.slotBgUrls || [null,null,null])];
+  LM.slotBgImgs    = [null, null, null];
+  LM.slotBgCrops   = (layout.slotBgCrops || [{cx:0.5,cy:0.5,zoom:1},{cx:0.5,cy:0.5,zoom:1},{cx:0.5,cy:0.5,zoom:1}]).map(c => ({...c}));
+  LM.slotBgUrls.forEach((url, i) => {
+    if (!url) return;
+    const im = new Image();
+    im.onload = () => { LM.slotBgImgs[i] = im; lmShowSlotBgUI(i); lmRenderPreview(); };
+    im.src = url;
+  });
   // Restaure l'event start.gg associé pour que l'auto-import des persos puisse
   // ré-interroger CET event. Layouts sauvegardés avant cette version : pas de
   // eventSlug → on tente de retrouver le graph par nom de jeu (fallback).
@@ -2002,6 +2103,8 @@ async function lmFinishAndSave(silent, keepEdit) {
     charsPerPlayer: LM.charsPerPlayer || 1,
     charUrlsMulti:  (LM.charUrlsMulti || [[],[],[]]).map(a => [...(a||[])]),
     charCropsMulti: (LM.charCropsMulti || [[],[],[]]).map(a => (a||[]).map(c => c ? {...c} : null)),
+    slotBgUrls:     [...(LM.slotBgUrls || [null,null,null])],
+    slotBgCrops:    (LM.slotBgCrops || []).map(c => c ? {...c} : {cx:0.5,cy:0.5,zoom:1}),
     charSplit:      LM.charSplit !== false,
     cuts:           (LM.cuts || []).map(c => ({...c})),
     cutGap:         LM.cutGap || 0,
@@ -2313,6 +2416,18 @@ function lmRegisterLayout(layout) {
       im.src = url;
     });
   }
+  // Images de FOND par carte → chargées pour le rendu de l'app principale
+  // (sinon le fond n'apparaît que dans l'éditeur, pas sur le Top 8 généré).
+  if (!Array.isArray(layout.slotBgCrops)) layout.slotBgCrops = [{cx:0.5,cy:0.5,zoom:1},{cx:0.5,cy:0.5,zoom:1},{cx:0.5,cy:0.5,zoom:1}];
+  if (Array.isArray(layout.slotBgUrls)) {
+    layout.slotBgImgs = layout.slotBgImgs || [null,null,null];
+    layout.slotBgUrls.forEach((url, i) => {
+      if (!url) return;
+      const im = new Image();
+      im.onload = () => { layout.slotBgImgs[i] = im; };
+      im.src = url;
+    });
+  }
   if ((layout.charsPerPlayer || 1) > 1 && Array.isArray(layout.charUrlsMulti)) {
     layout.charImgsMulti = [[], [], []];
     layout.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
@@ -2543,9 +2658,12 @@ function lmRenderLayoutToCanvas(canvas, layout, cb) {
 
   // Count all pending async loads
   const charUrls = layout.charDataUrls?.filter(u=>u) || [];
+  const slotBgUrls = layout.slotBgUrls || [null,null,null];
+  const slotBgCount = slotBgUrls.filter(u=>u).length;
   const hasGameImg = !!(layout.gameImgDataUrl || layout.gameImgUrl);
-  let pending = 1 + charUrls.length + (layout.overlayDataUrl ? 1 : 0) + (hasGameImg ? 1 : 0);
+  let pending = 1 + charUrls.length + slotBgCount + (layout.overlayDataUrl ? 1 : 0) + (hasGameImg ? 1 : 0);
   const charImgs = [null, null, null];
+  layout.slotBgImgs = [null, null, null];
   let bgI = null, overlayI = null, gameI = null;
   function tick() { if (--pending <= 0) doRender(bgI, gameI, overlayI, charImgs); }
 
@@ -2586,6 +2704,15 @@ function lmRenderLayoutToCanvas(canvas, layout, cb) {
     if (!url) return;
     const img = new Image();
     img.onload  = () => { charImgs[i] = img; tick(); };
+    img.onerror = () => tick();
+    img.src = url;
+  });
+
+  // Load slot background images (image de fond par carte)
+  slotBgUrls.forEach((url, i) => {
+    if (!url) return;
+    const img = new Image();
+    img.onload  = () => { layout.slotBgImgs[i] = img; tick(); };
     img.onerror = () => tick();
     img.src = url;
   });
@@ -3014,6 +3141,17 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   if (cfg.fillColor && cfg.fillColor !== 'transparent' && !_gapMode) {
     ctx.fillStyle = cfg.fillColor;
     ctx.fill();
+  }
+
+  // Image de fond PAR CARTE : clippée à la forme, dessinée SOUS le personnage,
+  // avec cadrage zoom/position (slotBgCrops). Pas en mode espacement (gaps).
+  const _bgImg = cfg.slotBgImgs && cfg.slotBgImgs[idx];
+  if (_bgImg && _bgImg.naturalWidth && !_gapMode) {
+    ctx.save();
+    lmMakeShapePath(ctx, slot, sc, cfg);
+    ctx.clip();
+    lmDrawCharInRect(ctx, _bgImg, cx - w/2, cy - h/2, w, h, cfg.slotBgCrops && cfg.slotBgCrops[idx]);
+    ctx.restore();
   }
 
   // Personnage(s)

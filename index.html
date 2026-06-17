@@ -1868,6 +1868,23 @@
 
             <!-- Slot 0 — 1er -->
             <div class="lm-slot-pos-header">🥇 1<sup>er</sup></div>
+            <div class="lm-slot-bg" style="margin:4px 0 8px;padding:6px 8px;border:1px dashed #5a4a8a;border-radius:8px;">
+              <div class="title-row" style="margin:0;"><span style="font-weight:700;">🖼️ Image de fond</span>
+                <input type="file" accept="image/*" id="lmSlotBgFile0" onchange="lmLoadSlotBg(event,0)" style="display:none;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;margin-left:auto;" onclick="document.getElementById('lmSlotBgFile0').click()">📁 Choisir</button>
+                <button class="btn" style="padding:3px 6px;font-size:11px;" onclick="lmClearSlotBg(0)" title="Retirer le fond">✕</button>
+              </div>
+              <div id="lmSlotBgCtrls0" style="display:none;margin-top:6px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <canvas id="lmSlotBgCanvas0" width="56" height="56" style="border-radius:6px;background:#1a1040;flex:0 0 auto;"></canvas>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Zoom</span><input type="range" min="0.3" max="4" step="0.05" value="1" id="lmSlotBgZoom0" oninput="lmUpdateSlotBg(0)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos X</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgX0" oninput="lmUpdateSlotBg(0)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos Y</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgY0" oninput="lmUpdateSlotBg(0)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx0" value="910" oninput="lmSyncSlot(0)"><input type="number" min="200" max="1350" value="910" style="width:52px;" oninput="document.getElementById('lmSlotCx0').value=this.value;lmSyncSlot(0)"></div>
             <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy0" value="510" oninput="lmSyncSlot(0)"><input type="number" min="100" max="1300" value="510" style="width:52px;" oninput="document.getElementById('lmSlotCy0').value=this.value;lmSyncSlot(0)"></div>
             <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW0" value="380" oninput="lmSyncSlot(0)"><input type="number" min="80" max="700" value="380" style="width:52px;" oninput="document.getElementById('lmSlotW0').value=this.value;lmSyncSlot(0)"></div>
@@ -1880,6 +1897,23 @@
 
             <!-- Slot 1 — 2e -->
             <div class="lm-slot-pos-header" style="margin-top:10px;">🥈 2<sup>e</sup></div>
+            <div class="lm-slot-bg" style="margin:4px 0 8px;padding:6px 8px;border:1px dashed #5a4a8a;border-radius:8px;">
+              <div class="title-row" style="margin:0;"><span style="font-weight:700;">🖼️ Image de fond</span>
+                <input type="file" accept="image/*" id="lmSlotBgFile1" onchange="lmLoadSlotBg(event,1)" style="display:none;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;margin-left:auto;" onclick="document.getElementById('lmSlotBgFile1').click()">📁 Choisir</button>
+                <button class="btn" style="padding:3px 6px;font-size:11px;" onclick="lmClearSlotBg(1)" title="Retirer le fond">✕</button>
+              </div>
+              <div id="lmSlotBgCtrls1" style="display:none;margin-top:6px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <canvas id="lmSlotBgCanvas1" width="56" height="56" style="border-radius:6px;background:#1a1040;flex:0 0 auto;"></canvas>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Zoom</span><input type="range" min="0.3" max="4" step="0.05" value="1" id="lmSlotBgZoom1" oninput="lmUpdateSlotBg(1)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos X</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgX1" oninput="lmUpdateSlotBg(1)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos Y</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgY1" oninput="lmUpdateSlotBg(1)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx1" value="660" oninput="lmSyncSlot(1)"><input type="number" min="200" max="1350" value="660" style="width:52px;" oninput="document.getElementById('lmSlotCx1').value=this.value;lmSyncSlot(1)"></div>
             <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy1" value="970" oninput="lmSyncSlot(1)"><input type="number" min="100" max="1300" value="970" style="width:52px;" oninput="document.getElementById('lmSlotCy1').value=this.value;lmSyncSlot(1)"></div>
             <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW1" value="295" oninput="lmSyncSlot(1)"><input type="number" min="80" max="700" value="295" style="width:52px;" oninput="document.getElementById('lmSlotW1').value=this.value;lmSyncSlot(1)"></div>
@@ -1892,6 +1926,23 @@
 
             <!-- Slot 2 — 3e -->
             <div class="lm-slot-pos-header" style="margin-top:10px;">🥉 3<sup>e</sup></div>
+            <div class="lm-slot-bg" style="margin:4px 0 8px;padding:6px 8px;border:1px dashed #5a4a8a;border-radius:8px;">
+              <div class="title-row" style="margin:0;"><span style="font-weight:700;">🖼️ Image de fond</span>
+                <input type="file" accept="image/*" id="lmSlotBgFile2" onchange="lmLoadSlotBg(event,2)" style="display:none;">
+                <button class="btn" style="padding:3px 8px;font-size:11px;margin-left:auto;" onclick="document.getElementById('lmSlotBgFile2').click()">📁 Choisir</button>
+                <button class="btn" style="padding:3px 6px;font-size:11px;" onclick="lmClearSlotBg(2)" title="Retirer le fond">✕</button>
+              </div>
+              <div id="lmSlotBgCtrls2" style="display:none;margin-top:6px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <canvas id="lmSlotBgCanvas2" width="56" height="56" style="border-radius:6px;background:#1a1040;flex:0 0 auto;"></canvas>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Zoom</span><input type="range" min="0.3" max="4" step="0.05" value="1" id="lmSlotBgZoom2" oninput="lmUpdateSlotBg(2)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos X</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgX2" oninput="lmUpdateSlotBg(2)"></div>
+                    <div class="title-row" style="margin:0;"><span style="font-size:11px;">Pos Y</span><input type="range" min="0" max="1" step="0.01" value="0.5" id="lmSlotBgY2" oninput="lmUpdateSlotBg(2)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="title-row"><span>Centre X</span><input type="range" min="200" max="1350" id="lmSlotCx2" value="1155" oninput="lmSyncSlot(2)"><input type="number" min="200" max="1350" value="1155" style="width:52px;" oninput="document.getElementById('lmSlotCx2').value=this.value;lmSyncSlot(2)"></div>
             <div class="title-row"><span>Centre Y</span><input type="range" min="100" max="1300" id="lmSlotCy2" value="970" oninput="lmSyncSlot(2)"><input type="number" min="100" max="1300" value="970" style="width:52px;" oninput="document.getElementById('lmSlotCy2').value=this.value;lmSyncSlot(2)"></div>
             <div class="title-row"><span>Largeur</span><input type="range" min="80" max="700" id="lmSlotW2" value="295" oninput="lmSyncSlot(2)"><input type="number" min="80" max="700" value="295" style="width:52px;" oninput="document.getElementById('lmSlotW2').value=this.value;lmSyncSlot(2)"></div>
