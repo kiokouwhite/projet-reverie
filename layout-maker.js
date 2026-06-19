@@ -2346,6 +2346,82 @@ async function lmRenderCoffreGrid() {
 }
 
 // ── ENREGISTREMENT D'UN LAYOUT CUSTOM DANS LAYOUTS/GAMES (sans changer l'état global) ──
+// ── Conversion d'un jeu BUILT-IN en layout Layout Maker ───────────────────────
+// Produit un objet layout LM fidèle au jeu built-in (GGST/SF6/Tekken 8) pour
+// qu'il puisse être édité dans l'éditeur complet. Le champ `baseGame` permet au
+// rendu (drawCustomLMLayout) de retrouver les murals locaux (ex. portraits
+// GGST2) via getMuralArtUrl. Le fond reste celui du jeu (bgFile → bgDataUrl).
+// Retourne null si le jeu n'est pas (encore) convertible.
+function lmBuildLayoutFromBuiltin(gameId) {
+  const bl = (typeof LAYOUTS !== 'undefined') ? LAYOUTS[gameId] : null;
+  if (!bl || bl.slotType === 'custom_lm') return null;
+  const gmeta = (typeof GAMES !== 'undefined' && GAMES[gameId]) ? GAMES[gameId] : {};
+  const C = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+  // Titres depuis l'éditeur de titres standard (CONFIG.T1/T2/T3 ; repère 1400).
+  const mkT = (t) => {
+    const s = C[t] || {};
+    return {
+      x: s.x ?? 900, y: s.y ?? 120, size: s.s ?? 44, spacing: s.l ?? 0,
+      color: s.color || '#ffffff', strokeColor: s.strokeColor || '#000000',
+      strokeWidth: s.strokeWidth ?? 0,
+    };
+  };
+  // Police : titre choisi → police globale des pseudos → Montserrat.
+  const globalNameFont = (typeof _nameCfgsMem !== 'undefined' && _nameCfgsMem[gameId]?.globalFont) || '';
+  const font = (C.T1 && C.T1.font) || globalNameFont || 'Montserrat';
+  const nameSize = (typeof NAME_SIZE_DEFAULTS !== 'undefined' && NAME_SIZE_DEFAULTS[gameId]) || 40;
+
+  const layout = {
+    id: `${gameId}__lm`,        // id dérivé : n'écrase PAS le built-in
+    baseGame: gameId,           // → murals locaux (getMuralArtUrl) au rendu
+    name: (gmeta.name || gameId) + ' (perso)',
+    gameName: gmeta.name || gameId,
+    createdAt: 0,
+    font, fontWeight: '800',
+    T1: mkT('T1'), T2: mkT('T2'), T3: mkT('T3'),
+    bgDataUrl: bl.bgFile || null,   // URL du fond built-in (chargée comme Image)
+    bgOffsetX: 0.5, bgOffsetY: 0.5, bgBlur: 0, bgDarken: 0, bgZoom: 1.0,
+    overlayDataUrl: null,
+    gameImgVisible: false,          // les jeux built-in n'ont pas de logo placé
+    gameImgDataUrl: null, gameImgUrl: null,
+    shape: 'rounded', radius: 24, skew: 0, trapRatio: 0.75,
+    strokeColor: '#7769DD', strokeWidth: 0, fillColor: 'transparent',
+    slots: [],
+    rankLabels: ['1ER', '2ÈME', '3ÈME'],
+    rankColors: (typeof RANK_COLORS_BY_GAME !== 'undefined' && RANK_COLORS_BY_GAME[gameId]) || ['#C87DD4', '#F5C842', '#F5C842'],
+    rankStyle: { weight: '900', strokeColor: '#000', strokeWidth: 0, numbersOnly: false, rotation: 0 },
+    hideRanks: !!bl.hideRanks,
+    curvedNames: !!bl.curvedNames,
+    rankImgUrls: [null, null, null],
+    charDataUrls: [null, null, null],
+    charCrops: [{ cx: 0.5, cy: 0.5, zoom: 1 }, { cx: 0.5, cy: 0.5, zoom: 1 }, { cx: 0.5, cy: 0.5, zoom: 1 }],
+    charsPerPlayer: 1, charSplit: true, cuts: [], cutGap: 0,
+    charUrlsMulti: [[], [], []], charCropsMulti: [[], [], []],
+    slotBgUrls: [null, null, null],
+    slotBgCrops: [{ cx: 0.5, cy: 0.5, zoom: 1 }, { cx: 0.5, cy: 0.5, zoom: 1 }, { cx: 0.5, cy: 0.5, zoom: 1 }],
+    playerNames: ['', '', ''],
+    nameColors: ['#ffffff', '#ffffff', '#ffffff'],
+    nameStyle: { size: nameSize, weight: '700', color: '#ffffff', strokeColor: '#000000', strokeWidth: 0, spacing: 4, rotation: 0, arc: 0 },
+    thumbnail: null, eventSlug: null,
+  };
+
+  // ── Géométrie spécifique au jeu ──
+  if (bl.slotType === 'circle') {
+    // GGST : 3 cercles. r → w=h=2r. Fond noir par cercle (slotBgColor).
+    layout.shape = 'circle';
+    layout.fillColor = bl.slotBgColor || 'transparent';
+    layout.slots = (bl.slots || []).map(s => ({
+      cx: s.cx, cy: s.cy, w: s.r * 2, h: s.r * 2,
+      nameX: s.cx, nameY: s.nameY,
+      rankX: s.rankX, rankY: s.rankY, rankSize: 64,
+    }));
+  } else {
+    // SF6 (torn / polygone), Tekken 8 (trapèze) : à venir.
+    return null;
+  }
+  return layout;
+}
+
 function lmRegisterLayout(layout) {
   if (!layout?.id) return;
   // Déjà enregistré (ex: par lmInitCoffreSelector au démarrage) → ne pas écraser
@@ -3303,7 +3379,10 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
 
   ctx.restore();
 
-  // Rank : IMAGE de remplacement (si fournie) OU texte/numéro
+  // Rank : IMAGE de remplacement (si fournie) OU texte/numéro.
+  // hideRanks : layouts dérivés d'un jeu built-in dont les numéros 1/2/3 sont
+  // déjà baked dans le fond (ex. GGST) → on ne dessine aucun rang par-dessus.
+  if (!cfg.hideRanks) {
   const rs = cfg.rankStyle || {};
   // Rotation PAR RANG (slot.rankRot) avec repli sur la rotation globale (rs.rotation).
   const _rankRot = (slot.rankRot != null) ? slot.rankRot : (rs.rotation || 0);
@@ -3371,6 +3450,7 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   ctx.letterSpacing = '0px';
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
   }
+  } // fin if (!cfg.hideRanks)
 
   // Name
   if (name) {
@@ -3389,14 +3469,22 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
     // Dessin du pseudo : droit, tourné (ns.rotation) et/ou courbé en arc
     // (ns.arc), centré sur (nameX, nameY).
-    lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
-      bendDeg: ns.arc || 0,
-      rotDeg:  ns.rotation || 0,
-      letterSpacing: (ns.spacing || 4) * sc,
-      fill:   nameColor,
-      stroke: { color: ns.strokeColor || '#000', width: (ns.strokeWidth || 0) * sc },
-      maxWidth: _nmw > 0 ? _nmw * sc : 0,
-    });
+    if (cfg.curvedNames && typeof drawCurvedText === 'function') {
+      // Parité GGST : pseudo courbé autour du cercle (centre d'arc en haut-droite
+      // à -π/4, rayon = bord du cercle + 22px). Même calcul que le rendu natif.
+      const _r = (slot.w / 2);
+      ctx.fillStyle = nameColor;
+      drawCurvedText(ctx, name.toUpperCase(), cx, cy, (_r + 22) * sc, -Math.PI / 4);
+    } else {
+      lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
+        bendDeg: ns.arc || 0,
+        rotDeg:  ns.rotation || 0,
+        letterSpacing: (ns.spacing || 4) * sc,
+        fill:   nameColor,
+        stroke: { color: ns.strokeColor || '#000', width: (ns.strokeWidth || 0) * sc },
+        maxWidth: _nmw > 0 ? _nmw * sc : 0,
+      });
+    }
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
       .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:_nsz, maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
     ctx.letterSpacing = '0px';
@@ -3431,6 +3519,15 @@ function drawCustomLMLayout(ctx, layout, sc, playersParam) {
     if (pl?.customImgKey) {
       const cObj = imgCache[pl.customImgKey];
       if (cObj?._loaded) img = cObj._img;
+    }
+    // Layout dérivé d'un jeu built-in (champ baseGame) : on résout D'ABORD le
+    // mural local du perso via son charId (ex. portraits GGST2), exactement comme
+    // le rendu natif — sinon l'image start.gg (charImgUrl) primerait et on
+    // perdrait le mural. La clé cache est `${baseGame}_${charId}_${costume}`.
+    if (!img && layout.baseGame && pl?.charId && typeof getMuralArtUrl === 'function') {
+      const mkey = `${layout.baseGame}_${pl.charId}_${pl.costume || 1}`;
+      if (!imgCache[mkey] && typeof preloadMural === 'function') preloadMural(pl.charId, pl.costume || 1, layout.baseGame);
+      if (imgCache[mkey]?._loaded) img = imgCache[mkey]._img;
     }
     if (!img && pl?.charImgUrl) {
       const sgObj = imgCache[`__sg__${pl.charImgUrl}`];
