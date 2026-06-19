@@ -40,8 +40,16 @@ function getCrop(charId, costume) {
   if (manual) return { ...manual, source: 'manual' };
   // 2. Détection Python (crops.json)
   if (cropsJson[key]) return { ...cropsJson[key], source: 'auto' };
-  // 3. Défaut — zoom réduit pour les jeux non-SSBU (images plus petites, évite l'upscaling)
+  // 3. Défaut
   const g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  // GGST : les portraits du dossier GGST2 sont des images RONDES déjà cadrées
+  // (256², vignette circulaire centrée) → on les mappe 1:1 sur le cercle du
+  // slot (centré, zoom 1) au lieu du cadrage tête plein-corps. Les persos hors
+  // GGST2 (Venom = ancien mural plein corps) gardent le cadrage standard.
+  if (g === 'ggst' && typeof GGST_MURAL_FILE !== 'undefined' && GGST_MURAL_FILE[charId]) {
+    return { cx: 0.5, cy: 0.5, zoom: 1.0, source: 'default-ggst2' };
+  }
+  // zoom réduit pour les jeux non-SSBU (images plus petites, évite l'upscaling)
   const defaultZoom = g === 'ssbu' ? 2.0 : 1.0;
   return { cx: 0.5, cy: 0.22, zoom: defaultZoom, source: 'default' };
 }
