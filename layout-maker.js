@@ -3023,6 +3023,20 @@ function lmDrawTitlesFrom(ctx, sc, cfg) {
 function lmMakeShapePath(ctx, slot, sc, cfg) {
   const cx = slot.cx*sc, cy = slot.cy*sc;
   const w = slot.w*sc/2, h = slot.h*sc/2;
+  // Masque PAR CARTE : si ce slot a son propre polygone de découpe (édité via le
+  // bouton « Masque »), il PRIME sur la forme globale. Points en coords [0,1]
+  // relatives à la boîte du slot ; supporte les coins arrondis (drawMaskPolygonPath).
+  if (Array.isArray(slot.maskPolygon) && slot.maskPolygon.length >= 3) {
+    const pix = slot.maskPolygon.map(p => ({ x:(cx-w)+p.x*w*2, y:(cy-h)+p.y*h*2, rounded:!!p.rounded }));
+    ctx.beginPath();
+    if (typeof drawMaskPolygonPath === 'function' && pix.some(p=>p.rounded)) {
+      drawMaskPolygonPath(ctx, pix, Math.min(w,h)*0.30);
+    } else {
+      pix.forEach((p,k)=> k===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      ctx.closePath();
+    }
+    return;
+  }
   const shape = cfg.shape || 'rounded';
   ctx.beginPath();
   switch(shape) {
@@ -3854,9 +3868,47 @@ const LM_PE = {
   EDGE_THRESH: 14,
 };
 
-function lmOpenPolyEditor() {
-  // Snapshot current polygon into editor
-  LM_PE.points   = LM.customPolygon.map(p => ({...p}));
+// Polygone circulaire par défaut (20 points) pour le masque d'une carte ronde.
+function _lmDefaultMaskPolygon() {
+  if (typeof _defaultCirclePolygon === 'function') {
+    try { const p = _defaultCirclePolygon(20); if (Array.isArray(p) && p.length >= 3) return p.map(q => ({...q})); } catch (e) {}
+  }
+  const n = 20, pts = [];
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; pts.push({ x: 0.5 + 0.5 * Math.cos(a), y: 0.5 + 0.5 * Math.sin(a) }); }
+  return pts;
+}
+
+// Écrit les points de l'éditeur vers la bonne cible : masque PAR CARTE
+// (LM_PE.targetSlot défini) ou forme globale custom_polygon (sinon).
+function _lmPEWritePoints() {
+  const t = LM_PE.targetSlot;
+  if (t != null && LM.slots && LM.slots[t]) {
+    LM.slots[t].maskPolygon = LM_PE.points.map(p => ({...p}));
+  } else {
+    LM.customPolygon = LM_PE.points.map(p => ({...p}));
+    LM.shape = 'custom_polygon';
+  }
+}
+
+// Retire le masque d'une carte → retour à la forme globale.
+function lmClearSlotMask(i) {
+  if (LM.slots && LM.slots[i] && LM.slots[i].maskPolygon) {
+    delete LM.slots[i].maskPolygon;
+    if (typeof lmRenderPreview === 'function') lmRenderPreview();
+  }
+}
+window.lmClearSlotMask = lmClearSlotMask;
+
+// slotIdx (number) → édite le masque de CETTE carte ; sinon → forme globale.
+function lmOpenPolyEditor(slotIdx) {
+  LM_PE.targetSlot = (typeof slotIdx === 'number') ? slotIdx : null;
+  // Snapshot du polygone à éditer
+  if (LM_PE.targetSlot != null) {
+    const ex = LM.slots?.[LM_PE.targetSlot]?.maskPolygon;
+    LM_PE.points = (Array.isArray(ex) && ex.length >= 3) ? ex.map(p => ({...p})) : _lmDefaultMaskPolygon();
+  } else {
+    LM_PE.points = LM.customPolygon.map(p => ({...p}));
+  }
   LM_PE.dragging = null;
   LM_PE.hovering = null;
 
@@ -4013,8 +4065,7 @@ function lmPERemoveAt(e) {
 }
 
 function lmPELivePreview() {
-  LM.customPolygon = LM_PE.points.map(p => ({...p}));
-  LM.shape = 'custom_polygon';
+  _lmPEWritePoints();
   lmRenderPreview();
 }
 
@@ -4179,9 +4230,8 @@ function lmPolySave() {
   shapes.push({ id, name, points: LM_PE.points.map(p => ({...p})) });
   localStorage.setItem('top8_poly_shapes', JSON.stringify(shapes));
 
-  // Apply to LM
-  LM.customPolygon = LM_PE.points.map(p => ({...p}));
-  LM.shape = 'custom_polygon';
+  // Apply (carte ciblée via le masque OU forme globale)
+  _lmPEWritePoints();
 
   // Rebuild shape grid saved section
   const grid = document.getElementById('lmShapeGrid');
@@ -4192,15 +4242,17 @@ function lmPolySave() {
 }
 
 function lmPolyApply() {
-  // Apply without saving
-  LM.customPolygon = LM_PE.points.map(p => ({...p}));
-  LM.shape = 'custom_polygon';
+  // Apply without saving (carte ciblée OU forme globale)
+  _lmPEWritePoints();
   lmPolyClose();
   lmRenderPreview();
 }
 
 function lmPolyReset() {
-  LM_PE.points = [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];
+  // Masque de carte → cercle par défaut ; forme globale → carré.
+  LM_PE.points = (LM_PE.targetSlot != null)
+    ? _lmDefaultMaskPolygon()
+    : [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];
   lmPEDraw();
   lmPELivePreview();
 }
