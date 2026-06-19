@@ -202,6 +202,27 @@ const CHAR_EXT_AVIF = new Set([
   // Katarina et Malphite ajoutés ici s'ils apparaissent dans le dossier
 ]);
 
+// ── GGST : portraits dédiés (dossier characters/GGST2) ──────────────────────
+// Le dossier characters/GGST2 du repo d'assets utilise les CODES internes
+// ArcSys (Chara_SOL.png, Chara_KYK.png…) au lieu des basenames ICON_BASENAME.
+// On mappe donc chaque charId GGST vers son fichier GGST2 (toujours .png).
+// Les persos absents de GGST2 (ex. Venom) retombent automatiquement sur la
+// logique standard (ancien dossier characters/GGST) — voir getMuralArtUrl.
+const GGST_MURAL_FILE = {
+  sol:'Chara_SOL', ky:'Chara_KYK', may:'Chara_MAY', axl:'Chara_AXL',
+  chipp:'Chara_CHP', potemkin:'Chara_POT', faust:'Chara_FAU', millia:'Chara_MLL',
+  zato:'Chara_ZAT', ramlethal:'Chara_RAM', leo:'Chara_LEO', nagoriyuki:'Chara_NAG',
+  giovanna:'Chara_GIO', anji:'Chara_ANJ', ino:'Chara_INO', goldlewis:'Chara_GLD',
+  jacko:'Chara_JKO', happy:'Chara_COS', baiken:'Chara_BKN', testament:'Chara_TST',
+  bridget:'Chara_BGT', sin:'Chara_SIN', bedman:'Chara_BED',
+  dizzy:'Chara_DZY', elphelt:'Chara_ELP', aba:'Chara_ABA', johnny:'Chara_JHN',
+  slayer:'Chara_SLY',
+  // Asuka R♯ : le charId peut être ggst_asuka (pick manuel) ou asuka (import
+  // start.gg, qui partage l'id avec l'Asuka de Tekken). Ce mapping n'étant
+  // consulté que pour le jeu GGST, on couvre les deux → même portrait GGST2.
+  ggst_asuka:'Chara_ASK', asuka:'Chara_ASK',
+};
+
 // Mural art — résout via assetUrl() pour pointer sur le CDN jsDelivr (ou en
 // local si ASSETS_BASE_URL est vide). Voir layouts.js pour la config.
 // ── Détection tolérante du charId depuis un nom start.gg ──
@@ -243,9 +264,16 @@ function findCharIdFromName(name) {
 if (typeof window !== 'undefined') window.findCharIdFromName = findCharIdFromName;
 
 function getMuralArtUrl(charId, costume, game) {
+  const g = game || (typeof currentGame !== 'undefined' ? currentGame : 'ssbu');
+  // GGST : portraits dédiés dans characters/GGST2 (codes ArcSys, toujours .png).
+  // Les persos absents de GGST2 (Venom…) retombent sur la logique standard
+  // ci-dessous (ancien dossier characters/GGST).
+  if (g === 'ggst' && GGST_MURAL_FILE[charId]) {
+    const rel = `characters/GGST2/${GGST_MURAL_FILE[charId]}.png`;
+    return (typeof assetUrl === 'function') ? assetUrl(rel) : rel;
+  }
   const base = ICON_BASENAME[charId];
   if (!base) return null;
-  const g = game || (typeof currentGame !== 'undefined' ? currentGame : 'ssbu');
   const folder = GAME_CHAR_FOLDER[g] || 'characters/SSBU';
   let ext = 'png';
   if (!GAMES_WITH_COSTUMES.includes(g)) {
