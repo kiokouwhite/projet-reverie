@@ -236,8 +236,10 @@
     const maxCount = Math.max(1, ...counts);
     // Fourchette de tailles : rétrécit avec le nombre de jeux (anti-chevauchement),
     // mais reste assez large pour que la différence selon les inscrits se voie.
-    const sizeMax = total <= 5 ? 440 : Math.max(220, 410 - (total - 5) * 16);
-    const sizeMin = Math.max(175, sizeMax - 165);
+    // Fourchette de tailles ÉLARGIE (plancher plus bas) pour accentuer l'écart
+    // visuel entre gros et petits tournois.
+    const sizeMax = total <= 5 ? 460 : Math.max(225, 420 - (total - 5) * 16);
+    const sizeMin = Math.max(155, sizeMax - 270);
     // Placement plus aléatoire (jitter plus large) pour un rendu naturel, sans
     // recoller les nuages. On réduit l'amplitude quand il y a beaucoup de jeux.
     const jitAmp  = total <= 6 ? 6 : (total <= 10 ? 4 : 2); // ±% de jitter
@@ -249,7 +251,10 @@
       const yPct   = Math.max(12, Math.min(88, p.y + jitterY));
       // Taille ∝ inscrits : le plus gros tournoi atteint sizeMax, les autres
       // proportionnellement (avec un plancher). Sans donnée → taille moyenne.
-      const frac   = counts[i] > 0 ? counts[i] / maxCount : 0.6;
+      // Ratio brut (0..1) PUIS courbe puissance (>1) : les petits tournois
+      // rétrécissent plus vite → l'écart gros/petits devient bien plus marqué.
+      const ratio  = counts[i] > 0 ? counts[i] / maxCount : 0.55;
+      const frac   = Math.pow(ratio, 1.35);
       const size   = Math.round(sizeMin + frac * (sizeMax - sizeMin));
       // Delays alignés sur ceux des filler clouds (0-0.48s) pour que les
       // cartes-jeux fassent partie de la même vague d'explosion au lieu
