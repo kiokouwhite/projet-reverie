@@ -61,7 +61,16 @@ async function importAllEvents() {
   if (!apiKey) { showStatus('error', "❌ Entre ta clé API start.gg d'abord."); return; }
   if (!rawUrl) { showStatus('error', '❌ Entre le lien du tournoi.'); return; }
 
-  const url  = rawUrl.startsWith('http') ? rawUrl : 'https://start.gg/tournament/' + rawUrl;
+  // Normalisation de l'URL/slug collé :
+  //  - déjà http(s):// → tel quel
+  //  - ressemble à une URL start.gg sans protocole (ex. "www.start.gg/tournament/…")
+  //    → on PRÉFIXE juste "https://" (sinon on écrasait le slug → bug "www.start.gg")
+  //  - sinon (slug nu, ex. "mon-tournoi") → on construit l'URL complète
+  const url = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl
+    : ((/start\.gg/i.test(rawUrl) || rawUrl.includes('/tournament/'))
+        ? 'https://' + rawUrl.replace(/^\/+/, '')
+        : 'https://start.gg/tournament/' + rawUrl.replace(/^\/+/, ''));
   const slug = parseTournamentSlug(url);
   if (!slug) { showStatus('error', '❌ Lien invalide.'); return; }
 

@@ -1803,7 +1803,9 @@ async function gqlFetch(apiKey, query, variables, _attempt = 0) {
 let selectedEventSlug = null;
 
 function parseTournamentSlug(url) {
-  const m = url.match(/start\.gg\/tournament\/([^/?#]+)/);
+  // Flag i : tolère un domaine en majuscules (WWW.START.GG). La casse du slug
+  // capturé est préservée (le flag n'affecte que la correspondance).
+  const m = url.match(/start\.gg\/tournament\/([^/?#]+)/i);
   return m ? m[1] : null;
 }
 
@@ -1816,7 +1818,14 @@ async function loadEvents() {
   if (!rawUrl) { showStatus('error', '❌ Entre le lien du tournoi.'); return; }
 
   // Accepter les URL complètes ou juste le slug
-  const url = rawUrl.startsWith('http') ? rawUrl : 'https://start.gg/tournament/' + rawUrl;
+  // Normalisation : URL start.gg sans protocole (ex. "www.start.gg/tournament/…")
+  // → on préfixe juste "https://" ; slug nu → URL complète. (Évite le bug où
+  // "www.start.gg/…" donnait le slug "www.start.gg".)
+  const url = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl
+    : ((/start\.gg/i.test(rawUrl) || rawUrl.includes('/tournament/'))
+        ? 'https://' + rawUrl.replace(/^\/+/, '')
+        : 'https://start.gg/tournament/' + rawUrl.replace(/^\/+/, ''));
 
   const slug = parseTournamentSlug(url);
   if (!slug) { showStatus('error', '❌ Lien invalide. Format : start.gg/tournament/nom-du-tournoi'); return; }
