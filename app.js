@@ -3406,6 +3406,19 @@ function openEditorModal() {
     return;
   }
 
+  // Jeux built-in convertibles → on bascule sur l'éditeur COMPLET du Layout
+  // Maker (conversion fidèle du jeu). Pour l'instant : GGST. SF6/Tekken 8 à venir.
+  // Si la conversion n'est pas possible (build null), on retombe sur l'éditeur
+  // standard ci-dessous.
+  const LM_CONVERTIBLE = ['ggst'];
+  if (LM_CONVERTIBLE.includes(currentGame)
+      && typeof lmConvertBuiltinAndEdit === 'function'
+      && typeof lmBuildLayoutFromBuiltin === 'function'
+      && lmBuildLayoutFromBuiltin(currentGame)) {
+    lmConvertBuiltinAndEdit(currentGame);
+    return;
+  }
+
   const modal = document.getElementById('editorModal');
   modal.style.display = 'flex';
   // Badge jeu : pill stylé identique au multi-graph (sans flèches)

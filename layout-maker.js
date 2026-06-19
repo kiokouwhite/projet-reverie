@@ -330,6 +330,8 @@ function lmResetForNew() {
   LM.charImgsMulti = [[], [], []];
   LM.rankImgImgs = [null, null, null];
   LM.slotBgImgs = [null, null, null];   // fonds par carte : pas de fuite entre layouts
+  // Champs des conversions built-in : un nouveau layout ne doit pas en hériter.
+  LM.baseGame = null; LM.hideRanks = false; LM.curvedNames = false;
   // Efface les marqueurs d'édition : un nouveau layout ne doit JAMAIS écraser le
   // dernier layout édité au moment de la sauvegarde.
   LM._editIdx = null;
@@ -1893,6 +1895,10 @@ async function lmOpenForEdit(layoutId) {
   LM.strokeColor   = layout.strokeColor   || '#7769DD';
   LM.strokeWidth   = layout.strokeWidth   ?? 5;
   LM.fillColor     = layout.fillColor     || '#00000050';
+  // Champs des conversions built-in → LM (pour la parité dans l'aperçu éditeur).
+  LM.baseGame      = layout.baseGame      || null;
+  LM.hideRanks     = !!layout.hideRanks;
+  LM.curvedNames   = !!layout.curvedNames;
   LM.T1            = {...(layout.T1 || {})};
   LM.T2            = {...(layout.T2 || {})};
   LM.T3            = {...(layout.T3 || {})};
@@ -1985,6 +1991,18 @@ async function lmOpenForEdit(layoutId) {
       const key = `${layoutId}_lmchar${i}_1`;
       if (typeof imgCache !== 'undefined' && imgCache[key]?._loaded) {
         LM.charImgs[i] = imgCache[key]._img;
+      }
+      // Conversion built-in (baseGame) : pas d'image baked → on récupère le
+      // mural local du perso (ex. GGST2) via baseGame + le charId du joueur réel,
+      // pour que l'aperçu de l'éditeur montre les bons persos.
+      if (!LM.charImgs[i] && layout.baseGame && typeof players !== 'undefined' && players[i]?.charId) {
+        const mkey = `${layout.baseGame}_${players[i].charId}_${players[i].costume || 1}`;
+        if (imgCache[mkey]?._loaded) LM.charImgs[i] = imgCache[mkey]._img;
+        else if (typeof preloadMural === 'function') {
+          preloadMural(players[i].charId, players[i].costume || 1, layout.baseGame);
+          const im = imgCache[mkey];
+          if (im) { const _i = i; const _src = im; const t = setInterval(() => { if (_src._loaded) { LM.charImgs[_i] = _src._img; lmRenderPreview(); clearInterval(t); } }, 120); setTimeout(() => clearInterval(t), 4000); }
+        }
       }
     });
     // Overlay et image du jeu : déjà chargés dans LAYOUTS._lm par lmRegisterLayout
@@ -2092,6 +2110,10 @@ async function lmFinishAndSave(silent, keepEdit) {
     shape: LM.shape,
     radius: LM.radius, skew: LM.skew, trapRatio: LM.trapRatio,
     strokeColor: LM.strokeColor, strokeWidth: LM.strokeWidth, fillColor: LM.fillColor,
+    // Champs des conversions built-in → LM (rétro-compatibles : absents sinon).
+    baseGame:    LM.baseGame || null,
+    hideRanks:   !!LM.hideRanks,
+    curvedNames: !!LM.curvedNames,
     T1: {...LM.T1}, T2: {...LM.T2}, T3: {...LM.T3},
     slots: LM.slots.map(s => ({...s})),
     rankLabels: [...LM.rankLabels],
@@ -2379,7 +2401,9 @@ function lmBuildLayoutFromBuiltin(gameId) {
     createdAt: 0,
     font, fontWeight: '800',
     T1: mkT('T1'), T2: mkT('T2'), T3: mkT('T3'),
-    bgDataUrl: bl.bgFile || null,   // URL du fond built-in (chargée comme Image)
+    // Fond built-in : URL CDN complète (assetUrl) → se charge partout, comme le
+    // rendu natif (le rendu custom_lm lit _lm.bgDataUrl pour charger bgImg).
+    bgDataUrl: bl.bgFile ? ((typeof assetUrl === 'function') ? assetUrl(bl.bgFile) : bl.bgFile) : null,
     bgOffsetX: 0.5, bgOffsetY: 0.5, bgBlur: 0, bgDarken: 0, bgZoom: 1.0,
     overlayDataUrl: null,
     gameImgVisible: false,          // les jeux built-in n'ont pas de logo placé
@@ -2420,6 +2444,57 @@ function lmBuildLayoutFromBuiltin(gameId) {
     return null;
   }
   return layout;
+}
+
+// Convertit un jeu built-in en layout LM, l'enregistre dans le coffre, bascule
+// le graph courant dessus, et ouvre l'éditeur complet du Layout Maker. Idempotent :
+// si la conversion existe déjà dans le coffre, on la réutilise. Retourne false si
+// le jeu n'est pas (encore) convertible → l'appelant garde l'éditeur standard.
+async function lmConvertBuiltinAndEdit(gameId) {
+  const newId = `${gameId}__lm`;
+  let coffre = [];
+  try { coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]'); } catch (e) {}
+  const entry = coffre.find(l => l.id === newId);
+
+  if (!entry) {
+    const layout = lmBuildLayoutFromBuiltin(gameId);
+    if (!layout) return false;
+    layout.id = newId;
+    // Enregistre en mémoire (l'objet _lm garde bgDataUrl pour le rendu immédiat).
+    lmRegisterLayout(layout);
+    // Persiste une COPIE strippée dans le coffre (sans muter l'objet enregistré).
+    const copy = JSON.parse(JSON.stringify(layout));
+    try { if (typeof coffreStripImagesToIDB === 'function') await coffreStripImagesToIDB(copy); }
+    catch (e) { console.warn('[convert] strip', e); }
+    coffre.push(copy);
+    localStorage.setItem('top8_coffre', JSON.stringify(coffre));
+  } else if (!(typeof LAYOUTS !== 'undefined' && LAYOUTS[newId])) {
+    // Déjà dans le coffre mais pas encore enregistré pour le rendu.
+    const full = JSON.parse(JSON.stringify(entry));
+    if (typeof coffreLoadImagesFromIDB === 'function') await coffreLoadImagesFromIDB(full);
+    lmRegisterLayout(full);
+  }
+
+  // Bascule le contexte courant sur le layout converti + régénère.
+  if (typeof graphs !== 'undefined' && Array.isArray(graphs) && graphs.length) {
+    const g = graphs[currentGraphIdx];
+    if (g) {
+      g.game = newId; g.isCustomLayout = true;
+      try { await preloadMurals(gameId, g.players || []); } catch (e) {}
+    }
+    currentGame = newId;
+    if (typeof generateAllGraphs === 'function') await generateAllGraphs();
+    if (typeof renderMultiPreview === 'function') renderMultiPreview();
+    if (typeof gameSelectorMultiRefresh === 'function') gameSelectorMultiRefresh();
+  } else {
+    try { await preloadMurals(gameId, (typeof players !== 'undefined' ? players : [])); } catch (e) {}
+    currentGame = newId;
+    if (typeof generatePreview === 'function') generatePreview();
+  }
+
+  // Ouvre l'éditeur Layout Maker sur le layout converti.
+  if (typeof lmOpenForEdit === 'function') await lmOpenForEdit(newId);
+  return true;
 }
 
 function lmRegisterLayout(layout) {
