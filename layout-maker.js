@@ -2780,7 +2780,9 @@ function lmRenderToCanvas(canvas) {
   }
 
   // Overlay PNG — par-dessus le fond et les slots
-  const overlayToDraw = LM.overlayImg || (LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
+  // Pas d'overlay par défaut pour un jeu CONVERTI (baseGame) : son fond contient
+  // déjà toute la déco (la pochette, etc.) → l'overlay y mettrait un cadre noir.
+  const overlayToDraw = LM.overlayImg || (!LM.baseGame && LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
   if (overlayToDraw) ctx.drawImage(overlayToDraw, 0, 0, SIZE, SIZE);
 
   // Image du jeu — par-dessus l'overlay (step 1+)
@@ -2799,7 +2801,7 @@ function lmRenderLayoutToCanvas(canvas, layout, cb) {
       lmDrawOneSlot(ctx, slot, i, sc, charImgs[i], layout.charCrops[i], layout.playerNames?.[i]||`Joueur ${i+1}`, layout);
     });
     // Overlay par-dessus le fond et les slots
-    const ov = overlayImg || (LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
+    const ov = overlayImg || (!layout.baseGame && LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
     if (ov) ctx.drawImage(ov, 0, 0, SIZE, SIZE);
     // Image du jeu par-dessus l'overlay
     const gCfg = Object.assign({}, layout, { gameImgImg: gameI });
@@ -3634,7 +3636,7 @@ function drawCustomLMLayout(ctx, layout, sc, playersParam) {
   });
 
   // 3. Overlay PNG par-dessus les slots (bandeau décoratif, etc.)
-  const ov = layout.overlayImg || (LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
+  const ov = layout.overlayImg || (!layout.baseGame && LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
   if (ov) ctx.drawImage(ov, 0, 0, SIZE, SIZE);
 
   // 4. Image du jeu (logo) par-dessus l'overlay
@@ -3847,7 +3849,7 @@ function lmRenderToCanvasWithLM(canvas, lm) {
     lmDrawOneSlot(ctx, slot, i, sc, lm.charImgs[i], lm.charCrops[i],
       lm.playerNames[i] || lmFormatPlayerName(typeof players!=='undefined'?players[i]:null, `Joueur ${i+1}`), lm);
   });
-  const lmOv = lm.overlayImg || (LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
+  const lmOv = lm.overlayImg || (!lm.baseGame && LM_DEFAULT_OVERLAY._loaded ? LM_DEFAULT_OVERLAY : null);
   if (lmOv) ctx.drawImage(lmOv, 0, 0, SIZE, SIZE);
   lmDrawGameImg(ctx, SIZE, lm);
 }
