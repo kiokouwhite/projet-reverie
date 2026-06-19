@@ -249,6 +249,46 @@
   const ARROW_SIZE = 30;
   const ANIM_MS = 620;
 
+  // ── Auto-ajustement de la taille du texte ───────────────────────────────
+  // Le pill a une largeur fixe (PILL_WIDTH) et .gs-pill-clip masque le
+  // débordement → un nom de jeu long était coupé (sous la flèche). On réduit
+  // donc la police pour que le label « X / N — Nom » tienne entre les deux
+  // flèches. La mesure DOM est faite UNE SEULE fois par nom (cache) → pas de
+  // reflow à chaque frame d'animation (_multiRender tourne par frame).
+  const _GS_BASE_FONT = 13;   // = font-size de .gs-text dans le CSS
+  const _GS_MIN_FONT  = 8;    // plancher de lisibilité
+  // Largeur dispo pour le texte centré, en évitant les 2 flèches (left/right:6px).
+  const _GS_AVAIL_W   = PILL_WIDTH - 2 * (6 + ARROW_SIZE) - 8;
+  const _gsFitCache = {};
+  let _gsMeasureEl = null;
+  function _gsFitFontSize(name) {
+    const key = name || '';
+    if (_gsFitCache[key] != null) return _gsFitCache[key];
+    if (!_gsMeasureEl) {
+      _gsMeasureEl = document.createElement('span');
+      _gsMeasureEl.className = 'gs-text';
+      _gsMeasureEl.style.cssText =
+        'position:absolute;left:-9999px;top:-9999px;visibility:hidden;white-space:nowrap;font-size:' + _GS_BASE_FONT + 'px;';
+      document.body.appendChild(_gsMeasureEl);
+    }
+    // Compteur worst-case « 88 / 88 » pour couvrir les N à 2 chiffres.
+    _gsMeasureEl.innerHTML =
+      '<span class="gs-text-count">88 / 88</span><span class="gs-text-sep">—</span>' +
+      '<span class="gs-text-name">' + escHtml(key) + '</span>';
+    const natural = _gsMeasureEl.getBoundingClientRect().width;
+    let fs = _GS_BASE_FONT;
+    if (natural > _GS_AVAIL_W) fs = Math.max(_GS_MIN_FONT, _GS_BASE_FONT * _GS_AVAIL_W / natural);
+    fs = Math.round(fs * 10) / 10;
+    _gsFitCache[key] = fs;
+    return fs;
+  }
+  // Les polices web (Montserrat…) peuvent charger APRÈS une 1ère mesure faite
+  // avec la police de secours → largeurs faussées. On invalide le cache une
+  // fois les polices prêtes (la prochaine render re-mesurera juste).
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { Object.keys(_gsFitCache).forEach(k => delete _gsFitCache[k]); });
+  }
+
   function findIndexOf(gameId) {
     return Math.max(0, _games.findIndex(g => g.id === gameId));
   }
@@ -403,7 +443,7 @@
     if (txLayers) {
       txLayers.innerHTML = layers.map(l => `
         <div class="gs-text-layer" style="opacity:${l.fade};transform:translate3d(calc(${l.textTx}% + ${l.textPx}px),0,0);">
-          <span class="gs-text" style="color:${l.g.ink};text-shadow:0 1px 0 rgba(255,255,255,0.4),0 0 6px rgba(0,0,0,0.35);">
+          <span class="gs-text" style="color:${l.g.ink};text-shadow:0 1px 0 rgba(255,255,255,0.4),0 0 6px rgba(0,0,0,0.35);font-size:${_gsFitFontSize(l.g.name)}px;">
             <span class="gs-text-count">${l.i + 1} / ${N}</span>
             <span class="gs-text-sep">—</span>
             <span class="gs-text-name">${escHtml(l.g.name)}</span>
@@ -683,7 +723,7 @@
     if (txLayers) {
       txLayers.innerHTML = layers.map(l => `
         <div class="gs-text-layer" style="opacity:${l.fade};transform:translate3d(calc(${l.textTx}% + ${l.textPx}px),0,0);">
-          <span class="gs-text" style="color:#fff;text-shadow:0 1px 0 rgba(0,0,0,0.4),0 0 8px rgba(0,0,0,0.6);">
+          <span class="gs-text" style="color:#fff;text-shadow:0 1px 0 rgba(0,0,0,0.4),0 0 8px rgba(0,0,0,0.6);font-size:${_gsFitFontSize(l.g.name)}px;">
             <span class="gs-text-count" style="opacity:0.85;">${l.i + 1} / ${N}</span>
             <span class="gs-text-sep" style="opacity:0.6;">—</span>
             <span class="gs-text-name">${escHtml(l.g.name)}</span>
