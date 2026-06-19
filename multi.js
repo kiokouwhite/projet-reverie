@@ -93,7 +93,11 @@ async function importAllEvents() {
 
   const tournament = td?.data?.tournament;
   if (!tournament) {
-    showStatus('error', '❌ Tournoi introuvable.');
+    // start.gg a répondu SANS erreur mais sans tournoi → le slug ne correspond
+    // à aucun tournoi ACCESSIBLE : lien faux, tournoi en brouillon (non publié),
+    // ou clé API d'un compte sans accès. On affiche le slug tenté pour aider.
+    console.warn('[import] tournoi null pour slug =', slug, '| réponse start.gg =', td);
+    showStatus('error', `❌ Tournoi introuvable (slug : « ${slug} »). Vérifie que le lien est exact ET que le tournoi est PUBLIÉ sur start.gg (pas en brouillon).`);
     btn.disabled=false; btn.textContent='🔍 Chercher'; return;
   }
 
