@@ -68,16 +68,16 @@ async function importAllEvents() {
   btn.disabled = true; btn.textContent = '⏳';
   showStatus('loading', '⏳ Récupération des events...');
 
-  // ── Animation nuages : enclenchée DÈS le clic, avant la requête réseau ──
-  // (cloud-animation.js définit ces helpers globalement)
-  if (typeof cloudAnimStart === 'function') cloudAnimStart();
-
+  // 1. Récupérer tous les events du tournoi — AVANT les nuages : on affiche
+  // d'abord un menu de sélection des jeux à importer (l'utilisateur peut en
+  // décocher). Le fetch a son PROPRE try/catch (les nuages ne tournent pas
+  // encore, rien à annuler en cas d'erreur).
+  // On demande à la fois numEntrants (champ cached) ET entrants.pageInfo.total
+  // (compte réel via la table entrants) : numEntrants peut être stale ou ne
+  // refléter que les participants en bracket.
+  let td;
   try {
-    // 1. Récupérer tous les events du tournoi
-    // On demande à la fois numEntrants (champ cached) ET entrants.pageInfo.totalCount
-    // (compte réel via la table entrants). Le second est plus fiable :
-    // numEntrants peut être stale ou ne refléter que les participants en bracket.
-    const td = await gqlFetch(apiKey, `
+    td = await gqlFetch(apiKey, `
       query($slug:String!) { tournament(slug:$slug) {
         name
         events {
@@ -86,13 +86,68 @@ async function importAllEvents() {
           videogame { id name displayName images { url type } }
         }
       }}`, { slug });
+  } catch (e) {
+    showStatus('error', '❌ ' + (e.message || 'Erreur lors de la récupération des events.'));
+    btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+  }
 
-    const tournament = td?.data?.tournament;
-    if (!tournament) {
-      showStatus('error', '❌ Tournoi introuvable.');
-      if (typeof cloudAnimCancel === 'function') cloudAnimCancel();
-      btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+  const tournament = td?.data?.tournament;
+  if (!tournament) {
+    showStatus('error', '❌ Tournoi introuvable.');
+    btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+  }
+
+  // ── Menu de sélection des jeux ──────────────────────────────────────────
+  // On groupe les events par videogame (un jeu peut avoir Singles + Doubles…)
+  // et on laisse l'utilisateur décocher ceux qu'il ne veut pas importer.
+  // Tout est coché par défaut. Le filtre s'applique sur tournament.events, donc
+  // toute la suite (nuages + import) ne voit que les jeux retenus.
+  if (typeof showImportGameMenu === 'function') {
+    const selMap = new Map(); // vgKey → { name, imgUrl, entrants }
+    (tournament.events || []).forEach(e => {
+      if (!e.videogame) return;
+      const vgKey = String(e.videogame.id || e.videogame.name || '');
+      if (!vgKey) return;
+      const cnt  = Math.max(e.numEntrants || 0, e.entrants?.pageInfo?.total || 0);
+      const imgs = e.videogame.images || [];
+      const img  = imgs.find(i => i.type === 'profile')
+                || imgs.find(i => i.type === 'primary') || imgs[0];
+      const ex = selMap.get(vgKey);
+      if (ex) { ex.entrants += cnt; }
+      else selMap.set(vgKey, {
+        name:     e.videogame.displayName || e.videogame.name || e.name,
+        imgUrl:   img?.url || null,
+        entrants: cnt,
+      });
+    });
+    const menuGames = Array.from(selMap.entries())
+      .map(([vgKey, g]) => ({ vgKey, name: g.name, imgUrl: g.imgUrl, entrants: g.entrants }))
+      .sort((a, b) => b.entrants - a.entrants); // les plus gros jeux d'abord
+
+    if (menuGames.length) {
+      const selectedKeys = await showImportGameMenu(menuGames, tournament.name);
+      if (!selectedKeys) {                       // annulé
+        showStatus('', '');
+        btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+      }
+      if (!selectedKeys.size) {
+        showStatus('error', '❌ Sélectionne au moins un jeu à importer.');
+        btn.disabled=false; btn.textContent='🔍 Chercher'; return;
+      }
+      // Ne garde que les events des jeux cochés.
+      tournament.events = (tournament.events || []).filter(e => {
+        const vgKey = String(e.videogame?.id || e.videogame?.name || '');
+        return selectedKeys.has(vgKey);
+      });
     }
+  }
+
+  // ── Animation nuages : enclenchée APRÈS la sélection des jeux ──
+  // (cloud-animation.js définit ces helpers globalement)
+  if (typeof cloudAnimStart === 'function') cloudAnimStart();
+  showStatus('loading', '⏳ Import en cours...');
+
+  try {
 
     // ── Update des cartes-nuages avec les vrais jeux du tournoi ──
     // Groupage par videogame : un tournoi peut avoir plusieurs events pour
