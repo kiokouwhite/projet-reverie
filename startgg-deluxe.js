@@ -4580,6 +4580,7 @@ let _dlxChatMessages = [];
 let _dlxChatUnread   = 0;
 let _dlxChatES       = null;        // EventSource actif
 let _dlxChatESRetry  = 0;
+let _dlxChatNextTryAt = 0;          // ts avant lequel on ne retente PAS (backoff anti-flood)
 let _dlxChatLastSeen = 0;           // ts du dernier message vu par l'utilisateur
 
 function dlxChatBotConfig() {
@@ -4767,6 +4768,7 @@ function dlxChatConnectSSE() {
   es.addEventListener('ready', () => {
     dlxChatSetStatus('connected');
     _dlxChatESRetry = 0;
+    _dlxChatNextTryAt = 0;
   });
   es.addEventListener('message', ev => {
     try {
@@ -4776,12 +4778,14 @@ function dlxChatConnectSSE() {
   });
   es.onerror = () => {
     dlxChatSetStatus('disconnected');
-    // Backoff exponentiel plafonné à 30s
     try { es.close(); } catch (e) {}
     _dlxChatES = null;
     _dlxChatESRetry++;
-    const delay = Math.min(30000, 1000 * Math.pow(1.6, _dlxChatESRetry));
-    setTimeout(dlxChatConnectSSE, delay);
+    // Backoff exponentiel plafonné à 60s : on POSE juste la prochaine échéance.
+    // La reconnexion est pilotée par l'intervalle (qui respecte _dlxChatNextTryAt),
+    // sinon le bot down provoquait un flood de requêtes/console toutes les 5s.
+    const delay = Math.min(60000, 1000 * Math.pow(1.8, _dlxChatESRetry));
+    _dlxChatNextTryAt = Date.now() + delay;
   };
 }
 
@@ -4832,6 +4836,8 @@ function dlxChatOpen() {
   const fab = document.getElementById('dlxChatFab');
   if (fab) fab.style.display = 'none';
   dlxChatMarkAllRead();
+  // Ouvrir le chat = retenter la connexion tout de suite (on annule le backoff).
+  if (!_dlxChatES) { _dlxChatESRetry = 0; _dlxChatNextTryAt = 0; }
   // Focus l'input
   setTimeout(() => {
     const inp = document.getElementById('dlxChatInput');
@@ -4866,7 +4872,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 300);
   // Si la config change (utilisateur rentre l'URL bot après coup), retry
   setInterval(() => {
-    if (!_dlxChatES) {
+    // Reconnecte SEULEMENT si pas déjà connecté ET que le délai de backoff est
+    // écoulé (évite le flood quand le bot est hors ligne : au pire 1 essai/60s).
+    if (!_dlxChatES && Date.now() >= _dlxChatNextTryAt) {
       const { url, secret } = dlxChatBotConfig();
       if (url && secret) {
         dlxChatFetchHistory().then(() => dlxChatConnectSSE());
