@@ -1757,15 +1757,44 @@ function showStatus(type, msg) {
   el.style.display='block'; el.className='status-msg '+type; el.textContent=msg;
 }
 
-async function gqlFetch(apiKey, query, variables) {
-  const res = await fetch('https://api.start.gg/gql/alpha', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
-    body: JSON.stringify({query, variables})
-  });
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+// Backoff exponentiel (0.8s, 1.6s, 3.2s, 6.4s — plafond 8s) ; respecte Retry-After.
+function _gqlBackoff(attempt, res) {
+  let ms = 800 * Math.pow(2, attempt);
+  if (res && res.headers) { const ra = parseInt(res.headers.get('Retry-After') || '0', 10); if (ra > 0) ms = ra * 1000; }
+  return new Promise(r => setTimeout(r, Math.min(ms, 8000)));
+}
+
+async function gqlFetch(apiKey, query, variables, _attempt = 0) {
+  let res;
+  try {
+    res = await fetch('https://api.start.gg/gql/alpha', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+      body: JSON.stringify({query, variables})
+    });
+  } catch (e) {
+    // Échec RÉSEAU → réessai (jusqu'à 3 fois) avec backoff.
+    if (_attempt < 3) { await _gqlBackoff(_attempt); return gqlFetch(apiKey, query, variables, _attempt + 1); }
+    throw e;
+  }
+  // 429 (rate limit) ou 5xx (erreur serveur start.gg) → réessai avec backoff.
+  // C'est ce qui faisait échouer l'import des persos quand on enchaîne beaucoup
+  // de requêtes (certains events revenaient sans personnages).
+  if ((res.status === 429 || res.status >= 500) && _attempt < 4) {
+    await _gqlBackoff(_attempt, res); return gqlFetch(apiKey, query, variables, _attempt + 1);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  if(data.errors) throw new Error(data.errors[0].message);
+  if (data.errors) {
+    const msg = (data.errors[0] && data.errors[0].message) || 'Erreur start.gg';
+    // Erreurs TRANSITOIRES de start.gg ("An unknown error has occurred", timeout,
+    // rate limit…) → réessai. Les erreurs permanentes (requête/auth) sont
+    // relancées telles quelles (pas de réessai inutile).
+    if (_attempt < 3 && /unknown error|timeout|temporar|try again|rate limit|too many/i.test(msg)) {
+      await _gqlBackoff(_attempt); return gqlFetch(apiKey, query, variables, _attempt + 1);
+    }
+    throw new Error(msg);
+  }
   return data;
 }
 
