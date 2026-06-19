@@ -2475,7 +2475,15 @@ function drawLayoutSlots(ctx, layout, sc) {
     if (char) {
       const halfW = (slot.w != null ? slot.w / 2 : (slot.r || 0)) * sc;
       const halfH = (slot.h != null ? slot.h / 2 : (slot.r || 0)) * sc;
-      const padTopPx = (slot.imgPadTop || 0) * sc;
+      // imgPadTop décale l'image vers le bas (calibré pour les anciens murals
+      // plein corps). Les portraits GGST2 sont des images RONDES déjà cadrées
+      // qui doivent remplir le cercle, centrées → on neutralise imgPadTop pour
+      // eux, sinon le perso est décalé vers le bas et ne correspond pas à
+      // l'aperçu de cadrage (qui, lui, n'applique pas imgPadTop). Les persos
+      // hors GGST2 (Venom = ancien mural plein corps) gardent le décalage.
+      const _isGgst2Portrait = (typeof currentGame !== 'undefined' && currentGame === 'ggst'
+        && typeof GGST_MURAL_FILE !== 'undefined' && GGST_MURAL_FILE[p.charId]);
+      const padTopPx = _isGgst2Portrait ? 0 : (slot.imgPadTop || 0) * sc;
       const cyShifted = slot.cy*sc + padTopPx / 2;
       drawCharWithCrop(ctx, char, p.costume, {
         pts: [[slot.cx*sc - halfW, slot.cy*sc + halfH],
