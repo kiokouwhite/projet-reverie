@@ -725,7 +725,7 @@ async function addCustomLayoutGraph(layout) {
   if (!layout?.id) return;
 
   // Joueurs placeholder à partir des noms saisis dans le layout maker
-  const evPlayers = (layout.playerNames || ['', '', '']).slice(0, 3).map((rawName, i) => ({
+  let evPlayers = (layout.playerNames || ['', '', '']).slice(0, 3).map((rawName, i) => ({
     name: rawName || `Joueur ${i+1}`,
     team: '',
     charId: `lmchar${i}`,
@@ -736,6 +736,18 @@ async function addCustomLayoutGraph(layout) {
 
   // Si le layout existe déjà comme graphe (édition), le remplacer ; sinon ajouter
   const existingIdx = graphs.findIndex(g => g.game === layout.id && g.isCustomLayout);
+
+  // Conversion d'un jeu built-in (GGST…) : le graph existant porte déjà les
+  // VRAIS joueurs du tournoi (charId réel, ex. "sol"), pas des placeholders. On
+  // les PRÉSERVE — sinon une simple modif dans l'éditeur déclenche cet auto-save
+  // qui écraserait les persos par des lmchar vides (cercles noirs). On ne
+  // remplace par des placeholders que si le graph existant n'en avait QUE
+  // (vrai layout créé de zéro dans le Layout Maker).
+  if (existingIdx >= 0) {
+    const exist = graphs[existingIdx].players;
+    const hasReal = Array.isArray(exist) && exist.some(p => p && p.charId && !/^lmchar\d+$/.test(p.charId));
+    if (hasReal) evPlayers = exist;
+  }
 
   // Image de fond du PILL multi (le bouton en haut). Sans ça, le bouton du
   // layout fraîchement créé est vide : son image n'était câblée qu'au
