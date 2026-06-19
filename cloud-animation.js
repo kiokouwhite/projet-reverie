@@ -520,16 +520,19 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 14px 18px 30px;
-  gap: 6px;
+  /* Tout est proportionnel à --size (la taille du nuage ∝ nb d'entrants) → l'icône
+     et le texte grandissent/rétrécissent AVEC le nuage. Calibré sur ~300px (≈ la
+     taille d'avant : 56px icône, 18px nom). */
+  padding: calc(var(--size, 300px) * 0.047) calc(var(--size, 300px) * 0.06) calc(var(--size, 300px) * 0.10);
+  gap: calc(var(--size, 300px) * 0.02);
 }
 .cloud-stage .game-emoji {
-  width: 56px; height: 56px;
+  width: calc(var(--size, 300px) * 0.187); height: calc(var(--size, 300px) * 0.187);
   border-radius: 50%;
   border: 2px solid;
   display: flex; align-items: center; justify-content: center;
-  font-size: 26px;
-  margin-bottom: 6px;
+  font-size: calc(var(--size, 300px) * 0.087);
+  margin-bottom: calc(var(--size, 300px) * 0.02);
   background: #fff;
   box-shadow: 0 6px 14px -4px rgba(120, 90, 180, 0.2);
   overflow: hidden;
@@ -540,16 +543,16 @@
 .cloud-stage .game-name {
   font-family: 'Fraunces', 'Manrope', 'Montserrat', serif;
   font-weight: 700;
-  font-size: 18px;
+  font-size: calc(var(--size, 300px) * 0.06);
   color: #4a3974;
   line-height: 1.15;
-  max-width: 260px;
+  max-width: calc(var(--size, 300px) * 0.85);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cloud-stage .game-sub {
-  font-size: 12px;
+  font-size: calc(var(--size, 300px) * 0.04);
   color: #9a8cb5;
   font-family: ui-monospace, "JetBrains Mono", monospace;
 }
