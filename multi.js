@@ -93,11 +93,22 @@ async function importAllEvents() {
 
   const tournament = td?.data?.tournament;
   if (!tournament) {
-    // start.gg a répondu SANS erreur mais sans tournoi → le slug ne correspond
-    // à aucun tournoi ACCESSIBLE : lien faux, tournoi en brouillon (non publié),
-    // ou clé API d'un compte sans accès. On affiche le slug tenté pour aider.
     console.warn('[import] tournoi null pour slug =', slug, '| réponse start.gg =', td);
-    showStatus('error', `❌ Tournoi introuvable (slug : « ${slug} »). Vérifie que le lien est exact ET que le tournoi est PUBLIÉ sur start.gg (pas en brouillon).`);
+    // ── Auto-diagnostic : la CLÉ API est-elle valide ? ──
+    // start.gg a répondu sans erreur mais sans tournoi. Si TOUS les tournois
+    // échouent, c'est presque toujours la clé (start.gg peut renvoyer null au
+    // lieu d'une erreur d'auth). On teste `currentUser` qui EXIGE l'auth : s'il
+    // est null/échoue → la clé est invalide ; sinon → c'est bien le lien/tournoi.
+    let keyOk = null;
+    try {
+      const me = await gqlFetch(apiKey, 'query { currentUser { id } }', {});
+      keyOk = !!(me && me.data && me.data.currentUser && me.data.currentUser.id);
+    } catch (e) { keyOk = false; }
+    if (keyOk === false) {
+      showStatus('error', '❌ Ta clé API start.gg est invalide ou expirée. Génère une NOUVELLE clé sur start.gg (Paramètres → Developer Settings → Personal Access Token) et recolle-la ici.');
+    } else {
+      showStatus('error', `❌ Tournoi introuvable (slug : « ${slug} »). Vérifie que le lien est exact ET que le tournoi est PUBLIÉ sur start.gg (pas en brouillon).`);
+    }
     btn.disabled=false; btn.textContent='🔍 Chercher'; return;
   }
 
