@@ -3924,7 +3924,38 @@ function lmOpenPolyEditor(slotIdx) {
 
   lmPEInitCanvas();
   lmPELoadSavedList();
+  lmPEBuildGraphBackdrop();   // fond = aperçu du graph (pour les masques de carte)
   lmPEDraw();
+}
+
+// Construit (en cache) un rendu du GRAPH complet, centré sur la carte éditée,
+// servant de fond à l'éditeur de masque → on modèle le masque dans le contexte
+// réel du Top 8. Le slot ciblé est rendu SANS son masque (perso entier visible).
+function lmPEBuildGraphBackdrop() {
+  LM_PE._graphCache = null;
+  LM_PE._view = null;
+  const si = LM_PE.targetSlot;
+  if (si == null || typeof LM === 'undefined' || !LM.slots || !LM.slots[si]) return;
+  const s = LM.slots[si];
+  // Vue carrée centrée sur la carte : la carte occupe ~56% de la vue (du contexte
+  // graph autour, tout en gardant la carte assez grande pour éditer les points).
+  const frac = 0.56;
+  const vsize = Math.max(40, Math.max(s.w, s.h) / frac);
+  const gRes = 820;
+  let off = null;
+  try {
+    off = document.createElement('canvas');
+    off.width = off.height = gRes;
+    const savedMask = s.maskPolygon;
+    if (savedMask) delete s.maskPolygon;               // perso entier dans la carte
+    const savedNums = window._lmShowZoneNums;
+    window._lmShowZoneNums = false;                    // pas de 1/2/3 dans le fond
+    if (typeof lmRenderToCanvas === 'function') lmRenderToCanvas(off);
+    window._lmShowZoneNums = savedNums;
+    if (savedMask) s.maskPolygon = savedMask;
+  } catch (e) { console.warn('[mask] backdrop graph :', e); off = null; }
+  LM_PE._graphCache = off;
+  LM_PE._view = { vx: s.cx - vsize / 2, vy: s.cy - vsize / 2, vsize, gRes };
 }
 
 function lmPolyClose() {
@@ -3966,13 +3997,31 @@ function lmPEGetPos(e) {
     y: (e.clientY - rect.top)  * (canvas.height / rect.height),
   };
 }
-function lmPENorm(cx, cy) {
+// Boîte (en pixels canvas) où le polygone [0,1] est dessiné/édité.
+//  - Édition d'un MASQUE de carte avec aperçu du graph (LM_PE._view défini) :
+//    c'est la boîte du SLOT dans la vue zoomée du graph.
+//  - Sinon (forme globale) : toute la zone de dessin [M, M+DS].
+function _lmPECardBox() {
   const { MARGIN: M, DRAW_SIZE: DS } = LM_PE;
-  return { x: Math.max(0,Math.min(1,(cx-M)/DS)), y: Math.max(0,Math.min(1,(cy-M)/DS)) };
+  const si = LM_PE.targetSlot, v = LM_PE._view;
+  if (si == null || !v || typeof LM === 'undefined' || !LM.slots || !LM.slots[si]) {
+    return { x: M, y: M, w: DS, h: DS };
+  }
+  const s = LM.slots[si];
+  const toX = (rx) => M + ((rx - v.vx) / v.vsize) * DS;
+  const toY = (ry) => M + ((ry - v.vy) / v.vsize) * DS;
+  return {
+    x: toX(s.cx - s.w / 2), y: toY(s.cy - s.h / 2),
+    w: (s.w / v.vsize) * DS, h: (s.h / v.vsize) * DS,
+  };
+}
+function lmPENorm(cx, cy) {
+  const b = _lmPECardBox();
+  return { x: Math.max(0, Math.min(1, (cx - b.x) / b.w)), y: Math.max(0, Math.min(1, (cy - b.y) / b.h)) };
 }
 function lmPEPixel(p) {
-  const { MARGIN: M, DRAW_SIZE: DS } = LM_PE;
-  return { x: M + p.x*DS, y: M + p.y*DS };
+  const b = _lmPECardBox();
+  return { x: b.x + p.x * b.w, y: b.y + p.y * b.h };
 }
 
 // ── Hit testing ────────────────────────────────────────────────────────────
@@ -4083,28 +4132,23 @@ function lmPEDraw() {
   ctx.fillStyle = '#120830';
   ctx.fillRect(0, 0, S, S);
 
-  // Aperçu de la CARTE éditée en fond (masque par carte) : on dessine le perso
-  // du slot ciblé avec son cadrage réel dans la boîte [M, M+DS] (= boîte du slot)
-  // → on modèle le masque directement sur le vrai contenu. Voir aussi le voile
-  // sombre hors-polygone plus bas.
+  // Aperçu du GRAPH complet en fond (masque par carte) : on dessine le rendu du
+  // Top 8, ZOOMÉ et centré sur la carte éditée → on modèle le masque dans le vrai
+  // contexte. Le polygone est mappé sur la boîte du slot via _lmPECardBox.
   let hasBackdrop = false;
-  if (LM_PE.targetSlot != null && typeof LM !== 'undefined' && LM.slots && LM.slots[LM_PE.targetSlot]) {
-    const si = LM_PE.targetSlot;
+  if (LM_PE.targetSlot != null && LM_PE._graphCache && LM_PE._view) {
+    const v = LM_PE._view, k = v.gRes / 1400;
     ctx.save();
     ctx.beginPath(); ctx.rect(M, M, DS, DS); ctx.clip();
-    if (LM.fillColor && LM.fillColor !== 'transparent') { ctx.fillStyle = LM.fillColor; ctx.fillRect(M, M, DS, DS); }
-    const bImg = (LM.charImgs && LM.charImgs[si]);
-    if (bImg && bImg.naturalWidth) {
-      const c = (LM.charCrops && LM.charCrops[si]) || { cx:0.5, cy:0.3, zoom:2 };
-      const srcSize = Math.min(bImg.naturalWidth, bImg.naturalHeight) / (c.zoom || 1);
-      const srcX = Math.max(0, Math.min(bImg.naturalWidth  - srcSize, bImg.naturalWidth  * c.cx - srcSize/2));
-      const srcY = Math.max(0, Math.min(bImg.naturalHeight - srcSize, bImg.naturalHeight * c.cy - srcSize/2));
-      ctx.drawImage(bImg, srcX, srcY, srcSize, srcSize, M, M, DS, DS);
-      hasBackdrop = true;
-    }
+    ctx.fillStyle = '#0c0720'; ctx.fillRect(M, M, DS, DS);  // hors-graph éventuel
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(LM_PE._graphCache, v.vx * k, v.vy * k, v.vsize * k, v.vsize * k, M, M, DS, DS);
     ctx.restore();
+    hasBackdrop = true;
   }
 
+  // Grille + bbox : seulement SANS aperçu de graph (sinon ça parasite le rendu).
+  if (!hasBackdrop) {
   // Grid
   const GRID = 8;
   ctx.strokeStyle = 'rgba(119,105,221,0.1)';
@@ -4121,6 +4165,7 @@ function lmPEDraw() {
   ctx.lineWidth = 1;
   ctx.strokeRect(M, M, DS, DS);
   ctx.setLineDash([]);
+  } // fin if (!hasBackdrop) : grille + bbox masquées sous l'aperçu de graph
 
   if (pts.length < 2) return;
 
@@ -4128,14 +4173,15 @@ function lmPEDraw() {
   const { dist: eDist, edgeIdx: eIdx } = lmPEFindEdge(LM_PE._mx, LM_PE._my);
   const showEdge = eDist < LM_PE.EDGE_THRESH && LM_PE.dragging === null && LM_PE.hovering === null;
 
-  // Voile sombre HORS du polygone (sur l'aperçu de carte) → on visualise
-  // directement ce qui sera COUPÉ par le masque. evenodd = box pleine − polygone.
+  // Voile sombre sur la zone de la CARTE hors du polygone → on visualise ce qui
+  // sera COUPÉ, sans assombrir le contexte du graph autour. evenodd = carte − polygone.
   if (hasBackdrop) {
+    const cb = _lmPECardBox();
     ctx.save();
     ctx.beginPath();
-    ctx.rect(M, M, DS, DS);
+    ctx.rect(cb.x, cb.y, cb.w, cb.h);
     pts.forEach((p, k) => { const px = lmPEPixel(p); k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
-    ctx.fillStyle = 'rgba(8,4,20,0.60)';
+    ctx.fillStyle = 'rgba(8,4,20,0.55)';
     ctx.fill('evenodd');
     ctx.restore();
   }
