@@ -4083,6 +4083,28 @@ function lmPEDraw() {
   ctx.fillStyle = '#120830';
   ctx.fillRect(0, 0, S, S);
 
+  // Aperçu de la CARTE éditée en fond (masque par carte) : on dessine le perso
+  // du slot ciblé avec son cadrage réel dans la boîte [M, M+DS] (= boîte du slot)
+  // → on modèle le masque directement sur le vrai contenu. Voir aussi le voile
+  // sombre hors-polygone plus bas.
+  let hasBackdrop = false;
+  if (LM_PE.targetSlot != null && typeof LM !== 'undefined' && LM.slots && LM.slots[LM_PE.targetSlot]) {
+    const si = LM_PE.targetSlot;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(M, M, DS, DS); ctx.clip();
+    if (LM.fillColor && LM.fillColor !== 'transparent') { ctx.fillStyle = LM.fillColor; ctx.fillRect(M, M, DS, DS); }
+    const bImg = (LM.charImgs && LM.charImgs[si]);
+    if (bImg && bImg.naturalWidth) {
+      const c = (LM.charCrops && LM.charCrops[si]) || { cx:0.5, cy:0.3, zoom:2 };
+      const srcSize = Math.min(bImg.naturalWidth, bImg.naturalHeight) / (c.zoom || 1);
+      const srcX = Math.max(0, Math.min(bImg.naturalWidth  - srcSize, bImg.naturalWidth  * c.cx - srcSize/2));
+      const srcY = Math.max(0, Math.min(bImg.naturalHeight - srcSize, bImg.naturalHeight * c.cy - srcSize/2));
+      ctx.drawImage(bImg, srcX, srcY, srcSize, srcSize, M, M, DS, DS);
+      hasBackdrop = true;
+    }
+    ctx.restore();
+  }
+
   // Grid
   const GRID = 8;
   ctx.strokeStyle = 'rgba(119,105,221,0.1)';
@@ -4106,14 +4128,26 @@ function lmPEDraw() {
   const { dist: eDist, edgeIdx: eIdx } = lmPEFindEdge(LM_PE._mx, LM_PE._my);
   const showEdge = eDist < LM_PE.EDGE_THRESH && LM_PE.dragging === null && LM_PE.hovering === null;
 
-  // Polygon fill
+  // Voile sombre HORS du polygone (sur l'aperçu de carte) → on visualise
+  // directement ce qui sera COUPÉ par le masque. evenodd = box pleine − polygone.
+  if (hasBackdrop) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(M, M, DS, DS);
+    pts.forEach((p, k) => { const px = lmPEPixel(p); k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
+    ctx.fillStyle = 'rgba(8,4,20,0.60)';
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
+
+  // Polygon fill (léger quand un aperçu de carte est dessous, pour le laisser voir)
   ctx.beginPath();
   pts.forEach((p, k) => {
     const px = lmPEPixel(p);
     k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y);
   });
   ctx.closePath();
-  ctx.fillStyle = 'rgba(119,105,221,0.22)';
+  ctx.fillStyle = hasBackdrop ? 'rgba(119,105,221,0.08)' : 'rgba(119,105,221,0.22)';
   ctx.fill();
 
   // Edges
