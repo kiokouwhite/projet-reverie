@@ -2342,10 +2342,13 @@ canvas { width: 100%; display: block; }
 /* ── ÉDITEUR DE TITRES ──────────────────────────────────── */
 .title-row {
   display: grid;
-  /* 55px label + 1fr slider + 44px number + auto unit (% / px).
+  /* 66px label + 1fr slider + 44px number + auto unit (% / px).
+     66px (au lieu de 55) pour que "Espacement" (~62px) tienne sans déborder ;
+     l'ellipsis sur le label (.title-row span) sert de filet pour les libellés
+     plus longs (ex. "Espacement zones").
      min-width: 0 sur tous les enfants pour permettre au slider de shrink
      correctement et ne pas pousser le number input hors du cadre. */
-  grid-template-columns: 55px minmax(0, 1fr) 44px auto;
+  grid-template-columns: 66px minmax(0, 1fr) 44px auto;
   align-items: center;
   gap: 5px;
   margin-bottom: 6px;
@@ -2358,6 +2361,9 @@ canvas { width: 100%; display: block; }
   font-size: 11px;
   font-weight: 700;
   color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .title-row input[type=range] {
   -webkit-appearance: none;
@@ -2414,10 +2420,13 @@ canvas { width: 100%; display: block; }
 }
 .title-row:has(input[type=color]) > span,
 .name-color-row > span {
-  flex: 0 0 55px;
+  flex: 0 0 66px;
   font-size: 11px;
   font-weight: 700;
   color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .title-row:has(input[type=color]) .color-pick,
 .name-color-row .color-pick {
