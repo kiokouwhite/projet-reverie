@@ -438,11 +438,14 @@ body::before {
 .nav-logo-discord .layer-text  { z-index: 2; will-change: transform; }
 .nav-logo-discord .layer-comet { z-index: 3; will-change: clip-path, filter; }
 .nav-logo-discord:is(:hover,.is-center) .layer-text { animation: nlTextBounce 1.8s ease-in-out infinite; }
-.nav-logo-discord:is(:hover,.is-center) .layer-comet { animation: nlCometWipe 1.4s linear infinite; filter: blur(2px); }
+.nav-logo-discord:is(:hover,.is-center) .layer-comet { animation: nlCometWipe 1.4s linear infinite; }
 @keyframes nlTextBounce { 0%,100% { transform: translateY(-1.2%); } 50% { transform: translateY(1.2%); } }
+/* Comète NETTE pendant tout le balayage ; léger flou de mouvement seulement
+   sur les derniers 15 % (au moment où elle sort par le haut). */
 @keyframes nlCometWipe {
-  0% { clip-path: polygon(0 100%, 100% 100%, 100% 160%, 0 160%); }
-  100% { clip-path: polygon(0 -60%, 100% -60%, 100% 0%, 0 0%); }
+  0%   { clip-path: polygon(0 100%, 100% 100%, 100% 160%, 0 160%); filter: blur(0); }
+  85%  { filter: blur(0); }
+  100% { clip-path: polygon(0 -60%, 100% -60%, 100% 0%, 0 0%); filter: blur(1.5px); }
 }
 
 /* ── HORAIRES : auréole frémit, étoile centrale tourne, sparkles scintillent ── */
