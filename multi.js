@@ -52,6 +52,38 @@ function findCoffreLayoutForGame(gameName) {
   return (typeof LAYOUTS !== 'undefined' && LAYOUTS[lite.id]?._lm) || lite;
 }
 
+// Bascule les graphs importés (natifs) vers leur layout PERSONNALISÉ s'il existe
+// dans le coffre (un layout converti a baseGame === id du jeu built-in). Garde
+// les players (vrais charId, résolus par l'import natif) → les murals locaux
+// restent corrects (getMuralArtUrl via baseGame). On précharge les murals AVANT
+// de changer g.game (clé cache = baseGame réel). Retourne true si au moins un
+// graph a été basculé.
+async function applyConvertedLayoutsToGraphs() {
+  if (typeof graphs === 'undefined' || !Array.isArray(graphs) || !graphs.length) return false;
+  let coffre = [];
+  try { coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]'); } catch (e) { return false; }
+  if (!coffre.length) return false;
+  let changed = false;
+  for (const g of graphs) {
+    if (!g || g.isCustomLayout) continue;
+    const conv = coffre.find(l => l && (l.baseGame === g.game || l.id === `${g.game}__lm`));
+    if (!conv) continue;
+    // S'assurer que le layout converti est enregistré pour le rendu.
+    if (typeof LAYOUTS === 'undefined' || !LAYOUTS[conv.id]) {
+      try {
+        const full = JSON.parse(JSON.stringify(conv));
+        if (typeof coffreLoadImagesFromIDB === 'function') await coffreLoadImagesFromIDB(full);
+        if (typeof lmRegisterLayout === 'function') lmRegisterLayout(full);
+      } catch (e) { console.warn('[convert] register :', e); continue; }
+    }
+    try { if (typeof preloadMurals === 'function') await preloadMurals(g.game, g.players || []); } catch (e) {}
+    g.game = conv.id;
+    g.isCustomLayout = true;
+    changed = true;
+  }
+  return changed;
+}
+
 // ── IMPORT TOUS LES EVENTS ────────────────────────────────────────────────────
 async function importAllEvents() {
   const apiKey = document.getElementById('apiKey').value.trim();
@@ -529,6 +561,13 @@ async function importAllEvents() {
     // Lance tous les events en parallèle. On préserve l'ordre original via
     // Promise.all (qui retourne les résultats dans l'ordre des inputs).
     graphs = await Promise.all(events.map(importOneEvent));
+
+    // ── Auto-application des layouts PERSONNALISÉS ──────────────────────────
+    // Si l'utilisateur a personnalisé un jeu built-in (layout converti dans le
+    // coffre, ex. « ggst__lm » avec baseGame:'ggst' → masque, formes, etc.), on
+    // bascule le graph dessus AVANT le rendu, en gardant les vrais persos déjà
+    // résolus par l'import natif → ses modifs s'appliquent SANS cliquer « Éditer ».
+    try { await applyConvertedLayoutsToGraphs(); } catch (e) { console.warn('[convert] auto-apply :', e); }
 
     // Note : autoDetectFormat est déjà appelé plus haut (avant le filtrage
     // des events) pour pouvoir inclure les events sans layout en Magna.
