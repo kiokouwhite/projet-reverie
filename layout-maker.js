@@ -3965,10 +3965,14 @@ function lmPEBuildGraphBackdrop() {
     LM_PE._graphCache = off;
 
     const savedImg = (LM.charImgs && si < LM.charImgs.length) ? LM.charImgs[si] : undefined;
+    const savedFill = LM.fillColor;
     if (LM.charImgs) LM.charImgs[si] = null;            // cache le perso de la carte
+    LM.fillColor = 'transparent';                       // …ET son fond → carte TOTALEMENT
+                                                        // absente, on voit le vrai fond derrière.
     const offBg = document.createElement('canvas'); offBg.width = offBg.height = gRes;
     if (typeof lmRenderToCanvas === 'function') lmRenderToCanvas(offBg);
     LM_PE._graphCacheBg = offBg;
+    LM.fillColor = savedFill;
     if (LM.charImgs && savedImg !== undefined) LM.charImgs[si] = savedImg;
 
     window._lmShowZoneNums = savedNums;
@@ -4162,16 +4166,28 @@ function lmPEDraw() {
     ctx.beginPath(); ctx.rect(M, M, DS, DS); ctx.clip();
     ctx.fillStyle = '#0c0720'; ctx.fillRect(M, M, DS, DS);  // hors-graph éventuel
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    // 1) base : graph SANS le perso de la carte → ce qui apparaît HORS du masque.
+    // 1) base : graph SANS la carte ciblée (ni fond ni perso) → le VRAI fond qui
+    //    apparaît HORS du masque.
     drawGraph(LM_PE._graphCacheBg || LM_PE._graphCache);
-    // 2) perso clippé AU POLYGONE (mis à jour EN DIRECT au glissement des points)
-    //    → on voit le masque découper le perso en temps réel.
+    // 2) contenu de la carte (FOND + perso) clippé AU POLYGONE (en direct) → la
+    //    FORME de la carte suit le masque, pas seulement l'image. Hors masque, on
+    //    voit donc le fond derrière (le cercle de la carte n'apparaît plus).
     if (pts && pts.length >= 3) {
       ctx.save();
       ctx.beginPath();
       pts.forEach((p, i) => { const px = lmPEPixel(p); i === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
       ctx.closePath(); ctx.clip();
-      drawGraph(LM_PE._graphCache);
+      const cb = _lmPECardBox();
+      if (LM.fillColor && LM.fillColor !== 'transparent') { ctx.fillStyle = LM.fillColor; ctx.fillRect(cb.x, cb.y, cb.w, cb.h); }
+      const si = LM_PE.targetSlot, cimg = (LM.charImgs && LM.charImgs[si]);
+      if (cimg && cimg.naturalWidth) {
+        const c = (LM.charCrops && LM.charCrops[si]) || { cx:0.5, cy:0.5, zoom:1 };
+        const ss = Math.min(cimg.naturalWidth, cimg.naturalHeight) / (c.zoom || 1);
+        const sx = Math.max(0, Math.min(cimg.naturalWidth  - ss, cimg.naturalWidth  * c.cx - ss/2));
+        const sy = Math.max(0, Math.min(cimg.naturalHeight - ss, cimg.naturalHeight * c.cy - ss/2));
+        const dS = Math.max(cb.w, cb.h);
+        ctx.drawImage(cimg, sx, sy, ss, ss, cb.x + cb.w/2 - dS/2, cb.y + cb.h/2 - dS/2, dS, dS);
+      }
       ctx.restore();
     }
     ctx.restore();
