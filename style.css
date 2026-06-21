@@ -4169,6 +4169,11 @@ canvas { width: 100%; display: block; }
   cursor: pointer;
   transition: all 0.15s;
   font-family: 'Nunito', sans-serif;
+  /* Empêche une police large de forcer la colonne plus large que le conteneur
+     (sinon la grille déborde du panneau). L'overflow clippe en filet de sécurité ;
+     la taille de l'échantillon est ajustée par lmFitFontSamples() pour rester lisible. */
+  min-width: 0;
+  overflow: hidden;
 }
 .lm-font-btn:hover { background: #f5eeff; border-color: var(--lavender); transform: translateY(-1px); }
 .lm-font-btn.lm-selected {
@@ -4183,6 +4188,8 @@ canvas { width: 100%; display: block; }
   color: var(--purple-deep);
   line-height: 1;
   letter-spacing: 1px;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .lm-font-name {
   font-family: 'Nunito', sans-serif !important;

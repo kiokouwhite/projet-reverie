@@ -1019,6 +1019,31 @@ function lmInitFonts() {
       <span class="lm-font-name">${f.label}</span>
     </button>
   `).join('');
+  lmFitFontSamples();
+}
+
+// Réduit la taille de chaque échantillon "TOURNAMENT" pour qu'il tienne dans sa
+// carte (certaines polices larges débordaient la grille, donc le panneau).
+// Recalculé après le chargement des polices web (mesure fiable).
+function lmFitFontSamples() {
+  const grid = document.getElementById('lmFontGrid');
+  if (!grid) return;
+  const fitAll = () => {
+    grid.querySelectorAll('.lm-font-btn').forEach(btn => {
+      const s = btn.querySelector('.lm-font-sample');
+      if (!s) return;
+      s.style.fontSize = '';                 // repart de la taille CSS (18px)
+      const avail = btn.clientWidth - 18;    // largeur utile (padding ~8px/côté + marge)
+      if (avail <= 0) return;
+      let size = 18, guard = 0;
+      while (s.scrollWidth > avail && size > 9 && guard < 32) {
+        size -= 1; s.style.fontSize = size + 'px'; guard++;
+      }
+    });
+  };
+  fitAll();
+  requestAnimationFrame(fitAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll).catch(() => {});
 }
 
 function lmSelectFont(fontId) {
