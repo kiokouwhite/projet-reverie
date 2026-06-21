@@ -3999,6 +3999,7 @@ function lmPEInitCanvas() {
   canvas.onmouseleave  = () => { LM_PE._mx = -999; LM_PE._my = -999; LM_PE.dragging = null; lmPEDraw(); };
   canvas.ondblclick    = lmPEDblClick;
   canvas.oncontextmenu = e => { e.preventDefault(); lmPERemoveAt(e); };
+  canvas.onwheel       = lmPEWheel;   // molette = zoom de l'aperçu (mode masque)
 
   // Touch
   canvas.ontouchstart = e => { e.preventDefault(); lmPEMouseDown(lmPETouchEvt(e)); };
@@ -4119,6 +4120,30 @@ function lmPEMouseMove(e) {
 }
 
 function lmPEMouseUp() { LM_PE.dragging = null; }
+
+// Zoom de l'aperçu à la molette (mode masque, où il y a une vue du graph).
+// On ajuste LM_PE._view.vsize en gardant le point sous le curseur fixe → l'image
+// ET les points zooment ensemble (tout se mappe via _view / _lmPECardBox).
+function lmPEWheel(e) {
+  if (LM_PE.targetSlot == null || !LM_PE._view || typeof LM === 'undefined'
+      || !LM.slots || !LM.slots[LM_PE.targetSlot]) return;
+  e.preventDefault();
+  const v = LM_PE._view;
+  const { MARGIN: M, DRAW_SIZE: DS } = LM_PE;
+  const pos = lmPEGetPos(e);
+  // Point (repère graph) sous le curseur AVANT zoom.
+  const fx = (pos.x - M) / DS, fy = (pos.y - M) / DS;
+  const refX = v.vx + fx * v.vsize, refY = v.vy + fy * v.vsize;
+  // Molette vers le haut (deltaY<0) → zoom IN (vue plus petite).
+  const factor = e.deltaY < 0 ? 0.86 : 1.16;
+  const base = Math.max(LM.slots[LM_PE.targetSlot].w, LM.slots[LM_PE.targetSlot].h);
+  const newVsize = Math.max(base * 0.4, Math.min(base * 4.5, v.vsize * factor));
+  // On garde le point sous le curseur fixe.
+  v.vx = refX - fx * newVsize;
+  v.vy = refY - fy * newVsize;
+  v.vsize = newVsize;
+  lmPEDraw();
+}
 
 function lmPEDblClick(e) {
   if (LM_PE.points.length <= 3) return;
@@ -4300,7 +4325,7 @@ function lmPEDraw() {
   ctx.fillStyle = 'rgba(200,180,255,0.35)';
   ctx.font = '10px Nunito, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(`${pts.length} points  ·  Glisse · Clic sur côté = +point · Dbl-clic = -point`, S/2, S-4);
+  ctx.fillText(`${pts.length} points  ·  Glisse · Clic = +point · Dbl-clic = -point · Molette = zoom`, S/2, S-4);
 }
 
 // ── Saved shapes ───────────────────────────────────────────────────────────
