@@ -3866,7 +3866,7 @@ const LM_PE = {
   SIZE:        380,
   MARGIN:       30,
   get DRAW_SIZE() { return this.SIZE - 2 * this.MARGIN; },
-  POINT_R:     9,
+  POINT_R:     4,
   EDGE_THRESH: 14,
 };
 
@@ -4283,13 +4283,9 @@ function lmPEDraw() {
     ctx.beginPath(); ctx.arc(px.x, px.y, r, 0, Math.PI*2);
     ctx.fillStyle   = isDrag ? '#F5C842' : isHover ? '#C87DD4' : '#7769DD';
     ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.shadowBlur  = 0; ctx.shadowColor = 'transparent';
-
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${R-1}px Nunito, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(i+1), px.x, px.y);
+    // (Plus de numéros : petits points épurés, plus lisibles avec beaucoup de points.)
   });
 
   // Corner labels
