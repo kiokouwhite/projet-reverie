@@ -3918,6 +3918,12 @@ function lmOpenPolyEditor(slotIdx) {
   if (!modal) return;
   modal.style.display = 'flex';
 
+  // Titre : « Masque de la carte N » en mode masque, sinon « Éditeur de forme ».
+  const titleEl = document.getElementById('lmPolyTitle');
+  if (titleEl) titleEl.textContent = (LM_PE.targetSlot != null)
+    ? `🎭 Masque de la carte ${LM_PE.targetSlot + 1}`
+    : 'Éditeur de forme';
+
   // Prefill name input
   const nameInp = document.getElementById('lmPolyNameInput');
   if (nameInp && !nameInp.value) nameInp.value = 'Ma forme';
@@ -3933,6 +3939,7 @@ function lmOpenPolyEditor(slotIdx) {
 // réel du Top 8. Le slot ciblé est rendu SANS son masque (perso entier visible).
 function lmPEBuildGraphBackdrop() {
   LM_PE._graphCache = null;
+  LM_PE._graphCacheBg = null;
   LM_PE._view = null;
   const si = LM_PE.targetSlot;
   if (si == null || typeof LM === 'undefined' || !LM.slots || !LM.slots[si]) return;
@@ -3942,19 +3949,31 @@ function lmPEBuildGraphBackdrop() {
   const frac = 0.56;
   const vsize = Math.max(40, Math.max(s.w, s.h) / frac);
   const gRes = 820;
-  let off = null;
+  // On rend DEUX versions (le masque du slot est désactivé le temps du rendu pour
+  // avoir le perso entier) :
+  //  - _graphCache   : graph AVEC le perso (montré À L'INTÉRIEUR du masque)
+  //  - _graphCacheBg : graph SANS le perso de cette carte (ce qui apparaît À
+  //    L'EXTÉRIEUR du masque). lmPEDraw clippe le 1er au polygone en direct.
   try {
-    off = document.createElement('canvas');
-    off.width = off.height = gRes;
     const savedMask = s.maskPolygon;
-    if (savedMask) delete s.maskPolygon;               // perso entier dans la carte
+    if (savedMask) delete s.maskPolygon;
     const savedNums = window._lmShowZoneNums;
-    window._lmShowZoneNums = false;                    // pas de 1/2/3 dans le fond
+    window._lmShowZoneNums = false;
+
+    const off = document.createElement('canvas'); off.width = off.height = gRes;
     if (typeof lmRenderToCanvas === 'function') lmRenderToCanvas(off);
+    LM_PE._graphCache = off;
+
+    const savedImg = (LM.charImgs && si < LM.charImgs.length) ? LM.charImgs[si] : undefined;
+    if (LM.charImgs) LM.charImgs[si] = null;            // cache le perso de la carte
+    const offBg = document.createElement('canvas'); offBg.width = offBg.height = gRes;
+    if (typeof lmRenderToCanvas === 'function') lmRenderToCanvas(offBg);
+    LM_PE._graphCacheBg = offBg;
+    if (LM.charImgs && savedImg !== undefined) LM.charImgs[si] = savedImg;
+
     window._lmShowZoneNums = savedNums;
     if (savedMask) s.maskPolygon = savedMask;
-  } catch (e) { console.warn('[mask] backdrop graph :', e); off = null; }
-  LM_PE._graphCache = off;
+  } catch (e) { console.warn('[mask] backdrop graph :', e); }
   LM_PE._view = { vx: s.cx - vsize / 2, vy: s.cy - vsize / 2, vsize, gRes };
 }
 
@@ -4138,11 +4157,23 @@ function lmPEDraw() {
   let hasBackdrop = false;
   if (LM_PE.targetSlot != null && LM_PE._graphCache && LM_PE._view) {
     const v = LM_PE._view, k = v.gRes / 1400;
+    const drawGraph = (cv) => ctx.drawImage(cv, v.vx * k, v.vy * k, v.vsize * k, v.vsize * k, M, M, DS, DS);
     ctx.save();
     ctx.beginPath(); ctx.rect(M, M, DS, DS); ctx.clip();
     ctx.fillStyle = '#0c0720'; ctx.fillRect(M, M, DS, DS);  // hors-graph éventuel
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(LM_PE._graphCache, v.vx * k, v.vy * k, v.vsize * k, v.vsize * k, M, M, DS, DS);
+    // 1) base : graph SANS le perso de la carte → ce qui apparaît HORS du masque.
+    drawGraph(LM_PE._graphCacheBg || LM_PE._graphCache);
+    // 2) perso clippé AU POLYGONE (mis à jour EN DIRECT au glissement des points)
+    //    → on voit le masque découper le perso en temps réel.
+    if (pts && pts.length >= 3) {
+      ctx.save();
+      ctx.beginPath();
+      pts.forEach((p, i) => { const px = lmPEPixel(p); i === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
+      ctx.closePath(); ctx.clip();
+      drawGraph(LM_PE._graphCache);
+      ctx.restore();
+    }
     ctx.restore();
     hasBackdrop = true;
   }
@@ -4173,18 +4204,8 @@ function lmPEDraw() {
   const { dist: eDist, edgeIdx: eIdx } = lmPEFindEdge(LM_PE._mx, LM_PE._my);
   const showEdge = eDist < LM_PE.EDGE_THRESH && LM_PE.dragging === null && LM_PE.hovering === null;
 
-  // Voile sombre sur la zone de la CARTE hors du polygone → on visualise ce qui
-  // sera COUPÉ, sans assombrir le contexte du graph autour. evenodd = carte − polygone.
-  if (hasBackdrop) {
-    const cb = _lmPECardBox();
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(cb.x, cb.y, cb.w, cb.h);
-    pts.forEach((p, k) => { const px = lmPEPixel(p); k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
-    ctx.fillStyle = 'rgba(8,4,20,0.55)';
-    ctx.fill('evenodd');
-    ctx.restore();
-  }
+  // (Plus de voile : le perso est déjà découpé au polygone en direct dans le
+  // backdrop ci-dessus → la coupe est visible telle qu'elle sera au rendu final.)
 
   // Polygon fill (léger quand un aperçu de carte est dessous, pour le laisser voir)
   ctx.beginPath();
