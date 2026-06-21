@@ -4204,8 +4204,18 @@ function lmPEDraw() {
   const { dist: eDist, edgeIdx: eIdx } = lmPEFindEdge(LM_PE._mx, LM_PE._my);
   const showEdge = eDist < LM_PE.EDGE_THRESH && LM_PE.dragging === null && LM_PE.hovering === null;
 
-  // (Plus de voile : le perso est déjà découpé au polygone en direct dans le
-  // backdrop ci-dessus → la coupe est visible telle qu'elle sera au rendu final.)
+  // Voile : on assombrit TOUT ce qui est HORS du polygone (toute la zone de
+  // dessin) → la zone gardée (le masque) ressort nettement, et au glissement
+  // d'un point la frontière clair/sombre bouge en direct (édition bien visible).
+  if (hasBackdrop) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(M, M, DS, DS);
+    pts.forEach((p, k) => { const px = lmPEPixel(p); k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
+    ctx.fillStyle = 'rgba(6,3,16,0.5)';
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
 
   // Polygon fill (léger quand un aperçu de carte est dessous, pour le laisser voir)
   ctx.beginPath();
