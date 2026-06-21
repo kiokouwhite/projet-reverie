@@ -566,6 +566,15 @@ if (document.readyState === 'loading') {
   lmInstallPreviewPanZoom();
 }
 
+// Le nouveau layout a-t-il un contenu digne d'être sauvegardé ? (évite de créer
+// des entrées vides si on ouvre puis ferme l'éditeur sans rien faire).
+function lmLayoutHasContent() {
+  const g = (LM.gameName || '').trim();
+  return !!(LM.bgDataUrl || LM.gameImgDataUrl
+    || (LM.charDataUrls || []).some(Boolean)
+    || (g && g !== 'Mon Jeu'));
+}
+
 function closeLayoutMaker() {
   document.getElementById('lmModal').style.display = 'none';
   // Reset guard de transition au cas où on aurait fermé en plein milieu
@@ -580,8 +589,12 @@ function closeLayoutMaker() {
   // → sauvegarde SILENCIEUSE. lmFinishAndSave réinitialise lui-même
   // _editIdx/_editId et s'en sert pour REMPLACER le layout (pas de doublon),
   // donc on ne les remet PAS à zéro ici avant l'appel.
-  if (LM._editId != null && typeof lmFinishAndSave === 'function') {
-    Promise.resolve(lmFinishAndSave(true)).catch(e => console.warn('[LM] auto-update à la fermeture:', e));
+  if (typeof lmFinishAndSave === 'function' && (LM._editId != null || lmLayoutHasContent())) {
+    // Édition OU nouveau layout ayant du contenu → sauvegarde finale silencieuse.
+    // Le nom est forcé au nom du jeu ; plus d'étape "Sauvegarder" dédiée.
+    Promise.resolve(lmFinishAndSave(true))
+      .then(() => { if (typeof lmShowAutoSavedToast === 'function') lmShowAutoSavedToast(); })
+      .catch(e => console.warn('[LM] auto-enregistrement à la fermeture:', e));
   } else {
     LM._editIdx = undefined;
     LM._editId  = undefined;
@@ -611,7 +624,7 @@ function lmGoTo(step) {
   if (LM._isTransitioning) return;
 
   const prevStep = LM.step;
-  const targetStep = Math.max(1, Math.min(9, step));
+  const targetStep = Math.max(1, Math.min(8, step));
 
   // Snapshot du panel sortant AVANT de toucher au DOM, pour le passer
   // à la transition oniriques (cf. lm-transitions.js). On ne joue la
@@ -688,20 +701,19 @@ function lmGoTo(step) {
     '👤 Images des personnages',
     '💬 Noms des joueurs',
     '🏅 Classements & rangs',
-    '🎉 Finaliser & sauvegarder',
   ];
   const el = document.getElementById('lmStepTitle');
-  if (el) el.textContent = `Étape ${LM.step}/9 — ${titles[LM.step-1]}`;
+  if (el) el.textContent = `Étape ${LM.step}/8 — ${titles[LM.step-1]}`;
 
   // Nav buttons
   const prev = document.getElementById('lmPrevBtn');
   const next = document.getElementById('lmNextBtn');
   if (prev) prev.disabled = LM.step === 1;
   if (next) {
-    next.textContent = LM.step === 9
+    next.textContent = LM.step === 8
       ? (LM._editId ? '💾 Mettre à jour le layout' : '🎉 Sauvegarder dans le coffre')
       : 'Suivant →';
-    next.classList.toggle('lm-btn-finish', LM.step === 9);
+    next.classList.toggle('lm-btn-finish', LM.step === 8);
   }
 
   // (Mini dots in footer retirés — redondants avec les icônes du header)
@@ -717,7 +729,6 @@ function lmGoTo(step) {
   if (LM.step === 6) lmInitChars();
   if (LM.step === 7) lmInitNames();
   if (LM.step === 8) lmInitRanks();
-  if (LM.step === 9) lmFinalStep();
 
   // Maintenant que le toPanel est peuplé, on lance la transition oniriques.
   // Le fromSnap a été cloné plus haut (avant le retrait de lm-step-active).
@@ -799,7 +810,7 @@ function lmGoTo(step) {
 }
 
 function lmNext() {
-  if (LM.step === 9) lmFinishAndSave();
+  if (LM.step === 8) lmFinishAndSave();
   else lmGoTo(LM.step + 1);
 }
 function lmPrev() { lmGoTo(LM.step - 1); }
@@ -2064,7 +2075,7 @@ async function lmOpenForEdit(layoutId) {
   // les dots ou Suivant si édition rapide). On reset aussi _isTransitioning
   // au cas où on aurait fermé en plein milieu d'une transition précédente.
   LM.step = 1;
-  LM.maxStep = 9; // mode édition : tous les steps déjà visités
+  LM.maxStep = 8; // mode édition : tous les steps déjà visités
   LM._isTransitioning = false;
   lmGoTo(1);
   document.getElementById('lmModal').style.display = 'flex';
@@ -2075,7 +2086,8 @@ async function lmOpenForEdit(layoutId) {
 }
 
 async function lmFinishAndSave(silent, keepEdit) {
-  const name = document.getElementById('lmLayoutNameInput')?.value.trim() || LM.gameName;
+  // Le nom du layout est TOUJOURS le nom du jeu (plus d'étape de nommage manuel).
+  const name = (LM.gameName || '').trim() || 'Layout custom';
   // Mode édition : réutiliser le même id ; sinon, créer un nouvel id
   const id   = LM._editId || ('custom_' + Date.now());
 
@@ -2198,6 +2210,7 @@ async function lmFinishAndSave(silent, keepEdit) {
   // un index valide (saveIdx) pour pointer la bonne entrée du coffre.
   if (keepEdit) {
     LM._editIdx = saveIdx;
+    LM._editId  = id;   // garde le MÊME id pour les sauvegardes suivantes (pas de doublon, même pour un layout neuf)
   } else {
     LM._editIdx = undefined;
     LM._editId  = undefined;
@@ -2710,7 +2723,7 @@ let _lmAutoSaveTimer = null;
 let _lmAutoSaving = false;
 let _lmAutoSaveDirty = false;
 function lmScheduleAutoSave() {
-  if (LM._editId == null) return;                         // pas en édition → rien
+  if (LM._editId == null && !lmLayoutHasContent()) return; // rien à sauver encore
   const modal = document.getElementById('lmModal');
   if (!modal || modal.style.display === 'none') return;   // modal fermé → rien
   _lmAutoSaveDirty = true;
@@ -2725,7 +2738,7 @@ function lmCancelAutoSave() {
 window.lmCancelAutoSave = lmCancelAutoSave;
 async function lmRunAutoSave() {
   _lmAutoSaveTimer = null;
-  if (LM._editId == null) return;
+  if (LM._editId == null && !lmLayoutHasContent()) return;
   if (_lmAutoSaving) { _lmAutoSaveDirty = true; return; }  // déjà en cours → replanifié à la fin
   _lmAutoSaving = true;
   _lmAutoSaveDirty = false;

@@ -1616,7 +1616,6 @@
         <div class="lm-dot" onclick="lmGoTo(6)" title="Personnages">👤</div>
         <div class="lm-dot" onclick="lmGoTo(7)" title="Noms">💬</div>
         <div class="lm-dot" onclick="lmGoTo(8)" title="Rangs">🏅</div>
-        <div class="lm-dot" onclick="lmGoTo(9)" title="Sauvegarder">🎉</div>
       </div>
       <button class="btn btn-icon lm-close-x" onclick="closeLayoutMaker()">✕</button>
     </div>
@@ -2216,22 +2215,8 @@
           </div>
         </div>
 
-        <!-- ── STEP 9 : FINALISER ── -->
-        <div class="lm-step-panel" data-step="9">
-          <div class="lm-block lm-final-block">
-            <div style="text-align:center;padding:10px 0 16px;">
-              <div style="font-size:40px;margin-bottom:8px;">🎉</div>
-              <div style="font-size:17px;font-weight:800;color:#7654c4;margin-bottom:6px;">Ton layout est prêt !</div>
-              <div style="font-size:13px;color:#9b7fb8;line-height:1.5;">Donne-lui un nom et sauvegarde-le dans ton coffre pour l'utiliser à tout moment.</div>
-            </div>
-            <img id="lmFinalThumb" style="display:none;width:100%;border-radius:12px;margin-bottom:12px;border:3px solid var(--border);box-shadow:0 4px 16px rgba(130,80,220,0.2);">
-            <label class="lm-label">📛 Nom du layout</label>
-            <input type="text" id="lmLayoutNameInput" placeholder="Ex: Mortal Kombat 1 — FightClub..." style="width:100%;margin-bottom:12px;">
-            <button id="lmFinalSaveBtn" class="btn btn-primary lm-btn-finish" onclick="lmFinishAndSave()" style="width:100%;font-size:14px;font-weight:800;padding:14px 24px;border-radius:14px;">
-              🎉 Sauvegarder dans le coffre
-            </button>
-          </div>
-        </div>
+        <!-- STEP 9 (Finaliser/Nommer) SUPPRIMÉ : le nom du layout = nom du jeu,
+             et la sauvegarde est automatique (pendant l'édition + à la fermeture). -->
 
       </div><!-- /lm-controls -->
 
@@ -2253,8 +2238,8 @@
 
     </div><!-- /lm-body -->
 
-    <!-- FOOTER RETIRÉ — navigation via les icônes du header. Le bouton
-         de sauvegarde est intégré dans le panel step 9 ci-dessus. -->
+    <!-- FOOTER RETIRÉ — navigation via les icônes du header. La sauvegarde
+         est automatique (auto-save pendant l'édition + à la fermeture). -->
     <!-- Boutons fantômes invisibles pour éviter les erreurs JS sur les
          updates de label/disabled dans lmGoTo (références conservées
          pour compat ascendante). -->
