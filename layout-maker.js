@@ -4020,7 +4020,12 @@ function lmPEBuildGraphBackdrop() {
 }
 
 function lmPolyClose() {
+  // Plus de bouton "Appliquer sans sauver" : fermer (✕) applique le masque.
+  // Les édits sont déjà écrits en direct (lmPELivePreview) ; on sécurise l'état
+  // final puis on rafraîchit l'aperçu.
+  if (typeof _lmPEWritePoints === 'function') _lmPEWritePoints();
   document.getElementById('lmPolyModal').style.display = 'none';
+  if (typeof lmRenderPreview === 'function') lmRenderPreview();
 }
 
 function lmPEInitCanvas() {
@@ -4184,11 +4189,12 @@ function lmPEWheel(e) {
 }
 
 function lmPEDblClick(e) {
-  if (LM_PE.points.length <= 3) return;
+  // Double-clic sur un point = bascule son angle entre ANGULEUX (carré) et
+  // ARRONDI (rond). La suppression d'un point se fait au CLIC DROIT (lmPERemoveAt).
   const pos = lmPEGetPos(e);
   const ptIdx = lmPEFindPoint(pos.x, pos.y);
   if (ptIdx >= 0) {
-    LM_PE.points.splice(ptIdx, 1);
+    LM_PE.points[ptIdx].rounded = !LM_PE.points[ptIdx].rounded;
     LM_PE.dragging = null;
     lmPEDraw(); lmPELivePreview();
   }
@@ -4204,6 +4210,21 @@ function lmPERemoveAt(e) {
 function lmPELivePreview() {
   _lmPEWritePoints();
   lmRenderPreview();
+}
+
+// Trace le chemin du polygone d'édition (en pixels canvas), avec coins ARRONDIS
+// pour les points marqués `rounded` — cohérent avec le rendu réel du masque
+// (drawMaskPolygonPath). L'appelant gère beginPath / clip / fill.
+function _lmPEPolyPath(ctx) {
+  const pix = LM_PE.points.map(p => ({ ...lmPEPixel(p), rounded: !!p.rounded }));
+  if (typeof drawMaskPolygonPath === 'function' && pix.some(p => p.rounded)) {
+    const xs = pix.map(p => p.x), ys = pix.map(p => p.y);
+    const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys);
+    drawMaskPolygonPath(ctx, pix, Math.min(bw, bh) * 0.15);
+  } else {
+    pix.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+  }
 }
 
 // ── Drawing ────────────────────────────────────────────────────────────────
@@ -4238,8 +4259,8 @@ function lmPEDraw() {
     if (pts && pts.length >= 3) {
       ctx.save();
       ctx.beginPath();
-      pts.forEach((p, i) => { const px = lmPEPixel(p); i === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
-      ctx.closePath(); ctx.clip();
+      _lmPEPolyPath(ctx);
+      ctx.clip();
       const cb = _lmPECardBox();
       if (LM.fillColor && LM.fillColor !== 'transparent') { ctx.fillStyle = LM.fillColor; ctx.fillRect(cb.x, cb.y, cb.w, cb.h); }
       const si = LM_PE.targetSlot, cimg = (LM.charImgs && LM.charImgs[si]);
@@ -4290,7 +4311,7 @@ function lmPEDraw() {
     ctx.save();
     ctx.beginPath();
     ctx.rect(M, M, DS, DS);
-    pts.forEach((p, k) => { const px = lmPEPixel(p); k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y); });
+    _lmPEPolyPath(ctx);
     ctx.fillStyle = 'rgba(6,3,16,0.5)';
     ctx.fill('evenodd');
     ctx.restore();
@@ -4298,11 +4319,7 @@ function lmPEDraw() {
 
   // Polygon fill (léger quand un aperçu de carte est dessous, pour le laisser voir)
   ctx.beginPath();
-  pts.forEach((p, k) => {
-    const px = lmPEPixel(p);
-    k === 0 ? ctx.moveTo(px.x, px.y) : ctx.lineTo(px.x, px.y);
-  });
-  ctx.closePath();
+  _lmPEPolyPath(ctx);
   ctx.fillStyle = hasBackdrop ? 'rgba(119,105,221,0.08)' : 'rgba(119,105,221,0.22)';
   ctx.fill();
 
@@ -4334,7 +4351,7 @@ function lmPEDraw() {
     }
   }
 
-  // Points
+  // Points : ROND = coin arrondi, CARRÉ = coin anguleux (double-clic pour basculer).
   pts.forEach((p, i) => {
     const px = lmPEPixel(p);
     const isHover = LM_PE.hovering === i;
@@ -4343,12 +4360,13 @@ function lmPEDraw() {
 
     ctx.shadowColor = isDrag ? '#F5C842' : isHover ? '#C87DD4' : 'rgba(119,105,221,0.8)';
     ctx.shadowBlur  = isDrag ? 18 : 10;
-    ctx.beginPath(); ctx.arc(px.x, px.y, r, 0, Math.PI*2);
     ctx.fillStyle   = isDrag ? '#F5C842' : isHover ? '#C87DD4' : '#7769DD';
+    ctx.beginPath();
+    if (p.rounded) ctx.arc(px.x, px.y, r, 0, Math.PI*2);
+    else           ctx.rect(px.x - r, px.y - r, r*2, r*2);
     ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.shadowBlur  = 0; ctx.shadowColor = 'transparent';
-    // (Plus de numéros : petits points épurés, plus lisibles avec beaucoup de points.)
   });
 
   // Corner labels
@@ -4363,7 +4381,7 @@ function lmPEDraw() {
   ctx.fillStyle = 'rgba(200,180,255,0.35)';
   ctx.font = '10px Nunito, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(`${pts.length} points  ·  Glisse · Clic = +point · Dbl-clic = -point · Molette = zoom`, S/2, S-4);
+  ctx.fillText(`${pts.length} points  ·  Clic droit = supprimer · Dbl-clic = arrondir · Molette = zoom`, S/2, S-4);
 }
 
 // ── Saved shapes ───────────────────────────────────────────────────────────

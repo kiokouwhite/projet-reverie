@@ -2352,7 +2352,6 @@
         <span class="lm-poly-title" id="lmPolyTitle">Éditeur de polygone</span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn lm-poly-apply-btn" onclick="lmPolyApply()">✅ Appliquer sans sauver</button>
         <button class="btn btn-icon" onclick="lmPolyClose()">✕</button>
       </div>
     </div>
@@ -2367,20 +2366,11 @@
           <span>·</span>
           <span>🖱️ <strong>Clic sur un côté</strong> pour ajouter</span>
           <span>·</span>
-          <span>🖱️ <strong>Double-clic</strong> pour supprimer</span>
+          <span>🖱️ <strong>Clic droit</strong> pour supprimer</span>
+          <span>·</span>
+          <span>🖱️ <strong>Double-clic</strong> pour arrondir l'angle</span>
         </div>
-
-        <!-- Presets -->
-        <div class="lm-poly-presets">
-          <span class="lm-poly-presets-label">Présets :</span>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('square')">⬜ Carré</button>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('triangle')">△ Triangle</button>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('diamond')">◇ Losange</button>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('hexagon')">⬡ Hexagone</button>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('arrow')">➤ Flèche</button>
-          <button class="lm-preset-btn" onclick="lmPolyPreset('star')">★ Étoile</button>
-          <button class="lm-preset-btn lm-preset-reset" onclick="lmPolyReset()">↩ Reset</button>
-        </div>
+        <!-- Présets supprimés (inutiles). Carré = angle anguleux, rond = arrondi. -->
 
         <!-- Canvas -->
         <div class="lm-poly-canvas-wrap">
