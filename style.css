@@ -1351,6 +1351,7 @@ select {
   font-size: 13px;
   font-weight: 600;
   border: 2px solid transparent;
+  text-align: center;
 }
 .status-msg.success { background: #e8fff5; color: #1e7d52; border-color: #a8e6c8; }
 .status-msg.error   { background: #fff0f5; color: #c4305a; border-color: #ffb8cc; }
