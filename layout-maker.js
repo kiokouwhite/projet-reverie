@@ -1120,6 +1120,10 @@ function lmInitShapes() {
   // Reflète le toggle "découper les persos" à chaque entrée sur l'étape.
   const cs = document.getElementById('lmCharSplit');
   if (cs) cs.checked = LM.charSplit !== false;
+  // Re-remplit les contrôles (couleur/épaisseur/fond du contour…) depuis LM à
+  // CHAQUE entrée — sinon, au rechargement d'un layout, les inputs gardent les
+  // défauts HTML et un lmSyncShape ultérieur écrase la valeur sauvegardée.
+  lmShowShapeControls();
   const grid = document.getElementById('lmShapeGrid');
   if (!grid || grid.dataset.ready) return;
   grid.dataset.ready = '1';
@@ -1132,7 +1136,6 @@ function lmInitShapes() {
     </button>
   `).join('');
   lmAppendPolyShapes(grid);
-  lmShowShapeControls();
 }
 
 function lmAppendPolyShapes(grid) {
@@ -1212,6 +1215,27 @@ function lmShowShapeControls() {
   show('lmCtrlRadius',   LM.shape === 'rounded');
   show('lmCtrlSkew',     LM.shape === 'parallelogram');
   show('lmCtrlTrap',     LM.shape === 'trapezoid');
+
+  // Re-remplit les inputs depuis LM (couleur/épaisseur du contour, fond de carte,
+  // radius/skew/trapèze) + le champ hex injecté à côté des color-pick. Sans ça,
+  // au rechargement d'un layout les inputs restaient sur les défauts HTML et la
+  // moindre édition de forme écrasait la couleur/épaisseur sauvegardées.
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (!el || v == null) return;
+    el.value = v;
+    const sib = el.nextElementSibling;
+    if (sib) {
+      if (sib.type === 'number') sib.value = v;
+      else if (sib.classList && sib.classList.contains('hex-input')) sib.value = v;
+    }
+  };
+  setVal('lmRadius',           LM.radius);
+  setVal('lmSkew',             LM.skew);
+  setVal('lmTrapRatio',        Math.round((LM.trapRatio ?? 0.75) * 100));
+  setVal('lmShapeStrokeColor', LM.strokeColor);
+  setVal('lmShapeStrokeWidth', LM.strokeWidth);
+  setVal('lmShapeFillColor',   LM.fillColor);
 }
 
 function lmInitSlotPositions() {
