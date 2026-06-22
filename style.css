@@ -13,6 +13,15 @@
   src: url('fonts/texgyretermes-bold.otf') format('opentype');
 }
 
+/* Amanojaku — police display fournie par l'asso, auto-hébergée (absente de Google
+   Fonts). Plage de poids 100-900 déclarée pour qu'elle s'applique à tous les poids
+   demandés (titres/pseudos en 800) sans faux-gras (un seul fichier). */
+@font-face {
+  font-family: 'Amanojaku';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('fonts/Amanojaku.otf') format('opentype');
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {

@@ -357,6 +357,7 @@ const LM_FONTS = [
   { id:"'Chakra Petch'",      label:'Chakra Petch',       sample:'TOURNAMENT' },
   { id:"'Black Han Sans'",    label:'Black Han Sans',     sample:'TOURNAMENT' },
   { id:"'Tex Gyre Termes'",   label:'Tex Gyre Termes',    sample:'Tournament' },
+  { id:"'Amanojaku'",         label:'Amanojaku',          sample:'TOURNAMENT' },
 ];
 
 // ── FORMES DISPONIBLES ────────────────────────────────────────────────────────
