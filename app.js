@@ -2551,12 +2551,18 @@ function drawLayoutSlots(ctx, layout, sc) {
 // centerAngle = angle du milieu du texte (en radians, repère canvas : 0 = droite,
 // -π/2 = haut, π/2 = bas). Mesure la largeur de chaque char pour répartir
 // proportionnellement → le texte garde son spacing naturel sur la courbe.
-function drawCurvedText(ctx, text, cx, cy, radius, centerAngle) {
+function drawCurvedText(ctx, text, cx, cy, radius, centerAngle, opts) {
   if (!text) return;
+  opts = opts || {};
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.textAlign    = 'center';
-  ctx.letterSpacing = '2px';
+  // Espacement : utilise opts.letterSpacing si fourni (sinon 2px, comportement
+  // historique pour les appels sans options).
+  ctx.letterSpacing = (opts.letterSpacing != null) ? `${opts.letterSpacing}px` : '2px';
+  // Contour optionnel (tracé SOUS le remplissage pour faire un vrai liseré).
+  const sw = opts.strokeWidth || 0;
+  if (sw > 0) { ctx.strokeStyle = opts.strokeColor || '#000'; ctx.lineWidth = sw; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; }
   // Mesure les largeurs angulaires (charWidth / radius)
   const chars = Array.from(text);
   const angWidths = chars.map(ch => Math.max(8, ctx.measureText(ch).width) / radius);
@@ -2573,6 +2579,7 @@ function drawCurvedText(ctx, text, cx, cy, radius, centerAngle) {
     // Rotation : le char doit être perpendiculaire à la tangente du cercle
     // → angle + π/2 (le baseline du texte suit la tangente)
     ctx.rotate(charAngle + Math.PI / 2);
+    if (sw > 0) ctx.strokeText(chars[i], 0, 0);
     ctx.fillText(chars[i], 0, 0);
     ctx.restore();
     angle += a;

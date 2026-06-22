@@ -3624,10 +3624,19 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     // (ns.arc), centré sur (nameX, nameY).
     if (cfg.curvedNames && typeof drawCurvedText === 'function') {
       // Parité GGST : pseudo courbé autour du cercle (centre d'arc en haut-droite
-      // à -π/4, rayon = bord du cercle + 22px). Même calcul que le rendu natif.
+      // à -π/4, rayon = bord du cercle + 22px). Les réglages du panneau « Noms »
+      // s'appliquent désormais : ROTATION tourne le texte autour du cercle,
+      // COURBURE ajuste le rayon (courbe plus/moins serrée), et couleur / contour /
+      // espacement sont respectés (via drawCurvedText enrichi).
       const _r = (slot.w / 2);
+      const centerA = -Math.PI / 4 + ((ns.rotation || 0) * Math.PI / 180);
+      const radius  = Math.max(12, ((_r + 22) - (ns.arc || 0)) * sc);
       ctx.fillStyle = nameColor;
-      drawCurvedText(ctx, name.toUpperCase(), cx, cy, (_r + 22) * sc, -Math.PI / 4);
+      drawCurvedText(ctx, name.toUpperCase(), cx, cy, radius, centerA, {
+        letterSpacing: (ns.spacing || 4) * sc,
+        strokeColor:   ns.strokeColor || '#000',
+        strokeWidth:   (ns.strokeWidth || 0) * sc,
+      });
     } else {
       lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
         bendDeg: ns.arc || 0,
