@@ -33,6 +33,22 @@ function saveManualCrop(charId, costume, cx, cy, zoom, flip) {
   localStorage.setItem('top8_crop_data', JSON.stringify(data));
 }
 
+// Jeu "effectif" pour résoudre l'IMAGE et le CROP d'un perso : si le layout
+// courant a été CONVERTI depuis un built-in (custom_lm → champ baseGame), on
+// utilise le jeu d'origine. Sinon, l'image/crop de la modale divergerait du
+// graph (qui résout via baseGame) — ex. GGST converti : currentGame='ggst__lm'
+// mais l'image vient du dossier 'ggst' (portraits GGST2).
+// NB : ne PAS utiliser pour les lookups de config (LAYOUTS[currentGame],
+// _slotCfgsMem[currentGame]) qui doivent rester sur l'ID du layout custom.
+function _cropGame() {
+  const g = (typeof currentGame !== 'undefined') ? currentGame : 'ssbu';
+  try {
+    const L = (typeof LAYOUTS !== 'undefined') ? LAYOUTS[g] : null;
+    if (L && L.baseGame) return L.baseGame;
+  } catch (e) {}
+  return g;
+}
+
 function getCrop(charId, costume) {
   const key = `${ICON_BASENAME[charId]}${costume}`;
   // 1. Ajustement manuel (priorité absolue)
@@ -41,7 +57,7 @@ function getCrop(charId, costume) {
   // 2. Détection Python (crops.json)
   if (cropsJson[key]) return { ...cropsJson[key], source: 'auto' };
   // 3. Défaut
-  const g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const g = _cropGame();
   // GGST : les portraits du dossier GGST2 sont des images RONDES déjà cadrées
   // (256², vignette circulaire centrée) → on les mappe 1:1 sur le cercle du
   // slot (centré, zoom 1) au lieu du cadrage tête plein-corps. Les persos hors
@@ -110,7 +126,7 @@ function drawImageClampedSrc(ctx, img, srcX, srcY, srcSize, dX, dY, dSize, flip)
 // pas encore dans le repo SF6). Permet d'afficher quand même un visuel
 // du perso plutôt que juste l'emoji icon.
 function drawCharWithCrop(ctx, char, costume, black, sc, fallbackCharImgUrl) {
-  const g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const g = _cropGame();
   const key = `${g}_${char.id}_${costume}`;
   let cached = imgCache[key];
   // Fallback start.gg si le mural local n'est pas chargé (404) mais qu'on a
@@ -237,7 +253,7 @@ function toggleCropFlip() {
   const btn = document.getElementById('flipBtn');
   if (btn) btn.classList.toggle('active', cropAdjust.flip);
   const canvas = document.getElementById('cropCanvas');
-  const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const _g = _cropGame();
   let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
   // Même fallback start.gg que dans openCropAdjuster
   if (!img && typeof players !== 'undefined') {
@@ -259,7 +275,7 @@ function openCropAdjuster(charId, costume, slotIdx) {
 
   const modal  = document.getElementById('cropModal');
   const canvas = document.getElementById('cropCanvas');
-  const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const _g = _cropGame();
   let img    = imgCache[`${_g}_${charId}_${costume}`]?._img;
   // Fallback : image start.gg préchargée si le mural local manque
   // (Alex SF6 par ex.). On cherche dans players[] le charImgUrl associé
@@ -343,7 +359,7 @@ function updateCropZoom(val) {
   cropAdjust.zoom = parseFloat(val);
   document.getElementById('zoomVal').textContent = parseFloat(val).toFixed(1);
   const canvas = document.getElementById('cropCanvas');
-  const _g2 = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const _g2 = _cropGame();
   const img = imgCache[`${_g2}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
   if (img) renderCropPreview(canvas, img);
 }
@@ -361,7 +377,7 @@ function resetCropToAuto() {
   document.getElementById('zoomVal').textContent = parseFloat(cropAdjust.zoom).toFixed(1);
   document.getElementById('cropSource').textContent = cropsJson[key] ? '🤖 Détection automatique' : '⚙️ Valeur par défaut';
   const canvas = document.getElementById('cropCanvas');
-  const _g2 = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+  const _g2 = _cropGame();
   const img = imgCache[`${_g2}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
   if (img) renderCropPreview(canvas, img);
 }
@@ -460,7 +476,7 @@ function _renderCropOrMask() {
   if (cropAdjust.mode === 'mask') {
     renderMaskEditor(canvas);
   } else {
-    const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+    const _g = _cropGame();
     let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
     if (!img && typeof players !== 'undefined') {
       const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
@@ -746,7 +762,7 @@ function _bindCropCanvasEvents() {
   } else {
     // Mode crop : restore le drag d'image
     canvas.style.cursor = 'grab';
-    const _g = typeof currentGame !== 'undefined' ? currentGame : 'ssbu';
+    const _g = _cropGame();
     let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
     if (!img && typeof players !== 'undefined') {
       const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
