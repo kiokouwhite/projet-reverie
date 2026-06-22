@@ -358,6 +358,27 @@ const LM_FONTS = [
   { id:"'Black Han Sans'",    label:'Black Han Sans',     sample:'TOURNAMENT' },
   { id:"'Tex Gyre Termes'",   label:'Tex Gyre Termes',    sample:'Tournament' },
   { id:"'Amanojaku'",         label:'Amanojaku',          sample:'TOURNAMENT' },
+  // ── Top 20 Google Fonts les plus populaires ──
+  { id:'Roboto',              label:'Roboto',             sample:'TOURNAMENT' },
+  { id:"'Open Sans'",         label:'Open Sans',          sample:'TOURNAMENT' },
+  { id:'Lato',                label:'Lato',               sample:'TOURNAMENT' },
+  { id:'Poppins',             label:'Poppins',            sample:'TOURNAMENT' },
+  { id:'Inter',               label:'Inter',              sample:'TOURNAMENT' },
+  { id:'Raleway',             label:'Raleway',            sample:'TOURNAMENT' },
+  { id:'Ubuntu',              label:'Ubuntu',             sample:'TOURNAMENT' },
+  { id:"'Nunito Sans'",       label:'Nunito Sans',        sample:'TOURNAMENT' },
+  { id:"'PT Sans'",           label:'PT Sans',            sample:'TOURNAMENT' },
+  { id:"'Work Sans'",         label:'Work Sans',          sample:'TOURNAMENT' },
+  { id:'Rubik',               label:'Rubik',              sample:'TOURNAMENT' },
+  { id:'Mukta',               label:'Mukta',              sample:'TOURNAMENT' },
+  { id:"'Noto Sans'",         label:'Noto Sans',          sample:'TOURNAMENT' },
+  { id:'Kanit',               label:'Kanit',              sample:'TOURNAMENT' },
+  { id:"'Roboto Condensed'",  label:'Roboto Condensed',   sample:'TOURNAMENT' },
+  { id:'Merriweather',        label:'Merriweather',       sample:'Tournament' },
+  { id:"'Playfair Display'",  label:'Playfair Display',   sample:'Tournament' },
+  { id:'Lora',                label:'Lora',               sample:'Tournament' },
+  { id:"'Roboto Slab'",       label:'Roboto Slab',        sample:'TOURNAMENT' },
+  { id:"'Roboto Mono'",       label:'Roboto Mono',        sample:'TOURNAMENT' },
 ];
 
 // ── FORMES DISPONIBLES ────────────────────────────────────────────────────────
