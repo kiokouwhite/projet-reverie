@@ -2115,6 +2115,19 @@ async function lmOpenForEdit(layoutId) {
           if (im) { const _i = i; const _src = im; const t = setInterval(() => { if (_src._loaded) { LM.charImgs[_i] = _src._img; lmRenderPreview(); clearInterval(t); } }, 120); setTimeout(() => clearInterval(t), 4000); }
         }
       }
+      // Fallback start.gg : perso SANS mural local (ex. Alex sur SF6) → on utilise
+      // l'image charImgUrl du joueur, comme le rendu du graph (drawCustomLMLayout) ;
+      // sinon la carte reste vide dans l'aperçu de l'éditeur.
+      if (!LM.charImgs[i] && typeof players !== 'undefined' && players[i]?.charImgUrl) {
+        const sgKey = `__sg__${players[i].charImgUrl}`;
+        if (typeof imgCache !== 'undefined' && imgCache[sgKey]?._loaded) {
+          LM.charImgs[i] = imgCache[sgKey]._img;
+        } else {
+          const _i = i; const im2 = new Image(); im2.crossOrigin = 'anonymous';
+          im2.onload = () => { if (!LM.charImgs[_i]) { LM.charImgs[_i] = im2; lmRenderPreview(); } };
+          im2.src = players[i].charImgUrl;
+        }
+      }
     });
     // Overlay et image du jeu : déjà chargés dans LAYOUTS._lm par lmRegisterLayout
     if (_layoutEntry._lm.overlayImg) LM.overlayImg = _layoutEntry._lm.overlayImg;
