@@ -2125,6 +2125,14 @@
           <div class="lm-block">
             <div class="lm-block-title">🏅 Style des classements</div>
             <div class="title-row">
+              <span>Afficher les rangs</span>
+              <label class="lm-toggle-wrap">
+                <input type="checkbox" id="lmShowRanks" onchange="lmSyncRanks()">
+                <span class="lm-toggle-track"><span class="lm-toggle-thumb"></span></span>
+              </label>
+              <span style="font-size:11px;color:var(--text-soft);">dessine les 1 / 2 / 3</span>
+            </div>
+            <div class="title-row">
               <span>Nombres seulement</span>
               <label class="lm-toggle-wrap">
                 <input type="checkbox" id="lmRankNumbersOnly" onchange="lmSyncRanks()">

@@ -1797,6 +1797,7 @@ function lmInitRanks() {
   const setC = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
   // Global rank style
   const rs = LM.rankStyle;
+  setC('lmShowRanks', !LM.hideRanks);   // toggle ON = rangs visibles (hideRanks=false)
   setC('lmRankNumbersOnly', rs.numbersOnly);
   setV('lmRankSc', rs.strokeColor);
   setV('lmRankSw', rs.strokeWidth);
@@ -1837,6 +1838,9 @@ function lmSyncRanks() {
   const gc = id => { const el = document.getElementById(id); return el ? el.checked : false; };
 
   const rs = LM.rankStyle;
+  // Toggle « Afficher les rangs » : coché = on dessine les rangs (hideRanks=false).
+  const _showRanksEl = document.getElementById('lmShowRanks');
+  if (_showRanksEl) LM.hideRanks = !_showRanksEl.checked;
   rs.numbersOnly = gc('lmRankNumbersOnly');
   rs.strokeColor = g('lmRankSc') || '#000000';
   rs.strokeWidth = syncRange('lmRankSw');
@@ -2567,6 +2571,9 @@ function lmBuildLayoutFromBuiltin(gameId) {
       maskPolygon: TORN_POLY.map(([x,y]) => ({ x, y })),
     }));
     layout.charCrops = [0,1,2].map(() => ({ cx: 0.5, cy: 0.22, zoom: 1 }));
+    // SF6 n'a pas de numeros bakes dans le fond -> on AFFICHE les rangs par defaut
+    // (editables/masquables via le toggle « Afficher les rangs »).
+    layout.hideRanks = false;
   } else {
     // Tekken 8 (trapèze), etc. : à venir.
     return null;
