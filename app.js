@@ -3441,7 +3441,7 @@ function openEditorModal() {
   // Maker (conversion fidèle du jeu). Pour l'instant : GGST. SF6/Tekken 8 à venir.
   // Si la conversion n'est pas possible (build null), on retombe sur l'éditeur
   // standard ci-dessous.
-  const LM_CONVERTIBLE = ['ggst'];
+  const LM_CONVERTIBLE = ['ggst', 'sf6'];
   if (LM_CONVERTIBLE.includes(currentGame)
       && typeof lmConvertBuiltinAndEdit === 'function'
       && typeof lmBuildLayoutFromBuiltin === 'function'

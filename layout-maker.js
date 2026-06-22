@@ -2511,8 +2511,27 @@ function lmBuildLayoutFromBuiltin(gameId) {
       nameX: s.cx, nameY: s.nameY,
       rankX: s.rankX, rankY: s.rankY, rankSize: 64,
     }));
+  } else if (bl.slotType === 'torn') {
+    // SF6 : slots rectangulaires + masque « papier déchiré ». On réutilise le
+    // MÊME polygone que le rendu natif (cf. app.js, type 'torn') comme maskPolygon
+    // de chaque slot → parité visuelle. Cadrage par défaut = défaut SF6 (tête,
+    // cy 0.22) plutôt que centré, pour coller au rendu natif des persos plein corps.
+    layout.fillColor = bl.slotBgColor || 'transparent';
+    const TORN_POLY = [
+      [0.04,0.02],[0.32,0.0],[0.55,0.04],[0.78,0.0],[0.96,0.03],
+      [1.00,0.28],[0.97,0.55],[1.00,0.80],[0.94,0.99],
+      [0.72,0.97],[0.45,1.00],[0.22,0.96],[0.04,1.00],
+      [0.00,0.72],[0.03,0.45],[0.00,0.18],
+    ];
+    layout.slots = (bl.slots || []).map(s => ({
+      cx: s.cx, cy: s.cy, w: s.w, h: s.h,
+      nameX: s.cx, nameY: s.nameY,
+      rankX: s.rankX, rankY: s.rankY, rankSize: 64,
+      maskPolygon: TORN_POLY.map(([x,y]) => ({ x, y })),
+    }));
+    layout.charCrops = [0,1,2].map(() => ({ cx: 0.5, cy: 0.22, zoom: 1 }));
   } else {
-    // SF6 (torn / polygone), Tekken 8 (trapèze) : à venir.
+    // Tekken 8 (trapèze), etc. : à venir.
     return null;
   }
   return layout;
