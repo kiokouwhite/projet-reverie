@@ -3731,7 +3731,15 @@ function drawCustomLMLayout(ctx, layout, sc, playersParam) {
     const name = (_players[i]?.name)
       ? lmFormatPlayerName(_players[i], '')
       : (layout.playerNames?.[i] || `Joueur ${i+1}`);
-    lmDrawOneSlot(ctx, slot, i, sc, img, layout.charCrops?.[i], name, layout);
+    // Crop : un ajustement MANUEL (modale « Ajuster le cadrage ») prime sur le
+    // crop baked du layout. Sans ça, sur les layouts custom_lm (ex. GGST converti),
+    // le cadrage ajusté n'apparaissait pas sur le graph (getCrop était ignoré).
+    let _crop = layout.charCrops?.[i];
+    if (pl?.charId && typeof getCrop === 'function') {
+      const _mc = getCrop(pl.charId, pl.costume || 1);
+      if (_mc && _mc.source === 'manual') _crop = _mc;
+    }
+    lmDrawOneSlot(ctx, slot, i, sc, img, _crop, name, layout);
   });
 
   // 3. Overlay PNG par-dessus les slots (bandeau décoratif, etc.)

@@ -3317,7 +3317,22 @@ function generatePreview() {
   const fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
   Promise.all([Promise.all(toLoad), fontsReady]).then(() => {
     loadTitleConfig(); // garantit que CONFIG est à jour au moment du rendu (résolution async)
-    renderCanvas(document.getElementById('previewCanvas'), 1400);
+    const _pcv = document.getElementById('previewCanvas');
+    renderCanvas(_pcv, 1400);
+    // Mode multi : refléter le rendu live dans le canvas mis en cache du graph
+    // courant → les éditions inline (cadrage, noms…) persistent à la navigation
+    // ET à l'export/partage (qui s'appuient sur graph.canvas / canvasDataUrl).
+    try {
+      if (typeof graphs !== 'undefined' && Array.isArray(graphs) && graphs.length
+          && typeof currentGraphIdx === 'number' && graphs[currentGraphIdx] && _pcv && _pcv.width) {
+        const _g = graphs[currentGraphIdx];
+        const _c = document.createElement('canvas');
+        _c.width = _pcv.width; _c.height = _pcv.height;
+        _c.getContext('2d').drawImage(_pcv, 0, 0);
+        _g.canvas = _c;
+        try { _g.canvasDataUrl = _c.toDataURL('image/png'); } catch(e) { _g.canvasDataUrl = null; }
+      }
+    } catch(e) { /* non bloquant */ }
     renderEditorCanvas();
     updateTweet();
   });
