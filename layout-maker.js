@@ -4004,13 +4004,17 @@ function lmPEBuildGraphBackdrop() {
 
     const savedImg = (LM.charImgs && si < LM.charImgs.length) ? LM.charImgs[si] : undefined;
     const savedFill = LM.fillColor;
+    const savedStroke = LM.strokeWidth;
     if (LM.charImgs) LM.charImgs[si] = null;            // cache le perso de la carte
     LM.fillColor = 'transparent';                       // …ET son fond → carte TOTALEMENT
                                                         // absente, on voit le vrai fond derrière.
+    LM.strokeWidth = 0;                                 // …ET pas de contour FIGÉ : lmPEDraw
+                                                        // le retrace en direct le long du masque.
     const offBg = document.createElement('canvas'); offBg.width = offBg.height = gRes;
     if (typeof lmRenderToCanvas === 'function') lmRenderToCanvas(offBg);
     LM_PE._graphCacheBg = offBg;
     LM.fillColor = savedFill;
+    LM.strokeWidth = savedStroke;
     if (LM.charImgs && savedImg !== undefined) LM.charImgs[si] = savedImg;
 
     window._lmShowZoneNums = savedNums;
@@ -4315,6 +4319,24 @@ function lmPEDraw() {
     ctx.fillStyle = 'rgba(6,3,16,0.5)';
     ctx.fill('evenodd');
     ctx.restore();
+  }
+
+  // Contour LIVE de la carte : on retrace son bord le long du polygone (le fond
+  // pré-rendu n'a plus de contour figé) → la bordure suit l'édition en direct,
+  // coins arrondis compris. Dessiné APRÈS le voile pour ne pas être assombri.
+  if (hasBackdrop && (LM.strokeWidth || 0) > 0 && typeof _lmPECardBox === 'function') {
+    const cbC = _lmPECardBox();
+    const slotEd = LM.slots && LM.slots[LM_PE.targetSlot];
+    if (cbC && slotEd) {
+      ctx.save();
+      ctx.beginPath();
+      _lmPEPolyPath(ctx);
+      ctx.strokeStyle = LM.strokeColor || '#7769DD';
+      ctx.lineWidth   = Math.max(1, LM.strokeWidth * cbC.w / (slotEd.w || cbC.w));
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // Polygon fill (léger quand un aperçu de carte est dessous, pour le laisser voir)
