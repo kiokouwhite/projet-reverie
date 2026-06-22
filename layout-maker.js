@@ -1685,6 +1685,11 @@ function lmInitNames() {
   setV('lmNsSp', ns.spacing);
   setV('lmNsRot', ns.rotation || 0);
   setV('lmNsArc', ns.arc || 0);
+  // Ombre portée (défauts = ancien comportement codé en dur : noir, 90%, flou 8, décalage 2)
+  setV('lmNsShadowColor',   ns.shadowColor || '#000000');
+  setV('lmNsShadowOpacity', ns.shadowOpacity != null ? Math.round(ns.shadowOpacity * 100) : 90);
+  setV('lmNsShadowBlur',    ns.shadowBlur    != null ? ns.shadowBlur   : 8);
+  setV('lmNsShadowOffset',  ns.shadowOffset  != null ? ns.shadowOffset : 2);
 }
 
 function lmSyncNames() {
@@ -1713,6 +1718,11 @@ function lmSyncNames() {
   ns.spacing     = syncRange('lmNsSp');
   ns.rotation    = syncRange('lmNsRot');
   ns.arc         = syncRange('lmNsArc');
+  // Ombre portée du pseudo
+  ns.shadowColor   = g('lmNsShadowColor') || '#000000';
+  ns.shadowOpacity = syncRange('lmNsShadowOpacity') / 100;
+  ns.shadowBlur    = syncRange('lmNsShadowBlur');
+  ns.shadowOffset  = syncRange('lmNsShadowOffset');
   // Les pseudos SANS taille individuelle suivent la taille globale : on reflète
   // la nouvelle taille globale dans leurs sliders (ceux qui ont une taille
   // individuelle conservent la leur).
@@ -3618,35 +3628,53 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     ctx.font = `${ns.weight||'800'} ${Math.round(_nsz*sc)}px ${cfg.font||'Montserrat'}, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.letterSpacing = `${(ns.spacing||4)*sc}px`;
-    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8*sc;
-    ctx.shadowOffsetX = 2*sc; ctx.shadowOffsetY = 2*sc;
-    // Dessin du pseudo : droit, tourné (ns.rotation) et/ou courbé en arc
-    // (ns.arc), centré sur (nameX, nameY).
-    if (cfg.curvedNames && typeof drawCurvedText === 'function') {
-      // Parité GGST : pseudo courbé autour du cercle (centre d'arc en haut-droite
-      // à -π/4, rayon = bord du cercle + 22px). Les réglages du panneau « Noms »
-      // s'appliquent désormais : ROTATION tourne le texte autour du cercle,
-      // COURBURE ajuste le rayon (courbe plus/moins serrée), et couleur / contour /
-      // espacement sont respectés (via drawCurvedText enrichi).
-      const _r = (slot.w / 2);
-      const centerA = -Math.PI / 4 + ((ns.rotation || 0) * Math.PI / 180);
-      const radius  = Math.max(12, ((_r + 22) - (ns.arc || 0)) * sc);
-      ctx.fillStyle = nameColor;
-      drawCurvedText(ctx, name.toUpperCase(), cx, cy, radius, centerA, {
-        letterSpacing: (ns.spacing || 4) * sc,
-        strokeColor:   ns.strokeColor || '#000',
-        strokeWidth:   (ns.strokeWidth || 0) * sc,
-      });
-    } else {
-      lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
-        bendDeg: ns.arc || 0,
-        rotDeg:  ns.rotation || 0,
-        letterSpacing: (ns.spacing || 4) * sc,
-        fill:   nameColor,
-        stroke: { color: ns.strokeColor || '#000', width: (ns.strokeWidth || 0) * sc },
-        maxWidth: _nmw > 0 ? _nmw * sc : 0,
-      });
+    // Dessin du pseudo : droit, tourné (ns.rotation) et/ou courbé en arc (ns.arc).
+    const drawName = () => {
+      if (cfg.curvedNames && typeof drawCurvedText === 'function') {
+        // Parité GGST : pseudo courbé autour du cercle (centre à -π/4, rayon = bord
+        // + 22px). ROTATION tourne le texte autour du cercle, COURBURE ajuste le
+        // rayon, et couleur / contour / espacement sont respectés.
+        const _r = (slot.w / 2);
+        const centerA = -Math.PI / 4 + ((ns.rotation || 0) * Math.PI / 180);
+        const radius  = Math.max(12, ((_r + 22) - (ns.arc || 0)) * sc);
+        ctx.fillStyle = nameColor;
+        drawCurvedText(ctx, name.toUpperCase(), cx, cy, radius, centerA, {
+          letterSpacing: (ns.spacing || 4) * sc,
+          strokeColor:   ns.strokeColor || '#000',
+          strokeWidth:   (ns.strokeWidth || 0) * sc,
+        });
+      } else {
+        lmDrawArcableText(ctx, name.toUpperCase(), nameX, slot.nameY*sc, {
+          bendDeg: ns.arc || 0,
+          rotDeg:  ns.rotation || 0,
+          letterSpacing: (ns.spacing || 4) * sc,
+          fill:   nameColor,
+          stroke: { color: ns.strokeColor || '#000', width: (ns.strokeWidth || 0) * sc },
+          maxWidth: _nmw > 0 ? _nmw * sc : 0,
+        });
+      }
+    };
+    // Ombre portée CONTRÔLABLE (couleur/opacité/flou/décalage) et dessinée
+    // DERRIÈRE : on rend le pseudo une 1ʳᵉ fois AVEC l'ombre (qui se projette en
+    // décalé), puis une 2ᵉ fois SANS ombre par-dessus → l'ombre ne passe plus sur
+    // le contour.
+    const _shOp = (ns.shadowOpacity != null ? ns.shadowOpacity : 0.9);
+    const _shBl = (ns.shadowBlur    != null ? ns.shadowBlur    : 8);
+    const _shOf = (ns.shadowOffset  != null ? ns.shadowOffset  : 2);
+    if (_shOp > 0 && (_shBl > 0 || _shOf > 0)) {
+      const _h  = (ns.shadowColor || '#000000').replace('#','');
+      const _hh = _h.length === 3 ? _h.split('').map(c=>c+c).join('') : _h;
+      const _sr = parseInt(_hh.slice(0,2),16)||0, _sg = parseInt(_hh.slice(2,4),16)||0, _sb = parseInt(_hh.slice(4,6),16)||0;
+      ctx.save();
+      ctx.shadowColor   = `rgba(${_sr},${_sg},${_sb},${_shOp})`;
+      ctx.shadowBlur    = _shBl * sc;
+      ctx.shadowOffsetX = _shOf * sc;
+      ctx.shadowOffsetY = _shOf * sc;
+      drawName();
+      ctx.restore();
     }
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    drawName();
     if (window._lmtmCapture) (window._lmtmRegions = window._lmtmRegions || [])
       .push({ kind:'name', idx, cx:_refNameX, y:slot.nameY, size:_nsz, maxW: slot.nameMaxW || 360, rot: ns.rotation || 0 });
     ctx.letterSpacing = '0px';
