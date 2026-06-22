@@ -775,10 +775,15 @@ function renderMultiPreview() {
 }
 
 function prevGraph() {
-  if (currentGraphIdx > 0) { currentGraphIdx--; renderMultiPreview(); }
+  if (typeof graphs === 'undefined' || !graphs.length) return;
+  // Wraparound : depuis le 1er, on revient au DERNIER (et inversement pour next).
+  currentGraphIdx = (currentGraphIdx - 1 + graphs.length) % graphs.length;
+  renderMultiPreview();
 }
 function nextGraph() {
-  if (currentGraphIdx < graphs.length-1) { currentGraphIdx++; renderMultiPreview(); }
+  if (typeof graphs === 'undefined' || !graphs.length) return;
+  currentGraphIdx = (currentGraphIdx + 1) % graphs.length;
+  renderMultiPreview();
 }
 
 // Ajoute un layout custom comme nouveau graphe dans la nav multi (haut-droite).
