@@ -1035,14 +1035,30 @@ function lmInitFonts() {
   grid.dataset.ready = '1';
   grid.innerHTML = LM_FONTS.map(f => `
     <button class="lm-font-btn${LM.font === f.id ? ' lm-selected' : ''}"
+            data-name="${f.label.toLowerCase()}"
             style="font-family:${f.id};font-weight:800;"
             onclick="lmSelectFont('${f.id.replace(/'/g,"\\'")}','${f.label}')">
-      <span class="lm-font-sample">${f.sample}</span>
+      <span class="lm-font-sample">${f.label}</span>
       <span class="lm-font-name">${f.label}</span>
     </button>
   `).join('');
   lmFitFontSamples();
+  lmFilterFonts();   // applique le filtre courant (champ de recherche)
 }
+
+// Filtre la grille des polices par nom (barre de recherche).
+function lmFilterFonts() {
+  const q = (document.getElementById('lmFontSearch')?.value || '').trim().toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('#lmFontGrid .lm-font-btn').forEach(b => {
+    const match = !q || (b.dataset.name || '').includes(q);
+    b.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const empty = document.getElementById('lmFontNoResult');
+  if (empty) empty.style.display = visible ? 'none' : 'block';
+}
+window.lmFilterFonts = lmFilterFonts;
 
 // Réduit la taille de chaque échantillon "TOURNAMENT" pour qu'il tienne dans sa
 // carte (certaines polices larges débordaient la grille, donc le panneau).

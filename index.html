@@ -1785,7 +1785,9 @@
         <div class="lm-step-panel" data-step="3">
           <div class="lm-block">
             <div class="lm-block-title">🔤 Choix de la police</div>
+            <input type="text" id="lmFontSearch" placeholder="🔍 Rechercher une police…" autocomplete="off" oninput="lmFilterFonts()" style="width:100%;margin-bottom:8px;">
             <div id="lmFontGrid" class="lm-font-grid"></div>
+            <div id="lmFontNoResult" style="display:none;font-size:12px;color:var(--text-soft);text-align:center;padding:8px;">Aucune police trouvée.</div>
           </div>
           <div class="lm-block" style="margin-top:10px;">
             <div class="lm-block-title">⚖️ Graisse</div>
