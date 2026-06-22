@@ -1039,7 +1039,6 @@ function lmInitFonts() {
             style="font-family:${f.id};font-weight:800;"
             onclick="lmSelectFont('${f.id.replace(/'/g,"\\'")}','${f.label}')">
       <span class="lm-font-sample">${f.label}</span>
-      <span class="lm-font-name">${f.label}</span>
     </button>
   `).join('');
   lmFitFontSamples();
@@ -1074,7 +1073,7 @@ function lmFitFontSamples() {
       const avail = btn.clientWidth - 18;    // largeur utile (padding ~8px/côté + marge)
       if (avail <= 0) return;
       let size = 18, guard = 0;
-      while (s.scrollWidth > avail && size > 9 && guard < 32) {
+      while (s.scrollWidth > avail && size > 7 && guard < 40) {
         size -= 1; s.style.fontSize = size + 'px'; guard++;
       }
     });
