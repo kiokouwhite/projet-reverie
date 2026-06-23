@@ -4251,7 +4251,11 @@ function _lmPECardBox() {
 }
 function lmPENorm(cx, cy) {
   const b = _lmPECardBox();
-  return { x: Math.max(0, Math.min(1, (cx - b.x) / b.w)), y: Math.max(0, Math.min(1, (cy - b.y) / b.h)) };
+  // Pas de bornage à [0,1] : on autorise les points À L'EXTÉRIEUR de la carte
+  // (au-dessus / en dessous / sur les côtés). La seule limite est le canvas de
+  // l'éditeur — et on peut dézoomer à la molette pour aller encore plus loin.
+  // Le rendu (lmMakeShapePath) gère les coords hors boîte sans souci.
+  return { x: (cx - b.x) / (b.w || 1), y: (cy - b.y) / (b.h || 1) };
 }
 function lmPEPixel(p) {
   const b = _lmPECardBox();
