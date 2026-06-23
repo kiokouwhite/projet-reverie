@@ -173,6 +173,70 @@ function drawCharWithCrop(ctx, char, costume, black, sc, fallbackCharImgUrl) {
 
 let cropAdjust = { charId:null, costume:null, slotIdx:null, cx:0.5, cy:0.22, zoom:2.0, flip:false, dragging:false, startX:0, startY:0, previewPolygon:null };
 
+// Contour visible d'une carte d'un layout custom_lm, en coords canvas d'aperçu
+// (260×260). Le graph dessine le perso dans un carré dS = max(w,h) centré sur la
+// carte puis le clippe à la forme ; la modale mappe le MÊME carré-source sur ses
+// 260×260 → on projette la forme de la carte (masque par-carte prioritaire, sinon
+// forme globale du layout) dessus. Miroir de lmMakeShapePath (app/layout-maker).
+function _lmCustomSlotOutline(layout, slotIdx, SIZE) {
+  // Objet enregistré : géométrie de forme (shape/skew/trapRatio/radius) sur _lm,
+  // slots dispo sur les deux. On résout sur _lm en priorité.
+  const inner = layout?._lm || layout;
+  const slots = layout?.slots || inner?.slots;
+  const slot = slots?.[slotIdx];
+  if (!slot || slot.w == null || slot.h == null) return null;
+  const cx = slot.cx, cy = slot.cy, w = slot.w, h = slot.h, w2 = w / 2, h2 = h / 2;
+  const dS = Math.max(w, h), left = cx - dS / 2, top = cy - dS / 2;
+  const C = (x, y) => [ (x - left) / dS * SIZE, (y - top) / dS * SIZE ];
+
+  // 1) Masque PAR CARTE prioritaire (SF6 « torn », ou masque édité). Points en
+  //    [0,1] relatifs à la boîte du slot, comme lmMakeShapePath.
+  if (Array.isArray(slot.maskPolygon) && slot.maskPolygon.length >= 3) {
+    return slot.maskPolygon.map(p => C((cx - w2) + p.x * w, (cy - h2) + p.y * h));
+  }
+
+  // 2) Sinon, forme globale du layout (cercle GGST, etc.).
+  const pts = [];
+  switch (inner.shape || 'rounded') {
+    case 'circle':
+      for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; pts.push([cx + w2 * Math.cos(a), cy + h2 * Math.sin(a)]); }
+      break;
+    case 'diamond':
+      pts.push([cx, cy - h2], [cx + w2, cy], [cx, cy + h2], [cx - w2, cy]); break;
+    case 'parallelogram': {
+      const sk = inner.skew || 30;
+      pts.push([cx - w2 + sk, cy - h2], [cx + w2 + sk, cy - h2], [cx + w2 - sk, cy + h2], [cx - w2 - sk, cy + h2]); break;
+    }
+    case 'trapezoid': {
+      const tr = inner.trapRatio ?? 0.75;
+      pts.push([cx - w2 * tr, cy - h2], [cx + w2 * tr, cy - h2], [cx + w2, cy + h2], [cx - w2, cy + h2]); break;
+    }
+    case 'pentagon':
+      for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + (2 * Math.PI / 5) * k; pts.push([cx + w2 * Math.cos(a), cy + h2 * Math.sin(a)]); }
+      break;
+    case 'hexagon':
+      for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (Math.PI / 3) * k; pts.push([cx + w2 * Math.cos(a), cy + h2 * Math.sin(a)]); }
+      break;
+    case 'arch': {
+      const archH = Math.min(h2, w2), sideTop = cy - h2 + archH;
+      pts.push([cx - w2, cy + h2], [cx - w2, sideTop]);
+      for (let i = 0; i <= 24; i++) { const a = Math.PI + i / 24 * Math.PI; pts.push([cx + w2 * Math.cos(a), sideTop + archH * Math.sin(a)]); }
+      pts.push([cx + w2, cy + h2]); break;
+    }
+    case 'square':
+      pts.push([cx - w2, cy - h2], [cx + w2, cy - h2], [cx + w2, cy + h2], [cx - w2, cy + h2]); break;
+    default: { // 'rounded' (et repli) : rectangle à coins arrondis
+      const r = Math.min((inner.radius || 24), w2, h2);
+      const arc = (ax, ay, a0, a1) => { for (let i = 0; i <= 6; i++) { const a = a0 + (a1 - a0) * i / 6; pts.push([ax + r * Math.cos(a), ay + r * Math.sin(a)]); } };
+      arc(cx - w2 + r, cy - h2 + r, Math.PI, Math.PI * 1.5);       // haut-gauche
+      arc(cx + w2 - r, cy - h2 + r, Math.PI * 1.5, Math.PI * 2);   // haut-droit
+      arc(cx + w2 - r, cy + h2 - r, 0, Math.PI * 0.5);             // bas-droit
+      arc(cx - w2 + r, cy + h2 - r, Math.PI * 0.5, Math.PI);       // bas-gauche
+    }
+  }
+  return pts.map(([x, y]) => C(x, y));
+}
+
 // Calcule la forme du slot dans les coordonnées du canvas d'aperçu (260×260)
 // pour qu'on voie ce qui sera réellement visible dans le Top 8.
 function computeCropPreviewShape(slotIdx) {
@@ -183,8 +247,8 @@ function computeCropPreviewShape(slotIdx) {
   let pts = null; // points de la forme en coords canvas REF_SIZE
   let cxC, cyC;   // centre utilisé pour positionner la cover bbox
 
-  // Layout custom_lm : non géré (forme variable)
-  if (layout?.slotType === 'custom_lm') return null;
+  // Layout custom_lm : contour reconstruit depuis le masque/forme de la carte.
+  if (layout?.slotType === 'custom_lm') return _lmCustomSlotOutline(layout, slotIdx, SIZE);
 
   // Layouts non-SSBU (cercle, trapèze tekken8, etc.)
   if (layout && !layout.useParallelogram && layout.slots && layout.slots[slotIdx]) {
