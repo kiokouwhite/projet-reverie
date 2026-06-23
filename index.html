@@ -2096,7 +2096,7 @@
           <!-- Global name style -->
           <div class="lm-block" style="margin-top:8px;">
             <div class="lm-block-title">🎨 Style global des noms</div>
-            <div class="title-row"><span>Taille</span><input type="range" min="12" max="120" id="lmNsSize" value="34" oninput="lmSyncNames()"><input type="number" min="12" max="120" value="34" style="width:52px;" oninput="document.getElementById('lmNsSize').value=this.value;lmSyncNames()"></div>
+            <div class="title-row"><span>Taille</span><input type="range" min="12" max="120" id="lmNsSize" value="34" oninput="lmSetGlobalNameSize(this.value)"><input type="number" min="12" max="120" value="34" style="width:52px;" oninput="document.getElementById('lmNsSize').value=this.value;lmSetGlobalNameSize(this.value)"></div>
             <div class="title-row"><span>Graisse</span>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button class="lm-nw-btn" data-w="400" onclick="lmSetNameWeight('400')">400</button>

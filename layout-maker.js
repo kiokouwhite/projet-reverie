@@ -1772,6 +1772,24 @@ function lmSyncNames() {
   lmRenderPreview();
 }
 
+// Taille GLOBALE des pseudos : elle PILOTE tous les noms. On efface les éventuels
+// overrides de taille PAR JOUEUR (slot.nameSize) — sinon ils masquaient la taille
+// globale et donnaient l'impression que « changer la taille ne fait rien / ne se
+// sauvegarde pas ». L'utilisateur peut toujours régler une taille par joueur APRÈS.
+function lmSetGlobalNameSize(v) {
+  const ns = LM.nameStyle;
+  ns.size = parseFloat(v) || 34;
+  [0,1,2].forEach(i => {
+    if (LM.slots[i]) LM.slots[i].nameSize = null;     // ré-aligne sur la taille globale
+    const el = document.getElementById(`lmNameSize${i}`);
+    if (el) { el.value = ns.size; const n = el.nextElementSibling; if (n && n.type === 'number') n.value = ns.size; }
+  });
+  const g = document.getElementById('lmNsSize');
+  if (g) { const n = g.nextElementSibling; if (n && n.type === 'number') n.value = ns.size; }
+  lmRenderPreview();
+}
+window.lmSetGlobalNameSize = lmSetGlobalNameSize;
+
 // Taille INDIVIDUELLE d'un pseudo (override de la taille globale). Réglée
 // seulement quand l'utilisateur bouge le slider "Taille" de CE pseudo → ni les
 // autres pseudos ni la taille globale ne sont touchés (non destructif).
