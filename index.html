@@ -635,7 +635,11 @@
       <div id="hrCubeStage" class="rk-stage" aria-label="Rubik's Cube de navigation Questions ↔ Résultats" style="display:none"></div>
 
       <!-- ── COLONNE GAUCHE (TAROT CAROUSEL) ── -->
-      <div class="hr-left">
+      <!-- .panel : même format que le panneau gauche du Top 8 (boîte pastel
+           translucide + padding 20px) → la carte est insérée avec de la marge,
+           ce qui laisse apparaître les cartes « fantômes » empilées derrière
+           (l'effet "carré à l'arrière"), au lieu d'être rognées par overflow. -->
+      <div class="hr-left panel">
 
         <!-- ── TAROT NAV ── -->
         <div class="tc-nav">
