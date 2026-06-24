@@ -5897,7 +5897,8 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
    prototype "Rubiks Cube Button.html". */
 .rk-stage {
   position: fixed;
-  left: 16px;
+  right: 16px;
+  left: auto;
   bottom: 16px;
   width: 240px;
   height: 240px;

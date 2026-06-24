@@ -160,7 +160,7 @@
   let cubies = makeCubies();
   let activeMove = null;            // { axis, layer, angle, t } pendant un move
   let runningSeq = null;            // séquence en cours
-  let drift = { rx: -8, ry: -58 };  // dérive idle (suit la souris)
+  let drift = { rx: -8, ry: 58 };  // dérive idle (suit la souris) — yaw miroir (coin droit)
   let frontView = 'questions';      // vue actuellement en face (synchronisée)
   let frozenView = 'questions';     // vue gelée pendant l'animation
   let hoverFace = null;             // face actuellement survolée
@@ -402,7 +402,7 @@
     const dx = (e.clientX - cx) / window.innerWidth;
     const dy = (e.clientY - cy) / window.innerHeight;
     drift.rx = -8 + dy * -8;
-    drift.ry = -58 + dx * 14;
+    drift.ry = 58 - dx * 14;  // yaw miroir (coin droit) : pose inversée, icônes lisibles
     if (flipEl) flipEl.style.transform = `rotateX(${drift.rx}deg) rotateY(${drift.ry}deg)`;
   }
 
