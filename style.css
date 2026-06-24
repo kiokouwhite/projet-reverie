@@ -5905,6 +5905,11 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   z-index: 50;
   user-select: none;
   pointer-events: auto;
+  /* 2,5× plus petit (1/2.5 = 0.4). Ancré au coin bas-droite pour rester collé
+     au coin où le stage est épinglé (right/bottom) et déborder le moins possible
+     sur le panneau Résultats. */
+  transform: scale(0.4);
+  transform-origin: 100% 100%;
 }
 .rk-stage::after {
   content: '';
