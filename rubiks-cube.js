@@ -160,11 +160,12 @@
   let cubies = makeCubies();
   let activeMove = null;            // { axis, layer, angle, t } pendant un move
   let runningSeq = null;            // séquence en cours
-  // dérive idle (suit la souris) — yaw miroir (coin droit), < 45° pour que la
-  // FACE AVANT (= vue courante) reste la plus en face. Au-delà de 45°, une face
-  // latérale (= l'autre vue) devient dominante → on voyait « ? » sur la page
-  // résultats. À 34°, l'avant domine nettement (cos34 ≈ 0.83 > sin34 ≈ 0.56).
-  let drift = { rx: -8, ry: 34 };
+  // dérive idle (suit la souris). Vue « coin » (yaw -45°) : on voit DEUX faces
+  // côte à côte. Avec rotateY(-45), la face AVANT (= vue courante, logo F) a sa
+  // normale en x = sin(-45) < 0 → elle est à GAUCHE ; la face DROITE (R) porte
+  // l'autre vue (= destination cliquable). D'où : gauche = page actuelle,
+  // droite = page où l'on peut aller (cf. demande utilisateur).
+  let drift = { rx: -8, ry: -45 };
   let frontView = 'questions';      // vue actuellement en face (synchronisée)
   let frozenView = 'questions';     // vue gelée pendant l'animation
   let hoverFace = null;             // face actuellement survolée
@@ -455,7 +456,7 @@
     const dx = (e.clientX - cx) / window.innerWidth;
     const dy = (e.clientY - cy) / window.innerHeight;
     drift.rx = -8 + dy * -8;
-    drift.ry = 34 - dx * 14;  // yaw miroir (coin droit) < 45° : la face avant reste dominante
+    drift.ry = -45 - dx * 14;  // vue « coin » : gauche = vue courante, droite = destination
     if (flipEl) flipEl.style.transform = `rotateX(${drift.rx}deg) rotateY(${drift.ry}deg)`;
   }
 
