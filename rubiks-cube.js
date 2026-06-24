@@ -153,8 +153,15 @@
     { axis:'x', layer:-1, angle: 90 },
     { axis:'y', layer:-1, angle:-90 },
   ];
-  const SCRAMBLE_TO_RESULTS   = [..._palindrome(_MIX_A), ..._wholeY(-90)];
-  const SCRAMBLE_TO_QUESTIONS = [..._palindrome(_MIX_B), ..._wholeY( 90)];
+  // Palindrome SEUL (plus de rotation entière wholeY). Le palindrome revient
+  // EXACTEMENT à l'état résolu → le cube garde TOUJOURS son orientation canonique
+  // (face avant F au front). La nouvelle vue est repeinte au MILIEU du mélange
+  // (cf. navigate → onStep) : elle s'assemble pendant le « dé-mélange ».
+  // Avant, wholeY(±90) laissait le cube tourné selon l'historique de navigation
+  // → la face gauche/droite n'était plus déterministe (d'où le bug « mauvaise
+  // face »). _wholeY est conservé (non utilisé) au cas où.
+  const SCRAMBLE_TO_RESULTS   = _palindrome(_MIX_A);
+  const SCRAMBLE_TO_QUESTIONS = _palindrome(_MIX_B);
 
   // ── État global du composant ───────────────────────────────
   let cubies = makeCubies();
@@ -336,7 +343,7 @@
   }
 
   // ── Animation : exécute une séquence de moves ──────────────
-  function runSequence(seq, onDone) {
+  function runSequence(seq, onDone, onStep) {
     if (!seq || !seq.length) { onDone && onDone(); return; }
     runningSeq = seq;
     let cancelled = false;
@@ -367,6 +374,7 @@
           activeMove = null;
           renderCubieTransforms();
           i++;
+          if (onStep) onStep(i);
           setTimeout(runMove, m.gap == null ? 30 : m.gap);
         }
       };
@@ -384,7 +392,7 @@
   const HERO_SCALE = 1.6;          // grossissement au centre (boîte 240 → 384px)
   const HALF_BOX   = 120;          // demi-largeur de la boîte .rk-stage (240/2)
   const CORNER_GAP = 16;           // right/bottom de .rk-stage (cf. CSS)
-  const BG_SWAP_AT = 850;          // ms : bascule du menu (pendant la révélation)
+  const BG_SWAP_AT = 520;          // ms : bascule du menu (pendant la révélation)
 
   // Centre la boîte (origin 100% 100%, épinglée right/bottom:16) au milieu de
   // l'écran et l'agrandit : tx = -vw/2 + gap + HALF_BOX·S (idem pour ty).
@@ -439,11 +447,16 @@
     heroActive = true;
     enterHero();              // 1. au centre, grandit, de face
     const seq = target === 'resultats' ? SCRAMBLE_TO_RESULTS : SCRAMBLE_TO_QUESTIONS;
-    runSequence(seq, () => {  // 2. se mélange (concurrent)
+    const mid = Math.floor(seq.length / 2);   // fin de l'aller du palindrome (jumble max)
+    runSequence(seq, () => {  // 2. se mélange (concurrent), revient à l'état résolu
       frontView = target;
       frozenView = target;
       renderStickerLogos();
-      exitHero();             // 4. revient se ranger dans le coin
+      exitHero();             // 4. revient se ranger dans le coin (orientation canonique)
+    }, (i) => {
+      // Au milieu du mélange (cube le plus brouillé), on bascule sur la nouvelle
+      // vue : ses logos s'assemblent pendant le « dé-mélange » de la 2e moitié.
+      if (i === mid) { frozenView = target; frontView = target; renderStickerLogos(); }
     });
     bgTransition(target);     // 3. l'arrière-plan transitionne vers l'autre menu
   }
@@ -521,6 +534,70 @@
   window.rubiksCubeSetVisible = function (visible) {
     if (!stage) return;
     stage.style.display = visible ? '' : 'none';
+  };
+
+  // Debug/test : renvoie les logos RÉELLEMENT visibles à gauche et à droite, en
+  // tenant compte de l'orientation physique des cubies (matrice ori) ET de la
+  // dérive (flipEl). Sert à vérifier que « gauche = vue courante, droite =
+  // destination » quel que soit l'historique de navigation.
+  window.rubiksCubeDebugFaces = function () {
+    if (!flipEl) return null;
+    const mm = /rotateX\((-?[\d.]+)deg\)\s*rotateY\((-?[\d.]+)deg\)/.exec(flipEl.style.transform || '');
+    const rx = (mm ? +mm[1] : 0) * Math.PI / 180, ry = (mm ? +mm[2] : 0) * Math.PI / 180;
+    const Ry = v => [v[0]*Math.cos(ry)+v[2]*Math.sin(ry), v[1], -v[0]*Math.sin(ry)+v[2]*Math.cos(ry)];
+    const Rx = v => [v[0], v[1]*Math.cos(rx)-v[2]*Math.sin(rx), v[1]*Math.sin(rx)+v[2]*Math.cos(rx)];
+    const oriById = new Map(cubies.map(c => [c.id, c.ori]));
+    let left = null, right = null;
+    cubieEls.forEach((ref, id) => {
+      const ori = oriById.get(id); if (!ori) return;
+      ref.stickers.forEach(sd => {
+        if (!sd.logoFor) return;
+        const v = sd.localDir;
+        // ori (4x4 col-major) appliquée à la normale locale, puis dérive Rx·Ry.
+        const ox = ori[0]*v[0]+ori[4]*v[1]+ori[8]*v[2];
+        const oy = ori[1]*v[0]+ori[5]*v[1]+ori[9]*v[2];
+        const oz = ori[2]*v[0]+ori[6]*v[1]+ori[10]*v[2];
+        const w = Rx(Ry([ox, oy, oz]));
+        if (w[2] < 0.3) return;                 // garde seulement les faces bien en face
+        if (!left  || w[0] < left.x)  left  = { x: w[0], logo: sd.logoFor };
+        if (!right || w[0] > right.x) right = { x: w[0], logo: sd.logoFor };
+      });
+    });
+    return {
+      left:  left  && left.logo,
+      right: right && right.logo,
+      leftX:  left  && +left.x.toFixed(2),
+      rightX: right && +right.x.toFixed(2),
+      frontView, frozenView, running: !!runningSeq, hero: heroActive,
+    };
+  };
+
+  // Debug/test : applique INSTANTANÉMENT (sans animation) toute la séquence d'une
+  // navigation (mêmes moves, même bascule de vue au milieu que navigate), puis
+  // renvoie l'état des faces. Permet de vérifier l'état FINAL (cube résolu,
+  // gauche/droite corrects) sur de nombreuses navigations sans dépendre du timing
+  // rAF/setTimeout (throttlé en onglet d'arrière-plan).
+  window.rubiksCubeDebugNavigateInstant = function (target) {
+    if (target === frontView) return window.rubiksCubeDebugFaces();
+    frozenView = frontView;
+    const seq = target === 'resultats' ? SCRAMBLE_TO_RESULTS : SCRAMBLE_TO_QUESTIONS;
+    const mid = Math.floor(seq.length / 2);
+    seq.forEach((m, idx) => {
+      cubies = cubies.map(c => applyMoveToCubie(c, m));
+      if (idx + 1 === mid) { frozenView = target; frontView = target; }
+    });
+    frontView = target; frozenView = target;
+    renderCubieTransforms();
+    renderStickerLogos();
+    return window.rubiksCubeDebugFaces();
+  };
+
+  // Debug/test : true si tous les cubies sont à leur position d'origine (résolu).
+  window.rubiksCubeDebugIsSolved = function () {
+    return cubies.every(c => {
+      const [x, y, z] = c.id.split(',').map(Number);
+      return c.pos[0] === x && c.pos[1] === y && c.pos[2] === z;
+    });
   };
 
   // Démarre dès que le DOM est prêt
