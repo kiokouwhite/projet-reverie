@@ -372,31 +372,80 @@
     return () => { cancelled = true; };
   }
 
-  // ── Navigation : déclenche le mélange + swap vue ───────────
+  // ── Animation « héro » : le cube va au centre, grandit, se met de face,
+  //    se mélange, pendant que l'arrière-plan transitionne vers l'autre menu,
+  //    puis il revient se ranger dans son coin. ────────────────────────────
+  let heroActive = false;
+  const HERO_SCALE = 1.6;          // grossissement au centre (boîte 240 → 384px)
+  const HALF_BOX   = 120;          // demi-largeur de la boîte .rk-stage (240/2)
+  const CORNER_GAP = 16;           // right/bottom de .rk-stage (cf. CSS)
+  const BG_SWAP_AT = 850;          // ms : bascule du menu (pendant la révélation)
+
+  // Centre la boîte (origin 100% 100%, épinglée right/bottom:16) au milieu de
+  // l'écran et l'agrandit : tx = -vw/2 + gap + HALF_BOX·S (idem pour ty).
+  function enterHero() {
+    if (!stage) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const S  = HERO_SCALE;
+    const tx = -vw / 2 + CORNER_GAP + HALF_BOX * S;
+    const ty = -vh / 2 + CORNER_GAP + HALF_BOX * S;
+    stage.style.zIndex = '140';                       // au-dessus de tout le temps de l'anim
+    stage.style.transform = `translate(${tx}px, ${ty}px) scale(${S})`;
+    if (flipEl) flipEl.style.transform = 'rotateX(-14deg) rotateY(0deg)';  // « de face »
+  }
+
+  function exitHero() {
+    if (!stage) return;
+    stage.style.transform = 'scale(0.4)';             // retour dans le coin (= valeur CSS)
+    if (flipEl) flipEl.style.transform = `rotateX(${drift.rx}deg) rotateY(${drift.ry}deg)`;
+    setTimeout(() => { heroActive = false; if (stage) stage.style.zIndex = ''; }, 620);
+  }
+
+  // Fond : fond actuel → 0, swap du menu à mi-parcours, nouveau menu 0 → 1.
+  function bgTransition(target) {
+    const qEl = document.getElementById('hrQuestionsRightHome');
+    const rEl = document.querySelector('.hr-results-section');
+    const outEl = (frozenView === 'questions') ? qEl : rEl;
+    const inEl  = (target     === 'questions') ? qEl : rEl;
+    if (outEl) { outEl.style.transition = 'opacity .32s ease'; outEl.style.opacity = '0'; }
+    setTimeout(() => {
+      if (typeof hrApplyViewMode === 'function' && typeof HR !== 'undefined') {
+        HR.viewMode = (target === 'resultats') ? 'results' : 'questions';
+        hrApplyViewMode();                            // swap display questions ↔ résultats
+      }
+      if (outEl && outEl !== inEl) { outEl.style.opacity = ''; outEl.style.transition = ''; }
+      if (inEl) {
+        inEl.style.opacity = '0';
+        inEl.style.transition = 'opacity .42s ease';
+        void inEl.offsetHeight;                       // reflow → la transition part bien de 0
+        requestAnimationFrame(() => { if (inEl) inEl.style.opacity = '1'; });
+        setTimeout(() => { if (inEl) { inEl.style.opacity = ''; inEl.style.transition = ''; } }, 520);
+      }
+    }, BG_SWAP_AT);
+  }
+
+  // ── Navigation : déclenche le mélange + l'anim héro + swap vue ─────────────
+  // HR est déclaré en `const` au top-level de horaires.js → pas sur window mais
+  // accessible en bareword (les scripts classiques partagent le global scope).
   function navigate(target) {
-    if (runningSeq) return;
+    if (runningSeq || heroActive) return;
     if (target === frontView) return;
-    frozenView = frontView; // gèle l'ancien front pour le rendu logos pendant le scramble
+    frozenView = frontView;   // gèle l'ancien front pour le rendu logos pendant le scramble
+    heroActive = true;
+    enterHero();              // 1. au centre, grandit, de face
     const seq = target === 'resultats' ? SCRAMBLE_TO_RESULTS : SCRAMBLE_TO_QUESTIONS;
-    runSequence(seq, () => {
+    runSequence(seq, () => {  // 2. se mélange (concurrent)
       frontView = target;
       frozenView = target;
       renderStickerLogos();
+      exitHero();             // 4. revient se ranger dans le coin
     });
-    // Bascule de la vue du site à mi-animation pour synchroniser avec la rotation du cube.
-    // HR est déclaré en `const` au top-level de horaires.js → pas sur window
-    // mais accessible en bareword identifier (les scripts classiques partagent
-    // le même global scope, même si const ne pollue pas window).
-    setTimeout(() => {
-      if (typeof hrApplyViewMode === 'function' && typeof HR !== 'undefined') {
-        HR.viewMode = target === 'resultats' ? 'results' : 'questions';
-        hrApplyViewMode();
-      }
-    }, 350);
+    bgTransition(target);     // 3. l'arrière-plan transitionne vers l'autre menu
   }
 
   // ── Dérive idle suivant la souris ──────────────────────────
   function onMouseMove(e) {
+    if (heroActive) return;   // pendant l'animation « héro », on ne touche pas à flipEl
     const cx = window.innerWidth / 2;
     const cy = window.innerHeight / 2;
     const dx = (e.clientX - cx) / window.innerWidth;

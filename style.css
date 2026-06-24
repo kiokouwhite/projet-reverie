@@ -5910,6 +5910,10 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
      sur le panneau Résultats. */
   transform: scale(0.4);
   transform-origin: 100% 100%;
+  /* Transition du transform : utilisée par l'animation « héro » au clic
+     (le cube va au centre, grandit, puis revient dans le coin). */
+  transition: transform 0.58s cubic-bezier(0.34, 1.08, 0.5, 1);
+  will-change: transform;
 }
 .rk-stage::after {
   content: '';
