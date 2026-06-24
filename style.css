@@ -5905,10 +5905,9 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   z-index: 50;
   user-select: none;
   pointer-events: auto;
-  /* 2,5× plus petit (1/2.5 = 0.4). Ancré au coin bas-droite pour rester collé
-     au coin où le stage est épinglé (right/bottom) et déborder le moins possible
-     sur le panneau Résultats. */
-  transform: scale(0.4);
+  /* Taille au repos : scale 0.8 (boîte 240 → 192px). Ancré au coin bas-droite
+     pour rester collé au coin où le stage est épinglé (right/bottom). */
+  transform: scale(0.8);
   transform-origin: 100% 100%;
   /* Transition du transform : utilisée par l'animation « héro » au clic
      (le cube va au centre, grandit, puis revient dans le coin). */

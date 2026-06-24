@@ -400,7 +400,7 @@
 
   function exitHero() {
     if (!stage) return;
-    stage.style.transform = 'scale(0.4)';             // retour dans le coin (= valeur CSS)
+    stage.style.transform = 'scale(0.8)';             // retour dans le coin (= valeur CSS)
     if (flipEl) flipEl.style.transform = `rotateX(${drift.rx}deg) rotateY(${drift.ry}deg)`;
     setTimeout(() => { heroActive = false; if (stage) stage.style.zIndex = ''; }, 620);
   }
