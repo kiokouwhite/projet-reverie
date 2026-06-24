@@ -1108,7 +1108,7 @@ function armHorairesInterval() {
     const now = new Date();
     if (now.getDay() === cfg.dayOfWeek && now.getHours() === cfg.hour && now.getMinutes() === cfg.minute) {
       try {
-        const ids = await postHorairesMessages(cfg.channelId, cfg.questions);
+        const ids = await postHorairesMessages(cfg.channelId, cfg.questions, !!cfg.everyone);
         horairesLastChannelId  = cfg.channelId;
         horairesLastMessageIds = ids;
         console.log(`📅 [HEBDO] Sondages postés automatiquement`);
@@ -1195,7 +1195,7 @@ async function resolveCustomEmoji(guild, name) {
   return guild.emojis.cache.find(e => e.name === name) || null;
 }
 
-async function postHorairesMessages(channelId, questions) {
+async function postHorairesMessages(channelId, questions, everyone = false) {
   const channel = await client.channels.fetch(channelId);
   if (!channel?.isTextBased()) throw new Error('Channel introuvable ou non textuel');
 
@@ -1229,7 +1229,15 @@ async function postHorairesMessages(channelId, questions) {
       .setDescription(description.trim())
       .setColor(EMBED_COLORS[qi % EMBED_COLORS.length]);
 
-    const msg = await channel.send({ embeds: [embed] });
+    // @everyone : uniquement sur le 1er message (sinon on pingerait 3×).
+    // allowedMentions force le ping (le bot doit avoir la permission « Mentionner
+    // @everyone » dans le salon, sinon Discord l'affiche en texte sans notifier).
+    const sendOpts = { embeds: [embed] };
+    if (everyone && qi === 0) {
+      sendOpts.content = '@everyone';
+      sendOpts.allowedMentions = { parse: ['everyone'] };
+    }
+    const msg = await channel.send(sendOpts);
     messageIds.push(msg.id);
 
     // Ajouter les réactions (custom ou Unicode)
@@ -1252,12 +1260,12 @@ async function postHorairesMessages(channelId, questions) {
 // POST /post-horaires — poster les sondages immédiatement
 app.post('/post-horaires', async (req, res) => {
   if (!checkSecret(req, res)) return;
-  const { channelId, questions } = req.body;
+  const { channelId, questions, everyone } = req.body;
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
   if (!questions?.length) return res.status(400).json({ ok: false, error: 'questions manquantes' });
 
   try {
-    const messageIds = await postHorairesMessages(channelId, questions);
+    const messageIds = await postHorairesMessages(channelId, questions, !!everyone);
     horairesLastChannelId  = channelId;
     horairesLastMessageIds = messageIds;
     console.log(`📅 Sondages horaires postés : ${messageIds.join(', ')}`);
@@ -1372,10 +1380,10 @@ app.get('/horaires-latest', async (req, res) => {
 // POST /horaires-schedule — activer l'envoi hebdomadaire
 app.post('/horaires-schedule', async (req, res) => {
   if (!checkSecret(req, res)) return;
-  const { channelId, questions, dayOfWeek, hour, minute } = req.body;
+  const { channelId, questions, dayOfWeek, hour, minute, everyone } = req.body;
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
 
-  horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute };
+  horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute, everyone: !!everyone };
   armHorairesInterval();         // (re)arme le timer (annule l'ancien si besoin)
   saveHorairesSchedule();        // persiste sur disque → survit au prochain restart/deploy
 

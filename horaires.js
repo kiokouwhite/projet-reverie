@@ -1315,7 +1315,7 @@ async function hrPost() {
     const res  = await fetch(`${botUrl}/post-horaires`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify({ channelId, questions: HR.questions }),
+      body: JSON.stringify({ channelId, questions: HR.questions, everyone: hrGetEveryone() }),
       signal: controller.signal,
     });
     const data = await res.json();
@@ -1357,7 +1357,7 @@ async function hrSetWeekly() {
     const res  = await fetch(`${botUrl}/horaires-schedule`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify({ channelId, questions: HR.questions, dayOfWeek: day, hour, minute }),
+      body: JSON.stringify({ channelId, questions: HR.questions, dayOfWeek: day, hour, minute, everyone: hrGetEveryone() }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -2795,11 +2795,15 @@ function hrPlanningStatus(type, msg) {
 }
 
 // ── PERSISTANCE ───────────────────────────────────────────────────────────────
+// État de la case « Mentionner @everyone » (true/false).
+function hrGetEveryone() { return !!document.getElementById('hrEveryone')?.checked; }
+
 function hrSaveBotSettings() {
   const url    = document.getElementById('hrBotUrl')?.value.trim();
   const secret = document.getElementById('hrBotSecret')?.value.trim();
   if (url)    localStorage.setItem('hr_bot_url',    url);
   if (secret) localStorage.setItem('hr_bot_secret', secret);
+  localStorage.setItem('hr_everyone', hrGetEveryone() ? '1' : '0');
 }
 
 function hrLoadBotSettings() {
@@ -2809,6 +2813,8 @@ function hrLoadBotSettings() {
   const secretEl = document.getElementById('hrBotSecret');
   if (url    && urlEl)    urlEl.value    = url;
   if (secret && secretEl) secretEl.value = secret;
+  const everyoneEl = document.getElementById('hrEveryone');
+  if (everyoneEl) everyoneEl.checked = localStorage.getItem('hr_everyone') === '1';
 }
 
 function hrSaveQuestions() {

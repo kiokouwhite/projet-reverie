@@ -726,6 +726,11 @@
 
                 <!-- Envoi immédiat -->
                 <div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(155,127,184,0.4);">
+                  <!-- Option @everyone : s'applique à l'envoi immédiat ET hebdo -->
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:10px;user-select:none;">
+                    <input type="checkbox" id="hrEveryone" onchange="hrSaveBotSettings()" style="width:16px;height:16px;cursor:pointer;accent-color:#7769DD;flex-shrink:0;">
+                    <span>📣 Mentionner <strong>@everyone</strong> en postant</span>
+                  </label>
                   <div id="hrPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
                   <button class="btn btn-primary" style="width:100%;" onclick="hrPost()">📨 Poster les sondages maintenant</button>
                 </div>
