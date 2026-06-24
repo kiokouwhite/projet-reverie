@@ -5998,6 +5998,23 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
 .hr-questions-right-home #hrQuestionsWrap {
   /* Annule le padding/background qui viennent peut-être du parent tarot */
   background: transparent;
+  /* 2 questions par ligne, dans l'ordre de lecture (Q1 gauche, Q2 droite,
+     Q3 ligne suivante…). align-items:start → chaque bloc garde sa hauteur
+     naturelle (une question courte ne s'étire pas à la hauteur d'une longue). */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.hr-questions-right-home #hrQuestionsWrap .hr-question-block {
+  /* L'écart vertical est géré par le gap de la grille. */
+  margin-bottom: 0;
+}
+/* Écrans étroits : on repasse à 1 question par ligne pour rester lisible. */
+@media (max-width: 760px) {
+  .hr-questions-right-home #hrQuestionsWrap {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Layout des catégories — colonne pour séparer Régie (full-width en haut)
