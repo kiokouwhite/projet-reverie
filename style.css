@@ -5842,7 +5842,14 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 18px 20px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  /* Vue « Questions seules » : le bloc s'étire sur toute la hauteur de la
+     colonne droite (jusqu'en bas de l'écran) au lieu de laisser du vide en
+     dessous. Flex column → l'en-tête reste en haut, la grille remplit le reste. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Bouton flottant en bas à gauche pour basculer entre Questions et Résultats */
@@ -6005,9 +6012,16 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
+  /* Remplit toute la hauteur restante du bloc et répartit les questions
+     verticalement → l'écran est rempli, sans scroll (scroll seulement si le
+     contenu est vraiment trop long pour tenir). */
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: space-evenly;
+  overflow-y: auto;
 }
 .hr-questions-right-home #hrQuestionsWrap .hr-question-block {
-  /* L'écart vertical est géré par le gap de la grille. */
+  /* L'écart vertical est géré par le gap / la répartition de la grille. */
   margin-bottom: 0;
 }
 /* Écrans étroits : on repasse à 1 question par ligne pour rester lisible. */
