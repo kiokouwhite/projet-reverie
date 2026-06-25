@@ -128,7 +128,17 @@ async function importAllEvents() {
         }
       }}`, { slug });
   } catch (e) {
-    showStatus('error', '❌ ' + (e.message || 'Erreur lors de la récupération des events.'));
+    const m = e.message || '';
+    // start.gg refuse la requête au niveau HTTP (400/401/403) quand l'en-tête
+    // Authorization est rejeté : clé API invalide, expirée, révoquée ou mal
+    // collée (espace/retour à la ligne). On l'explique clairement au lieu d'un
+    // « HTTP 400 » cryptique. (Un mauvais slug, lui, ne renvoie PAS d'erreur
+    // HTTP mais un tournoi null → traité plus bas.)
+    if (/HTTP 40[013]/.test(m)) {
+      showStatus('error', `❌ start.gg a refusé la requête (${m}) — ta clé API est sûrement invalide, expirée ou mal collée. Génère une NOUVELLE clé sur start.gg (Paramètres → Developer Settings → Personal Access Token) et recolle-la ici, sans espace ni retour à la ligne.`);
+    } else {
+      showStatus('error', '❌ ' + (m || 'Erreur lors de la récupération des events.'));
+    }
     btn.disabled=false; btn.textContent='🔍 Chercher'; return;
   }
 
