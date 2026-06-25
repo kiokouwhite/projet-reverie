@@ -9,6 +9,11 @@
    ============================================================ */
 
 (function () {
+  // ── Préférence d'affichage ─────────────────────────────────
+  // true  → bouton 2D plat par défaut (choix utilisateur, partout).
+  // false → cube 3D si le navigateur le rend vraiment, repli 2D auto sinon.
+  const ALWAYS_2D = true;
+
   // ── Constantes géométriques ────────────────────────────────
   const STEP  = 39;          // espacement cubie à cubie (px)
   const HALF  = 19.5;        // CUBIE/2 (px)
@@ -546,8 +551,9 @@
   function init() {
     stage = document.getElementById('hrCubeStage');
     if (!stage) return;
-    // Pas de rendu 3D fiable (Opera GX sans accel, etc.) → repli 2D propre.
-    if (!supports3DTransforms()) { build2D(); return; }
+    // Bouton 2D par défaut (ALWAYS_2D) ; sinon repli 2D auto si la 3D n'est pas
+    // rendue de façon fiable (Opera GX sans accel, etc.).
+    if (ALWAYS_2D || !supports3DTransforms()) { build2D(); return; }
     stage.innerHTML = `
       <div class="rk-perspective">
         <div class="rk-flip-y">
