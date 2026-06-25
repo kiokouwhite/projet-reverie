@@ -5928,26 +5928,35 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   width: 100%; height: 100%;
   perspective: 900px;
   perspective-origin: 50% 45%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* Centrage par positionnement absolu de .rk-flip-y (PAS flex) : sur Blink
+     (Opera GX notamment), un conteneur preserve-3d qui est AUSSI un flex-item
+     voit son contexte 3D aplati par la mise en page flex → les cubies se
+     dispersent comme des tuiles plates (« cube éclaté »). */
+  position: relative;
 }
 .rk-flip-y {
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   width: 120px; height: 120px;
-  position: relative;
+  /* Centré dans .rk-perspective sans flex : left/top 50% + marges négatives
+     (la moitié de 120px). On garde `transform` libre pour la rotation JS. */
+  position: absolute;
+  left: 50%; top: 50%;
+  margin-left: -60px; margin-top: -60px;
   transition: transform .9s ease-out;
 }
 .rk-root {
   position: absolute;
   left: 50%; top: 50%;
   width: 0; height: 0;
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
 }
 .rk-cubie {
   position: absolute;
   left: -19.5px; top: -19.5px;
   width: 39px; height: 39px;
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   background: transparent;
 }
@@ -5956,6 +5965,7 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   position: absolute;
   left: 0; top: 0;
   width: 39px; height: 39px;
+  -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   pointer-events: none;
 }
