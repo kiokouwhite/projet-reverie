@@ -1033,7 +1033,7 @@ function lmInitFonts() {
   const grid = document.getElementById('lmFontGrid');
   if (!grid || grid.dataset.ready) return;
   grid.dataset.ready = '1';
-  grid.innerHTML = LM_FONTS.map(f => `
+  grid.innerHTML = [...LM_FONTS].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
     <button class="lm-font-btn${LM.font === f.id ? ' lm-selected' : ''}"
             data-name="${f.label.toLowerCase()}"
             style="font-family:${f.id};font-weight:800;"

@@ -1792,12 +1792,6 @@
         <!-- ── STEP 3 : POLICE ── -->
         <div class="lm-step-panel" data-step="3">
           <div class="lm-block">
-            <div class="lm-block-title">🔤 Choix de la police</div>
-            <input type="text" id="lmFontSearch" placeholder="🔍 Rechercher une police…" autocomplete="off" oninput="lmFilterFonts()" style="width:100%;margin-bottom:8px;">
-            <div id="lmFontGrid" class="lm-font-grid"></div>
-            <div id="lmFontNoResult" style="display:none;font-size:12px;color:var(--text-soft);text-align:center;padding:8px;">Aucune police trouvée.</div>
-          </div>
-          <div class="lm-block" style="margin-top:10px;">
             <div class="lm-block-title">⚖️ Graisse</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="lm-weight-btn" data-w="400" onclick="lmSetFontWeight('400')">Regular</button>
@@ -1806,6 +1800,12 @@
               <button class="lm-weight-btn lm-selected" data-w="800" onclick="lmSetFontWeight('800')">Extra-Bold</button>
               <button class="lm-weight-btn" data-w="900" onclick="lmSetFontWeight('900')">Black</button>
             </div>
+          </div>
+          <div class="lm-block" style="margin-top:10px;">
+            <div class="lm-block-title">🔤 Choix de la police</div>
+            <input type="text" id="lmFontSearch" placeholder="🔍 Rechercher une police…" autocomplete="off" oninput="lmFilterFonts()" style="width:100%;margin-bottom:8px;">
+            <div id="lmFontGrid" class="lm-font-grid"></div>
+            <div id="lmFontNoResult" style="display:none;font-size:12px;color:var(--text-soft);text-align:center;padding:8px;">Aucune police trouvée.</div>
           </div>
         </div>
 
