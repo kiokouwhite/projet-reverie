@@ -176,6 +176,8 @@
   let frontView = 'questions';      // vue actuellement en face (synchronisée)
   let frozenView = 'questions';     // vue gelée pendant l'animation
   let hoverFace = null;             // face actuellement survolée
+  let mode2D = false;               // true → repli 2D (preserve-3d non rendu)
+  let btn2d  = null;                // bouton du repli 2D
 
   // DOM refs
   let stage = null;
@@ -473,10 +475,79 @@
     if (flipEl) flipEl.style.transform = `rotateX(${drift.rx}deg) rotateY(${drift.ry}deg)`;
   }
 
+  // ── Détection du rendu 3D réel ─────────────────────────────
+  // @supports / test de propriété ne suffisent PAS : Opera GX (et Blink sans
+  // accélération matérielle) DÉCLARENT supporter preserve-3d mais l'APLATISSENT
+  // au rendu → cube « éclaté ». On teste donc le rendu RÉEL : une scène 3D
+  // témoin (perspective + preserve-3d) avec deux plans à translateZ opposés ;
+  // si la 3D marche, le plan proche est projeté plus large / décalé que le plan
+  // loin. Si c'est aplati, les deux plans ont exactement le même rectangle.
+  function supports3DTransforms() {
+    try {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:200px;height:200px;perspective:300px;pointer-events:none;';
+      const scene = document.createElement('div');
+      scene.style.cssText = 'position:relative;width:200px;height:200px;-webkit-transform-style:preserve-3d;transform-style:preserve-3d;transform:rotateY(50deg);';
+      const near = document.createElement('div');
+      near.style.cssText = 'position:absolute;left:0;top:0;width:100px;height:100px;transform:translateZ(60px);';
+      const far = document.createElement('div');
+      far.style.cssText  = 'position:absolute;left:0;top:0;width:100px;height:100px;transform:translateZ(-60px);';
+      scene.appendChild(near); scene.appendChild(far); probe.appendChild(scene);
+      document.body.appendChild(probe);
+      const rn = near.getBoundingClientRect(), rf = far.getBoundingClientRect();
+      document.body.removeChild(probe);
+      // 3D OK si proche ≠ loin (largeur projetée ou position horizontale).
+      return Math.abs(rn.width - rf.width) > 2 || Math.abs(rn.left - rf.left) > 2;
+    } catch (e) { return false; }
+  }
+
+  // ── Repli 2D : bouton plat (aucune transform 3D) ───────────
+  // Affiche le logo de la DESTINATION (la vue où le clic emmène). Au clic :
+  // le fond transitionne (opacité, 2D-safe) et le bouton bascule son logo.
+  function render2DButton() {
+    if (!btn2d || !stage) return;
+    const dest = frontView === 'questions' ? 'resultats' : 'questions';
+    const logoEl = btn2d.querySelector('.rk2d-logo');
+    const capEl  = stage.querySelector('.rk2d-caption');
+    if (logoEl) logoEl.innerHTML = dest === 'questions' ? SVG_QUESTIONS : SVG_RESULTS;
+    const label = dest === 'questions' ? 'Voir les questions' : 'Voir les résultats';
+    if (capEl) capEl.textContent = label;
+    btn2d.dataset.dest = dest;
+    btn2d.setAttribute('aria-label', label);
+  }
+
+  function build2D() {
+    mode2D = true;
+    stage.classList.add('rk-stage--2d');
+    stage.innerHTML = `
+      <button class="rk2d-btn" type="button"><span class="rk2d-logo"></span></button>
+      <span class="rk2d-caption"></span>`;
+    btn2d = stage.querySelector('.rk2d-btn');
+    render2DButton();
+    btn2d.addEventListener('click', () => {
+      const dest = btn2d.dataset.dest;
+      if (dest) navigate2D(dest);
+    });
+  }
+
+  function navigate2D(target) {
+    if (target === frontView || !mode2D) return;
+    frozenView = frontView;
+    if (btn2d) btn2d.classList.add('rk2d-swapping');   // fond du logo → fade out
+    bgTransition(target);                              // fond transitionne + swap vue
+    setTimeout(() => {
+      frontView = target; frozenView = target;
+      render2DButton();                                // nouveau logo (= ancienne vue)
+      if (btn2d) btn2d.classList.remove('rk2d-swapping');
+    }, BG_SWAP_AT);
+  }
+
   // ── Init ───────────────────────────────────────────────────
   function init() {
     stage = document.getElementById('hrCubeStage');
     if (!stage) return;
+    // Pas de rendu 3D fiable (Opera GX sans accel, etc.) → repli 2D propre.
+    if (!supports3DTransforms()) { build2D(); return; }
     stage.innerHTML = `
       <div class="rk-perspective">
         <div class="rk-flip-y">
@@ -527,7 +598,19 @@
     if (target === frontView || runningSeq) return;
     frontView = target;
     frozenView = target;
+    if (mode2D) { render2DButton(); return; }
     if (stage) renderStickerLogos();
+  };
+
+  // Debug/test : force le repli 2D même sur un navigateur capable de 3D
+  // (pour vérifier le rendu du bouton plat). rubiksCubeForce2D(false) n'est pas
+  // supporté (il faut recharger la page pour revenir à la 3D).
+  window.rubiksCubeForce2D = function () {
+    if (!stage) stage = document.getElementById('hrCubeStage');
+    if (!stage) return false;
+    window.removeEventListener('mousemove', onMouseMove);
+    build2D();
+    return true;
   };
 
   // Show/hide : appelé par hrApplyViewMode selon la présence de résultats

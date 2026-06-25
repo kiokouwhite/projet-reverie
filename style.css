@@ -6022,6 +6022,67 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
 .rk-logo-inner {
   transform-origin: 0 0;
 }
+
+/* ── Repli 2D du bouton (quand preserve-3d n'est pas rendu, ex. Opera GX
+   sans accélération matérielle). Aucune transform 3D : 100% 2D-safe. ── */
+.rk-stage.rk-stage--2d {
+  width: auto; height: auto;
+  transform: none;                 /* plus de scale 3D */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  will-change: auto;
+}
+.rk-stage.rk-stage--2d::after { display: none; }  /* pas d'ombre 3D au sol */
+.rk2d-btn {
+  width: 92px; height: 92px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 22px;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(150deg, #ffffff 0%, #fdeef7 100%);
+  box-shadow:
+    0 7px 18px rgba(120, 80, 160, 0.30),
+    0 2px 5px rgba(120, 80, 160, 0.20),
+    inset 0 1px 2px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.rk2d-btn:hover {
+  transform: translateY(-3px) scale(1.045);
+  box-shadow:
+    0 13px 28px rgba(120, 80, 160, 0.38),
+    0 4px 9px rgba(120, 80, 160, 0.26),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.85);
+}
+.rk2d-btn:active { transform: translateY(-1px) scale(0.99); }
+.rk2d-btn:focus-visible { outline: 2px solid var(--purple, #7769DD); outline-offset: 2px; }
+.rk2d-logo {
+  display: block;
+  width: 100%; height: 100%;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.rk2d-logo svg { display: block; width: 100%; height: 100%; }
+.rk2d-btn.rk2d-swapping .rk2d-logo {
+  opacity: 0;
+  transform: scale(0.78) rotate(-8deg);
+}
+.rk2d-caption {
+  font: 800 11px/1.15 'Nunito', sans-serif;
+  color: var(--purple, #7769DD);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 7px rgba(120, 80, 160, 0.20);
+  pointer-events: none;
+}
 .hr-questions-right-home #hrQuestionsWrap {
   /* Annule le padding/background qui viennent peut-être du parent tarot */
   background: transparent;
