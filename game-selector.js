@@ -92,7 +92,14 @@
         finish(null);
       }
     };
-    img.onerror = () => finish(null);
+    img.onerror = () => {
+      // images.start.gg n'envoie pas toujours l'en-tête CORS → réessai via le
+      // proxy weserv (qui l'ajoute) avant d'abandonner sur le thème par défaut.
+      if (!img._triedProxy && /^https?:\/\/images\.start\.gg\//i.test(url)) {
+        img._triedProxy = true;
+        img.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//i, ''));
+      } else finish(null);
+    };
     img.src = url;
   }
 

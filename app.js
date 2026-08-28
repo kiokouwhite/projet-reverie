@@ -1653,11 +1653,9 @@ function renderCharGrid(filter) {
             const sgKey = `__sg__${c.imgUrl}`;
             if (!imgCache[sgKey]) imgCache[sgKey] = { _loaded:false, _img:null };
             if (!imgCache[sgKey]._loaded) {
-              const im = new Image();
-              im.crossOrigin = 'anonymous';
-              im.onload = () => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=im; generatePreview(); };
-              im.onerror = () => {};
-              im.src = c.imgUrl;
+              loadCorsImage(c.imgUrl,
+                (im) => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=im; generatePreview(); },
+                () => {});
             }
           }
         } else {
@@ -3115,6 +3113,31 @@ function drawMagnaBackground(ctx, width, height) {
 // le repo d'assets via jsDelivr). Tant qu'il n'est pas chargé, on dessine
 // le placeholder canvas en attendant. Promise-based pour pouvoir attendre
 // son chargement depuis les flows d'import multi-event.
+// Charge une image cross-origin pour le canvas. Cas d'échec le plus courant :
+// images.start.gg ne renvoie pas toujours l'en-tête CORS Access-Control-Allow-Origin,
+// ce qui fait échouer le chargement en crossOrigin='anonymous' (nécessaire pour
+// garder le canvas exportable via toDataURL). Dans ce cas on réessaie UNE fois via
+// le proxy images.weserv.nl, qui, lui, ajoute l'en-tête CORS. Les images NON
+// start.gg (assets locaux, data URLs) ne sont jamais proxifiées → onerror direct.
+function loadCorsImage(url, onload, onerror) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  let usedProxy = false;
+  img.onload  = () => { if (onload) onload(img); };
+  img.onerror = () => {
+    if (!usedProxy && /^https?:\/\/images\.start\.gg\//i.test(url || '')) {
+      usedProxy = true;
+      // weserv attend l'URL sans protocole ; on l'encode (les URLs start.gg
+      // portent des query params). Réponse servie avec Access-Control-Allow-Origin.
+      img.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//i, ''));
+    } else if (onerror) {
+      onerror();
+    }
+  };
+  img.src = url;
+  return img;
+}
+
 let _magnaLogoImg = null;
 let _magnaLogoPromise = null;
 function loadMagnaLogo() {
@@ -3300,11 +3323,9 @@ function generatePreview() {
       const sgKey = `__sg__${p.charImgUrl}`;
       if(imgCache[sgKey]?._loaded) { resolve(); return; }
       if(!imgCache[sgKey]) imgCache[sgKey] = {_loaded:false, _img:null};
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload  = () => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=img; resolve(); };
-      img.onerror = () => resolve();
-      img.src = p.charImgUrl;
+      loadCorsImage(p.charImgUrl,
+        (img) => { imgCache[sgKey]._loaded=true; imgCache[sgKey]._img=img; resolve(); },
+        () => resolve());
     }));
   });
 
@@ -4881,11 +4902,9 @@ function preloadMurals(gameId, playersList) {
       const key = `__sg__${p.charImgUrl}`;
       if (imgCache[key]?._loaded) { resolve(); return; }
       if (!imgCache[key]) imgCache[key] = {_loaded:false, _img:null};
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
-      img.onerror = () => resolve();
-      img.src = p.charImgUrl;
+      loadCorsImage(p.charImgUrl,
+        (img) => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); },
+        () => resolve());
     }));
     if (p.charId2) loads.push(new Promise(resolve => {
       const key2 = `${gameId}_${p.charId2}_${p.costume2||1}`;
