@@ -1743,11 +1743,22 @@ function saveApiKey() {
   const val = document.getElementById('apiKey').value;
   if (val) localStorage.setItem('top8_startgg_key', val);
   else localStorage.removeItem('top8_startgg_key');
+  // La clé start.gg a DEUX champs (Top 8 #apiKey + Config #cfgStartggKey) pour
+  // la même valeur en localStorage. #cfgStartggKey n'est peuplé que par cfgInit
+  // (1re ouverture de l'onglet Config). Sans ce miroir, éditer un autre champ
+  // Config déclenche cfgSaveAll() qui lit #cfgStartggKey VIDE et efface la clé.
+  const cfgKey = document.getElementById('cfgStartggKey');
+  if (cfgKey) cfgKey.value = val;
 }
 
 function loadApiKey() {
   const saved = localStorage.getItem('top8_startgg_key');
-  if (saved) document.getElementById('apiKey').value = saved;
+  if (!saved) return;
+  const apiKey = document.getElementById('apiKey');
+  if (apiKey) apiKey.value = saved;
+  // Garde les deux champs synchronisés dès le chargement (cf. saveApiKey).
+  const cfgKey = document.getElementById('cfgStartggKey');
+  if (cfgKey) cfgKey.value = saved;
 }
 
 function showStatus(type, msg) {
