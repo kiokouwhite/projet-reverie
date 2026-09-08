@@ -226,7 +226,7 @@
             <div class="left-slide" id="leftSlide0">
               <!-- Champ clé API caché (synchronisé via l'onglet Configuration) -->
               <div style="display:none;">
-                <input type="password" id="apiKey" autocomplete="off" oninput="saveApiKey()">
+                <input type="password" id="apiKey" autocomplete="new-password" data-lpignore="true" data-1p-ignore data-form-type="other" readonly oninput="saveApiKey()">
               </div>
               <label class="field-label" style="margin-top:0;text-align:center;display:block;">Lien du tournoi</label>
               <input type="text" id="startggUrl" placeholder="https://start.gg/tournament/..." style="width:100%;margin-bottom:8px;text-align:center;">
@@ -1200,7 +1200,7 @@
         <div class="cfg-card-title">🏟️ start.gg</div>
         <div class="cfg-field">
           <label for="cfgStartggKey">Clé API</label>
-          <input type="password" id="cfgStartggKey" autocomplete="off" oninput="cfgSaveAll()" placeholder="eyJ0eXAiOiJKV1Q…">
+          <input type="password" id="cfgStartggKey" autocomplete="new-password" data-lpignore="true" data-1p-ignore data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" oninput="cfgSaveAll()" placeholder="eyJ0eXAiOiJKV1Q…">
           <small>Pour importer les Top 8 et créer/modifier des tournois. Trouve-la sur <a href="https://start.gg/admin/profile/developer" target="_blank">start.gg → Developer Settings</a>.</small>
         </div>
       </div>
@@ -1214,7 +1214,7 @@
         </div>
         <div class="cfg-field">
           <label for="cfgBotSecret">Mot secret (APP_SECRET)</label>
-          <input type="password" id="cfgBotSecret" autocomplete="off" oninput="cfgSaveAll()">
+          <input type="password" id="cfgBotSecret" autocomplete="new-password" data-lpignore="true" data-1p-ignore data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" oninput="cfgSaveAll()">
           <small>Ce que tu as défini comme variable <code>APP_SECRET</code> sur Azure (App Service → Paramètres → Variables d'environnement). Utilisé pour authentifier l'app web auprès du bot.</small>
         </div>
         <div class="cfg-field">
