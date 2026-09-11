@@ -1229,15 +1229,7 @@ async function postHorairesMessages(channelId, questions, everyone = false) {
       .setDescription(description.trim())
       .setColor(EMBED_COLORS[qi % EMBED_COLORS.length]);
 
-    // @everyone : uniquement sur le 1er message (sinon on pingerait 3×).
-    // allowedMentions force le ping (le bot doit avoir la permission « Mentionner
-    // @everyone » dans le salon, sinon Discord l'affiche en texte sans notifier).
-    const sendOpts = { embeds: [embed] };
-    if (everyone && qi === 0) {
-      sendOpts.content = '@everyone';
-      sendOpts.allowedMentions = { parse: ['everyone'] };
-    }
-    const msg = await channel.send(sendOpts);
+    const msg = await channel.send({ embeds: [embed] });
     messageIds.push(msg.id);
 
     // Ajouter les réactions (custom ou Unicode)
@@ -1252,6 +1244,18 @@ async function postHorairesMessages(channelId, questions, everyone = false) {
       } catch(e) {}
       await new Promise(r => setTimeout(r, 300));
     }
+  }
+
+  // @everyone : message SEUL, tout à la fin (comme un ping manuel), APRÈS tous
+  // les sondages. Pas ajouté à messageIds (ce n'est pas un sondage → pas de
+  // réactions à lire). allowedMentions force le ping (le bot doit avoir la
+  // permission « Mentionner @everyone » dans le salon, sinon Discord l'affiche
+  // en texte sans notifier).
+  if (everyone) {
+    await channel.send({
+      content: '@everyone',
+      allowedMentions: { parse: ['everyone'] },
+    });
   }
 
   return messageIds;
