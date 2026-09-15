@@ -2353,29 +2353,38 @@ function hrUpdatePlanMsg() {
   const byId = {};
   HR.planRoles.forEach(r => { byId[r.id] = r; });
 
+  // Accès null-safe : un slot par défaut peut avoir été supprimé par
+  // l'utilisateur (hrRemovePlanSlot persiste le skeleton réduit). Sans ces
+  // gardes, `byId.install.users` levait un TypeError qui gelait la textarea ET
+  // faisait échouer « Poster » (qui appelle hrUpdatePlanMsg en premier).
+  const has = id => byId[id]?.users?.length;
+  // Lignes horaires d'une catégorie multi-plages (accueil / régie) : inclut les
+  // plages AJOUTÉES par l'utilisateur, pas seulement les 2-3 par défaut.
+  const catLines = cat => HR.planRoles
+    .filter(r => r.category === cat && r.users?.length)
+    .map(r => r.slot ? `${r.slot} : ${hrMention(r.users)}` : hrMention(r.users));
+
   const parts = [];
 
-  if (byId.install.users.length)
+  if (has('install'))
     parts.push(`🚀 Installation\n${hrMention(byId.install.users)}`);
 
-  const accLines = [];
-  if (byId.acc1.users.length) accLines.push(`17h30-18h30 : ${hrMention(byId.acc1.users)}`);
-  if (byId.acc2.users.length) accLines.push(`18h30-19h30 : ${hrMention(byId.acc2.users)}`);
+  const accLines = catLines('accueil');
   if (accLines.length) parts.push(`🏠 Accueil\n${accLines.join('\n')}`);
 
-  if (byId.regie.users.length)
-    parts.push(`💻 Régie\n19h30-fin : ${hrMention(byId.regie.users)}`);
+  const regieLines = catLines('regie');
+  if (regieLines.length) parts.push(`💻 Régie\n${regieLines.join('\n')}`);
 
-  if (byId.seeding.users.length)
+  if (has('seeding'))
     parts.push(`🌱 Seeding\n${hrMention(byId.seeding.users)}`);
 
-  if (byId.rangement?.users?.length)
-    parts.push(`🧹 Rangement\nA la fermeture : ${hrMention(byId.rangement.users)}`);
+  if (has('rangement'))
+    parts.push(`🧹 Rangement\n${byId.rangement.slot ? byId.rangement.slot + ' : ' : ''}${hrMention(byId.rangement.users)}`);
 
-  if (byId.to_smash?.users?.length)
+  if (has('to_smash'))
     parts.push(`💥 TO Smash\n${hrMention(byId.to_smash.users)}`);
 
-  if (byId.to_fg?.users?.length)
+  if (has('to_fg'))
     parts.push(`🎮 TO FG\n${hrMention(byId.to_fg.users)}`);
 
   ta.value = parts.join('\n\n');
