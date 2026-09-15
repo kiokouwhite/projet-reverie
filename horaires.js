@@ -1679,25 +1679,32 @@ function hrAutoAssign(results) {
   // On accepte plusieurs alias possibles selon le naming des emojis Q2.
   const rangement = dep['00h'] || dep['minuit'] || dep['0h'] || new Set();
 
-  HR.planRoles.find(r => r.id === 'install').users   = [...inst].map(getUser);
-  HR.planRoles.find(r => r.id === 'regie').users     = [...regie].map(getUser);
-  HR.planRoles.find(r => r.id === 'seeding').users   = [...seeded].map(getUser);
-  HR.planRoles.find(r => r.id === 'rangement').users = [...rangement].map(getUser);
+  // Affecte les users à un rôle SEULEMENT s'il existe encore : une plage par
+  // défaut a pu être supprimée par l'utilisateur (skeleton réduit persisté).
+  // Sans cette garde, `.find(...).users = ...` levait « Cannot set properties
+  // of undefined (setting 'users') » et bloquait le chargement des résultats.
+  const setUsers = (id, users) => {
+    const r = HR.planRoles.find(x => x.id === id);
+    if (r) r.users = users;
+  };
+
+  setUsers('install',   [...inst].map(getUser));
+  setUsers('regie',     [...regie].map(getUser));
+  setUsers('seeding',   [...seeded].map(getUser));
+  setUsers('rangement', [...rangement].map(getUser));
 
   const acc1 = [], acc2 = [];
   acc.forEach(name => {
     if (inst.has(name) || a17.has(name)) acc1.push(getUser(name));
     else                                 acc2.push(getUser(name));
   });
-  HR.planRoles.find(r => r.id === 'acc1').users = acc1;
-  HR.planRoles.find(r => r.id === 'acc2').users = acc2;
+  setUsers('acc1', acc1);
+  setUsers('acc2', acc2);
 
   // TO Smash / TO FG — pré-remplis depuis les flags annotés par le bot.
   // Un même votant peut figurer dans les deux slots s'il a les deux rôles.
-  const toSmashRole = HR.planRoles.find(r => r.id === 'to_smash');
-  const toFgRole    = HR.planRoles.find(r => r.id === 'to_fg');
-  if (toSmashRole) toSmashRole.users = [...allUsers.values()].filter(u => u.toSmash);
-  if (toFgRole)    toFgRole.users    = [...allUsers.values()].filter(u => u.toFG);
+  setUsers('to_smash', [...allUsers.values()].filter(u => u.toSmash));
+  setUsers('to_fg',    [...allUsers.values()].filter(u => u.toFG));
 }
 
 // Construit l'UI planning (chips + textarea)
@@ -2313,24 +2320,45 @@ function hrSavePlanRolesSkeleton() {
     localStorage.setItem('hr_plan_roles_skeleton', JSON.stringify(skel));
   } catch {}
 }
+// Rôles par défaut du workflow, dans l'ordre canonique. On GARANTIT leur
+// présence à chaque chargement : le skeleton sauvegardé a pu en perdre
+// (suppression accidentelle d'une plage via ✕, ou skeleton antérieur à une
+// catégorie). Sans eux, l'auto-assign ET la génération du message plantaient
+// (« Cannot set/read properties of undefined (…'users') »). Les plages
+// AJOUTÉES par l'utilisateur (ids custom) et les horaires édités sont conservés.
+const HR_CORE_PLAN_ROLES = [
+  { id:'install',  category:'setup',   icon:'🚀', title:'Installation', slot:null },
+  { id:'rangement',category:'setup',   icon:'🧹', title:'Rangement',    slot:'A la fermeture' },
+  { id:'acc1',     category:'accueil', icon:'🏠', title:'Accueil',      slot:'17h30-18h30' },
+  { id:'acc2',     category:'accueil', icon:'🏠', title:'Accueil',      slot:'18h30-19h30' },
+  { id:'regie',    category:'regie',   icon:'💻', title:'Régie',        slot:'19h30-fin' },
+  { id:'seeding',  category:'seeding', icon:'🌱', title:'Seeding',      slot:null },
+  { id:'to_smash', category:'to',      icon:'💥', title:'TO Smash',     slot:null },
+  { id:'to_fg',    category:'to',      icon:'🎮', title:'TO FG',        slot:null },
+];
+
 function hrLoadPlanRolesSkeleton() {
+  let skel = [];
   try {
     const raw = localStorage.getItem('hr_plan_roles_skeleton');
-    if (!raw) return;
-    const skel = JSON.parse(raw);
-    if (!Array.isArray(skel) || !skel.length) return;
-    // Remplace HR.planRoles par le skeleton, en préservant users=[] (sera
-    // re-rempli par hrAutoAssign quand les résultats arrivent).
-    HR.planRoles = skel.map(r => ({ ...r, users: [] }));
-    // Migration : si le skeleton sauvegardé date d'avant l'ajout de la
-    // catégorie TO, on injecte les 2 slots TO Smash / TO FG.
-    if (!HR.planRoles.some(r => r.id === 'to_smash')) {
-      HR.planRoles.push({ id: 'to_smash', category: 'to', icon: '💥', title: 'TO Smash', slot: null, users: [] });
-    }
-    if (!HR.planRoles.some(r => r.id === 'to_fg')) {
-      HR.planRoles.push({ id: 'to_fg',    category: 'to', icon: '🎮', title: 'TO FG',    slot: null, users: [] });
-    }
+    if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) skel = p; }
   } catch {}
+  if (!skel.length) return; // aucun skeleton → on garde les planRoles par défaut
+
+  const skelById = new Map(skel.map(r => [r.id, r]));
+  const merged = [];
+  // 1) Rôles cœur, ordre canonique. On préserve seulement l'horaire édité par
+  //    l'utilisateur (slot) ; catégorie/icône/titre restent canoniques.
+  HR_CORE_PLAN_ROLES.forEach(def => {
+    const s = skelById.get(def.id);
+    merged.push({ ...def, slot: s ? s.slot : def.slot, users: [] });
+    skelById.delete(def.id);
+  });
+  // 2) Plages AJOUTÉES par l'utilisateur (ids non-cœur), dans leur ordre.
+  skel.forEach(r => {
+    if (skelById.has(r.id)) { merged.push({ ...r, users: [] }); skelById.delete(r.id); }
+  });
+  HR.planRoles = merged;
 }
 
 function hrPlanRemoveUser(roleId, username) {
