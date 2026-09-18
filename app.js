@@ -524,8 +524,9 @@ function dcTcNavigate(delta) { dcTcGo(_dcTcActive + delta); }
 // Questions retiré (vit dans la colonne droite). Programme hebdo fusionné
 // dans Bot Discord (un seul slide pour tout le setup d'envoi). Reste 2 slides.
 const HR_TC_PANELS = [
-  { label: 'Bot',     roman: 'I',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord', icon: 'bot' },
-  { label: 'Actions', roman: 'II', accent: '#e85a8a', emoji: '📨', name: 'Actions',     icon: 'actions' },
+  { label: 'Bot',     roman: 'I',   accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',    icon: 'bot' },
+  { label: 'Actions', roman: 'II',  accent: '#e85a8a', emoji: '📨', name: 'Actions',        icon: 'actions' },
+  { label: 'Type',    roman: 'III', accent: '#c07dd4', emoji: '📋', name: 'Type de sondage', icon: 'preset' },
 ];
 
 let _hrTcActive = 0;

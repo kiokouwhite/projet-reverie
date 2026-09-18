@@ -2,52 +2,75 @@
 // HORAIRES.JS — Sondages hebdomadaires Discord
 // ============================================================
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-const HR = {
-  questions: [
-    {
-      text: 'A quelle heure arrivez-vous ?',
-      options: [
+// ── PRESETS DE SONDAGE ────────────────────────────────────────────────────────
+// Deux types d'horaires envoyables : 'lorem' (Lorem Ipsum, sondage complet =
+// défaut historique) et 'magna' (Magna Arena, version simplifiée qui demande
+// juste qui est dispo pour l'installation, le rangement et le TO).
+// Chaque preset définit SES questions ET ses rôles de planning (zones).
+const HR_PRESET_DEFAULTS = {
+  lorem: {
+    name: 'Lorem Ipsum',
+    questions: [
+      { text: 'A quelle heure arrivez-vous ?', options: [
         { emoji: '16h',  label: 'Installation' },
         { emoji: '17h',  label: 'Accueil partie 1' },
         { emoji: '18h',  label: 'Accueil partie 2' },
         { emoji: '19h',  label: 'Début des tournois' },
         { emoji: 'a20h', label: 'Après le début des tournois' },
-      ],
-    },
-    {
-      text: 'A quelle heure partez-vous ?',
-      options: [
+      ] },
+      { text: 'A quelle heure partez-vous ?', options: [
         { emoji: 'av22h', label: 'Avant le rangement' },
         { emoji: '23h',   label: 'Pendant le rangement' },
         { emoji: '0h',    label: 'A la fermeture' },
-      ],
-    },
-    {
-      text: 'Voulez-vous recevoir une tâche en priorité ?',
-      options: [
+      ] },
+      { text: 'Voulez-vous recevoir une tâche en priorité ?', options: [
         { emoji: 'seeding', label: 'Seeding (précisez si seul ou à plusieurs)' },
         { emoji: 'accueil', label: 'Accueil (précisez durée et nombre)' },
         { emoji: 'regie',   label: 'Régie (précisez combien de temps)' },
-      ],
-    },
-  ],
+      ] },
+    ],
+    planRoles: [
+      { id: 'install',  category: 'setup',   icon: '🚀', title: 'Installation', slot: null,          users: [] },
+      { id: 'rangement',category: 'setup',   icon: '🧹', title: 'Rangement',    slot: 'A la fermeture', users: [] },
+      { id: 'acc1',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '17h30-18h30', users: [] },
+      { id: 'acc2',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '18h30-19h30', users: [] },
+      { id: 'regie',    category: 'regie',   icon: '💻', title: 'Régie',        slot: '19h30-fin',   users: [] },
+      { id: 'seeding',  category: 'seeding', icon: '🌱', title: 'Seeding',      slot: null,          users: [] },
+      // Catégorie TO — pré-remplie automatiquement depuis les flags toFG /
+      // toSmash annotés par le bot Discord sur les votants (rôle serveur).
+      { id: 'to_smash', category: 'to',      icon: '💥', title: 'TO Smash',     slot: null,          users: [] },
+      { id: 'to_fg',    category: 'to',      icon: '🎮', title: 'TO FG',        slot: null,          users: [] },
+    ],
+  },
+  magna: {
+    name: 'Magna Arena',
+    // Une seule question, 3 options : les gens réagissent à ce sur quoi ils
+    // peuvent aider. Emojis Unicode → aucune dépendance à un emoji serveur.
+    questions: [
+      { text: 'Sur quoi peux-tu aider ?', options: [
+        { emoji: '🔧', label: 'Installation' },
+        { emoji: '🧹', label: 'Rangement' },
+        { emoji: '🎮', label: 'TO' },
+      ] },
+    ],
+    // Le TO est rempli depuis les VOTES du sondage (pas les rôles Discord).
+    planRoles: [
+      { id: 'install',  category: 'setup', icon: '🔧', title: 'Installation', slot: null, users: [] },
+      { id: 'rangement',category: 'setup', icon: '🧹', title: 'Rangement',    slot: null, users: [] },
+      { id: 'to',       category: 'to',    icon: '🎮', title: 'TO',           slot: null, users: [] },
+    ],
+  },
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const HR = {
+  preset: 'lorem',      // type de sondage actif ('lorem' | 'magna')
+  questions: JSON.parse(JSON.stringify(HR_PRESET_DEFAULTS.lorem.questions)),
   lastMessageIds: [],   // stockés après chaque post
   lastChannelId:  '',
   weeklyId: null,       // id du timer/schedule côté bot
   lastResults: null,    // derniers résultats bruts (pour le planning)
-  planRoles: [
-    { id: 'install',  category: 'setup',   icon: '🚀', title: 'Installation', slot: null,          users: [] },
-    { id: 'rangement',category: 'setup',   icon: '🧹', title: 'Rangement',    slot: 'A la fermeture', users: [] },
-    { id: 'acc1',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '17h30-18h30', users: [] },
-    { id: 'acc2',     category: 'accueil', icon: '🏠', title: 'Accueil',      slot: '18h30-19h30', users: [] },
-    { id: 'regie',    category: 'regie',   icon: '💻', title: 'Régie',        slot: '19h30-fin',   users: [] },
-    { id: 'seeding',  category: 'seeding', icon: '🌱', title: 'Seeding',      slot: null,          users: [] },
-    // Catégorie TO — pré-remplie automatiquement depuis les flags toFG /
-    // toSmash annotés par le bot Discord sur les votants (rôle serveur).
-    { id: 'to_smash', category: 'to',      icon: '💥', title: 'TO Smash',     slot: null,          users: [] },
-    { id: 'to_fg',    category: 'to',      icon: '🎮', title: 'TO FG',        slot: null,          users: [] },
-  ],
+  planRoles: JSON.parse(JSON.stringify(HR_PRESET_DEFAULTS.lorem.planRoles)),
 };
 
 // Catégories de slots regroupées visuellement dans le planning. Multi-slots
@@ -66,10 +89,12 @@ let hrInitDone = false;
 function hrInit() {
   if (hrInitDone) return;
   hrInitDone = true;
+  hrLoadPreset();      // type de sondage actif (AVANT questions/planRoles qui en dépendent)
   hrLoadBotSettings();
-  hrLoadQuestions();   // charge les questions sauvegardées
-  hrLoadPlanRolesSkeleton(); // restaure les plages Régie custom ajoutées par l'user
+  hrLoadQuestions();   // charge les questions du preset (sauvegardées ou défaut)
+  hrLoadPlanRolesSkeleton(); // restaure les plages du preset (+ plages custom ajoutées)
   hrBuildQuestions();
+  hrRenderPresetCard();
   hrUpdateQuestionsLocation(); // place les questions à droite tant qu'il n'y a pas de résultats
   hrLoadLastMessageIds();
   // Précharger les emojis (app + serveur) en background pour afficher les
@@ -1662,6 +1687,26 @@ function hrAutoAssign(results) {
   });
   const getUser = name => allUsers.get(name) || { id: null, name, toFG: false, toSmash: false };
 
+  // ── Magna Arena : 1 question, 3 options (Installation / Rangement / TO) ──
+  // On mappe les 3 premières options PAR POSITION aux zones install/rangement/
+  // to (robuste même si l'utilisateur change l'emoji d'une option). Le TO vient
+  // donc des VOTES du sondage, pas des rôles Discord.
+  if (HR.preset === 'magna') {
+    const setU = (id, users) => { const r = HR.planRoles.find(x => x.id === id); if (r) r.users = users; };
+    const opts = HR.questions[0]?.options || [];
+    const zoneByEmoji = {};
+    ['install', 'rangement', 'to'].forEach((zone, i) => { if (opts[i]) zoneByEmoji[opts[i].emoji] = zone; });
+    const buckets = { install: [], rangement: [], to: [] };
+    q0.forEach(r => {
+      const zone = zoneByEmoji[r.emoji];
+      if (zone) (r.users || []).forEach(u => buckets[zone].push(getUser(uName(u))));
+    });
+    setU('install', buckets.install);
+    setU('rangement', buckets.rangement);
+    setU('to', buckets.to);
+    return;
+  }
+
   // Sets de noms par option
   const arr  = {};
   q0.forEach(r => { arr[r.emoji]  = new Set((r.users || []).map(uName)); });
@@ -2317,39 +2362,38 @@ function hrSavePlanRolesSkeleton() {
     const skel = HR.planRoles.map(r => ({
       id: r.id, category: r.category, icon: r.icon, title: r.title, slot: r.slot
     }));
-    localStorage.setItem('hr_plan_roles_skeleton', JSON.stringify(skel));
+    localStorage.setItem('hr_plan_roles_skeleton_' + HR.preset, JSON.stringify(skel));
   } catch {}
 }
-// Rôles par défaut du workflow, dans l'ordre canonique. On GARANTIT leur
-// présence à chaque chargement : le skeleton sauvegardé a pu en perdre
-// (suppression accidentelle d'une plage via ✕, ou skeleton antérieur à une
-// catégorie). Sans eux, l'auto-assign ET la génération du message plantaient
-// (« Cannot set/read properties of undefined (…'users') »). Les plages
-// AJOUTÉES par l'utilisateur (ids custom) et les horaires édités sont conservés.
-const HR_CORE_PLAN_ROLES = [
-  { id:'install',  category:'setup',   icon:'🚀', title:'Installation', slot:null },
-  { id:'rangement',category:'setup',   icon:'🧹', title:'Rangement',    slot:'A la fermeture' },
-  { id:'acc1',     category:'accueil', icon:'🏠', title:'Accueil',      slot:'17h30-18h30' },
-  { id:'acc2',     category:'accueil', icon:'🏠', title:'Accueil',      slot:'18h30-19h30' },
-  { id:'regie',    category:'regie',   icon:'💻', title:'Régie',        slot:'19h30-fin' },
-  { id:'seeding',  category:'seeding', icon:'🌱', title:'Seeding',      slot:null },
-  { id:'to_smash', category:'to',      icon:'💥', title:'TO Smash',     slot:null },
-  { id:'to_fg',    category:'to',      icon:'🎮', title:'TO FG',        slot:null },
-];
+
+// Rôles cœur du preset actif (ordre canonique). On GARANTIT leur présence à
+// chaque chargement : le skeleton sauvegardé a pu en perdre (suppression
+// accidentelle d'une plage via ✕, ou skeleton antérieur à une catégorie). Sans
+// eux, l'auto-assign ET la génération du message plantaient (« Cannot set/read
+// properties of undefined (…'users') »). Les plages AJOUTÉES par l'utilisateur
+// (ids custom) et les horaires édités sont conservés.
+function hrCorePlanRoles() {
+  return (HR_PRESET_DEFAULTS[HR.preset] || HR_PRESET_DEFAULTS.lorem).planRoles;
+}
 
 function hrLoadPlanRolesSkeleton() {
   let skel = [];
   try {
-    const raw = localStorage.getItem('hr_plan_roles_skeleton');
+    let raw = localStorage.getItem('hr_plan_roles_skeleton_' + HR.preset);
+    if (!raw && HR.preset === 'lorem') raw = localStorage.getItem('hr_plan_roles_skeleton'); // migration
     if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) skel = p; }
   } catch {}
-  if (!skel.length) return; // aucun skeleton → on garde les planRoles par défaut
+  if (!skel.length) {
+    // Aucun skeleton → planRoles = défauts du preset actif (clone frais).
+    HR.planRoles = hrCorePlanRoles().map(r => ({ ...r, users: [] }));
+    return;
+  }
 
   const skelById = new Map(skel.map(r => [r.id, r]));
   const merged = [];
-  // 1) Rôles cœur, ordre canonique. On préserve seulement l'horaire édité par
-  //    l'utilisateur (slot) ; catégorie/icône/titre restent canoniques.
-  HR_CORE_PLAN_ROLES.forEach(def => {
+  // 1) Rôles cœur du preset, ordre canonique. On préserve seulement l'horaire
+  //    édité par l'utilisateur (slot) ; catégorie/icône/titre restent canoniques.
+  hrCorePlanRoles().forEach(def => {
     const s = skelById.get(def.id);
     merged.push({ ...def, slot: s ? s.slot : def.slot, users: [] });
     skelById.delete(def.id);
@@ -2408,6 +2452,9 @@ function hrUpdatePlanMsg() {
 
   if (has('rangement'))
     parts.push(`🧹 Rangement\n${byId.rangement.slot ? byId.rangement.slot + ' : ' : ''}${hrMention(byId.rangement.users)}`);
+
+  if (has('to'))        // preset Magna Arena : zone TO unique (remplie par vote)
+    parts.push(`🎮 TO\n${hrMention(byId.to.users)}`);
 
   if (has('to_smash'))
     parts.push(`💥 TO Smash\n${hrMention(byId.to_smash.users)}`);
@@ -2854,15 +2901,54 @@ function hrLoadBotSettings() {
   if (everyoneEl) everyoneEl.checked = localStorage.getItem('hr_everyone') === '1';
 }
 
+// Questions sauvegardées PAR preset (chaque type de sondage garde ses propres
+// questions éditées). Ancienne clé 'hr_questions' = questions Lorem Ipsum.
 function hrSaveQuestions() {
-  try { localStorage.setItem('hr_questions', JSON.stringify(HR.questions)); } catch(e) {}
+  try { localStorage.setItem('hr_questions_' + HR.preset, JSON.stringify(HR.questions)); } catch(e) {}
 }
 
 function hrLoadQuestions() {
   try {
-    const saved = localStorage.getItem('hr_questions');
-    if (saved) HR.questions = JSON.parse(saved);
+    let saved = localStorage.getItem('hr_questions_' + HR.preset);
+    if (!saved && HR.preset === 'lorem') saved = localStorage.getItem('hr_questions'); // migration
+    if (saved) { HR.questions = JSON.parse(saved); return; }
+    // Aucune sauvegarde pour ce preset → questions par défaut du preset.
+    HR.questions = JSON.parse(JSON.stringify(HR_PRESET_DEFAULTS[HR.preset].questions));
   } catch(e) {}
+}
+
+// ── PRESET (type de sondage) ──────────────────────────────────────────────────
+function hrLoadPreset() {
+  try {
+    const p = localStorage.getItem('hr_preset');
+    if (p && HR_PRESET_DEFAULTS[p]) HR.preset = p;
+  } catch {}
+}
+
+// Bascule le type de sondage : recharge les questions + zones de planning du
+// preset, re-render l'éditeur, et re-répartit les résultats déjà chargés.
+function hrSetPreset(preset) {
+  if (!HR_PRESET_DEFAULTS[preset]) return;
+  if (preset === HR.preset) { hrRenderPresetCard(); return; }
+  HR.preset = preset;
+  try { localStorage.setItem('hr_preset', preset); } catch {}
+  hrLoadQuestions();          // questions du preset (sauvegardées ou défaut)
+  hrLoadPlanRolesSkeleton();  // zones du preset (repart des défauts si pas de skeleton)
+  hrBuildQuestions();         // re-render l'éditeur de questions à droite
+  hrRenderPresetCard();       // maj visuelle du sélecteur
+  // Résultats déjà chargés → re-répartir selon le nouveau preset + re-render.
+  if (HR.lastResults && typeof hrRenderPlanningRoles === 'function') {
+    hrAutoAssign(HR.lastResults);
+    hrRenderPlanningRoles();
+  }
+}
+window.hrSetPreset = hrSetPreset;
+
+// Met à jour l'état visuel (bouton actif) du sélecteur de type de sondage.
+function hrRenderPresetCard() {
+  document.querySelectorAll('#hrSlide2 .hr-preset-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === HR.preset);
+  });
 }
 
 function hrSaveLastMessageIds() {
