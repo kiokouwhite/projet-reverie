@@ -17,6 +17,19 @@ L'outil a deux faces, entre lesquelles on bascule avec le bouton en bas à droit
 Le bouton de bascule Questions ↔ Résultats est un petit **bouton animé** en bas à droite. Sur les navigateurs qui gèrent mal la 3D, il s'affiche en version 2D simplifiée — même fonction.
 {% endhint %}
 
+## Choisir le type de sondage
+
+Dans le panneau de gauche, la carte **« Type de sondage »** (3ᵉ onglet) permet de choisir le modèle à envoyer :
+
+| Type | Contenu | Planning associé |
+| --- | --- | --- |
+| 📋 **Lorem Ipsum** | Le sondage complet : heure d'arrivée, heure de départ, tâche souhaitée. | Installation, Rangement, Accueil, Régie, Seeding, TO Smash / TO FG |
+| ⚔️ **Magna Arena** | Version **simplifiée** : une seule question « Sur quoi peux-tu aider ? » avec 3 options — **Installation**, **Rangement**, **TO**. | Installation, Rangement, TO |
+
+* Chaque type garde **ses propres questions** (tu peux les éditer indépendamment).
+* En **Magna Arena**, le **TO** se remplit directement à partir des **votes** du sondage (et non des rôles Discord).
+* Le type sélectionné est mémorisé et s'applique à l'envoi immédiat comme à l'envoi hebdomadaire.
+
 ## 1. Préparer les questions
 
 Prépare tes questions et leurs options (chaque option a un **emoji** — c'est via cet emoji que les gens votent en réagissant). Exemples typiques :
