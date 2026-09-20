@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7769DD">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Projet Rêverie</title>
+  <link rel="icon" type="image/svg+xml" href="../reverie-onglet.svg">
+  <link rel="apple-touch-icon" href="../reverie-onglet.svg">
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Barre du haut : logo + titre de l'onglet courant -->
+  <header class="topbar">
+    <img src="../reverie-onglet.svg" alt="" class="topbar-logo">
+    <span class="topbar-title" id="topbarTitle">Horaires</span>
+    <span class="topbar-dot" id="botDot" title="État de connexion au bot"></span>
+  </header>
+
+  <!-- Vue courante (rendue par app.js) -->
+  <main id="view" class="view"></main>
+
+  <!-- Barre d'onglets (bas d'écran, safe-area) -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-tab="horaires" type="button"><span class="tab-ico">🗓️</span><span class="tab-lbl">Horaires</span></button>
+    <button class="tab" data-tab="annonce"  type="button"><span class="tab-ico">📢</span><span class="tab-lbl">Annonce</span></button>
+    <button class="tab" data-tab="top8"     type="button"><span class="tab-ico">🏆</span><span class="tab-lbl">Top 8</span></button>
+    <button class="tab" data-tab="reglages" type="button"><span class="tab-ico">⚙️</span><span class="tab-lbl">Réglages</span></button>
+  </nav>
+
+  <!-- Toast de statut -->
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Visionneuse plein écran (galerie Top 8) -->
+  <div id="lightbox" class="lightbox" hidden>
+    <button class="lightbox-close" id="lightboxClose" type="button" aria-label="Fermer">✕</button>
+    <img id="lightboxImg" alt="">
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

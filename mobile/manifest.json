@@ -1,0 +1,15 @@
+{
+  "name": "Projet Rêverie",
+  "short_name": "Rêverie",
+  "description": "App mobile terrain de Projet Rêverie : sondages d'horaires, annonces Discord, galerie Top 8.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6e9ff",
+  "theme_color": "#7769DD",
+  "lang": "fr",
+  "icons": [
+    { "src": "../reverie-onglet.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

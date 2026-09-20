@@ -1423,6 +1423,10 @@ app.get('/channel-images', async (req, res) => {
   if (!checkSecret(req, res)) return;
   const channelId = req.query.channelId || process.env.PHOTO_CHANNEL_ID;
   const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+  // includeBots=1 → inclut aussi les images postées PAR le bot (ex. Top 8 postés
+  // via /post-announce). Utilisé par la galerie de l'app mobile. Par défaut on
+  // garde le comportement historique (photos des humains uniquement).
+  const includeBots = req.query.includeBots === '1' || req.query.includeBots === 'true';
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant et PHOTO_CHANNEL_ID non configuré' });
 
   try {
@@ -1432,7 +1436,7 @@ app.get('/channel-images', async (req, res) => {
     const messages = await channel.messages.fetch({ limit });
     const photos = [];
     messages.forEach(msg => {
-      if (msg.author?.bot) return;
+      if (msg.author?.bot && !includeBots) return;
       msg.attachments.forEach(att => {
         if (!isImageAttachment(att)) return;
         photos.push({
