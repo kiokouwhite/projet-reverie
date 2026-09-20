@@ -410,8 +410,212 @@ function renderReglages() {
 }
 
 // ── ROUTEUR ───────────────────────────────────────────────────────────────────
+// ── PLANNING HEBDO (rappels par notification LOCALE) ─────────────────────────
+// Tâches récurrentes de la semaine (envoyer les horaires, faire le Top 8…) avec
+// un rappel programmé SUR LE TÉLÉPHONE via le plugin Capacitor LocalNotifications
+// — aucun serveur, ça sonne même app fermée, et ça survit au redémarrage du
+// téléphone (RECEIVE_BOOT_COMPLETED). Dans un navigateur (hors APK), la liste
+// fonctionne mais sans rappels. Les cases « fait » se réinitialisent chaque
+// semaine (rattachées à la semaine ISO courante).
+const DAYS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const PLAN_DEFAULTS = [
+  { id: 1, emoji: '🗓️', title: 'Envoyer les sondages horaires',            day: 5, time: '17:00', notify: true },
+  { id: 2, emoji: '📊', title: 'Relever les résultats & faire le planning', day: 6, time: '12:00', notify: true },
+  { id: 3, emoji: '📢', title: 'Poster l’annonce du tournoi',              day: 3, time: '18:00', notify: true },
+  { id: 4, emoji: '🏆', title: 'Faire le Top 8',                           day: 0, time: '21:00', notify: true },
+];
+const TEST_NOTIF_ID = 999999;
+let PLAN = null;
+let planEditingId = null;
+
+function planLoad() {
+  if (PLAN) return PLAN;
+  try { PLAN = JSON.parse(S.get('planning', 'null')); } catch { PLAN = null; }
+  if (!PLAN || !Array.isArray(PLAN.tasks)) PLAN = { tasks: PLAN_DEFAULTS.map(t => ({ ...t })), nextId: 5, done: {} };
+  if (!PLAN.done) PLAN.done = {};
+  return PLAN;
+}
+function planSave() { S.set('planning', JSON.stringify(PLAN)); }
+
+// Clé de semaine ISO (ex. « 2026-W38 ») : les cases « fait » y sont rattachées.
+function weekKey(d = new Date()) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dow = x.getUTCDay() || 7; x.setUTCDate(x.getUTCDate() + 4 - dow);
+  const y = x.getUTCFullYear();
+  return `${y}-W${String(Math.ceil((((x - Date.UTC(y, 0, 1)) / 864e5) + 1) / 7)).padStart(2, '0')}`;
+}
+
+// Plugin natif (présent uniquement dans l'APK ; absent dans un navigateur).
+const ln = () => window.Capacitor?.Plugins?.LocalNotifications || null;
+const isNative = () => !!(window.Capacitor?.isNativePlatform?.());
+
+// Permission Android 13+ : vérifie, et ne demande que si `ask`.
+async function planPermission(ask = true) {
+  const L = ln(); if (!L) return 'unavailable';
+  try {
+    let s = await L.checkPermissions();
+    if (s.display !== 'granted' && ask) s = await L.requestPermissions();
+    return s.display;
+  } catch { return 'denied'; }
+}
+// Android 14+ : alarmes exactes (sinon un rappel peut glisser de quelques minutes).
+async function planExactAllowed() {
+  const L = ln(); if (!L || typeof L.checkExactNotificationSetting !== 'function') return true;
+  try { return (await L.checkExactNotificationSetting()).exact_alarm === 'granted'; } catch { return true; }
+}
+
+// (Re)programme TOUS les rappels : annule l'existant puis replanifie les tâches
+// activées. Idempotent → appelé après chaque modification et au démarrage.
+// weekday du plugin : 1 = dimanche … 7 = samedi (d'où `day + 1`).
+async function planReschedule(ask = true) {
+  const L = ln(); if (!L) return false;
+  if ((await planPermission(ask)) !== 'granted') return false;
+  try {
+    const pending = await L.getPending();
+    if (pending?.notifications?.length) await L.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    const notifications = planLoad().tasks.filter(t => t.notify).map(t => {
+      const [h, m] = String(t.time || '17:00').split(':').map(Number);
+      return {
+        id: t.id,
+        title: `${t.emoji} ${t.title}`.trim(),
+        body: 'C’est le moment — Projet Rêverie',
+        schedule: { on: { weekday: t.day + 1, hour: h, minute: m }, repeats: true, allowWhileIdle: true },
+        extra: { tab: 'planning' },
+      };
+    });
+    if (notifications.length) await L.schedule({ notifications });
+    return true;
+  } catch (e) { console.warn('[planning] reschedule :', e); return false; }
+}
+const PERM_DENIED_MSG = '❌ Notifications refusées — autorise-les dans les réglages Android';
+
+async function planTestNotification() {
+  const L = ln(); if (!L) return toast('Disponible dans l’app Android', 'err');
+  if ((await planPermission(true)) !== 'granted') return toast(PERM_DENIED_MSG, 'err', 4500);
+  try {
+    await L.schedule({ notifications: [{ id: TEST_NOTIF_ID, title: '🔔 Test Projet Rêverie', body: 'Les rappels fonctionnent !', schedule: { at: new Date(Date.now() + 5000) } }] });
+    toast('✅ Notification test dans 5 secondes…', 'ok');
+  } catch (e) { toast('❌ ' + e.message, 'err', 4500); }
+}
+
+function renderPlanning() {
+  const native = isNative() && !!ln();
+  $('#view').innerHTML = `
+    <div class="card">
+      <div class="card-title">📅 Cette semaine</div>
+      <div class="plan-progress"><span id="planCount"></span><span class="hint" style="margin:0">${esc(weekKey())}</span></div>
+      <div id="planStatus" class="hint" style="margin-bottom:0"></div>
+      ${native ? `<button class="btn btn-ghost" id="planTestBtn" type="button">🔔 Tester une notification</button>` : ''}
+    </div>
+    <div class="card">
+      <div class="card-title">✅ Tâches récurrentes</div>
+      <div id="planList"></div>
+      <button class="btn" id="planAddBtn" type="button">＋ Ajouter une tâche</button>
+    </div>
+    <div class="card" id="planFormCard" hidden>
+      <div class="card-title" id="planFormTitle">Nouvelle tâche</div>
+      <div class="row">
+        <input type="text" id="pfEmoji" class="fixed" style="width:64px;text-align:center" maxlength="4" placeholder="🔔">
+        <input type="text" id="pfTitle" placeholder="Titre de la tâche">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <select id="pfDay">${DAYS_FR.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select>
+        <input type="time" id="pfTime" value="17:00">
+      </div>
+      <label class="check"><input type="checkbox" id="pfNotify" checked> 🔔 Me rappeler par notification</label>
+      <div class="row">
+        <button class="btn btn-ghost" id="pfCancel" type="button">Annuler</button>
+        <button class="btn btn-primary" id="pfSave" type="button">Enregistrer</button>
+      </div>
+    </div>`;
+  renderPlanList();
+  refreshPlanStatus();
+  $('#planTestBtn')?.addEventListener('click', planTestNotification);
+  $('#planAddBtn').addEventListener('click', () => openPlanForm(null));
+  $('#pfCancel').addEventListener('click', () => { $('#planFormCard').hidden = true; planEditingId = null; });
+  $('#pfSave').addEventListener('click', savePlanForm);
+}
+
+function renderPlanList() {
+  const P = planLoad(); const wk = weekKey(); const done = P.done[wk] || {};
+  const box = $('#planList'); if (!box) return;
+  $('#planCount').textContent = `${P.tasks.filter(t => done[t.id]).length} / ${P.tasks.length} tâche(s) faite(s)`;
+  box.innerHTML = P.tasks.length ? P.tasks.map(t => `
+    <div class="task${done[t.id] ? ' done' : ''}">
+      <label class="task-check"><input type="checkbox" data-done="${t.id}" ${done[t.id] ? 'checked' : ''}></label>
+      <div class="task-main">
+        <div class="task-title">${esc(t.emoji)} ${esc(t.title)}</div>
+        <div class="task-when">${DAYS_FR[t.day] || '?'} · ${esc(t.time)}</div>
+      </div>
+      <button type="button" class="task-bell${t.notify ? ' on' : ''}" data-bell="${t.id}" title="Rappel">${t.notify ? '🔔' : '🔕'}</button>
+      <button type="button" class="task-ico" data-edit="${t.id}" title="Modifier">✏️</button>
+      <button type="button" class="task-ico" data-del="${t.id}" title="Supprimer">🗑️</button>
+    </div>`).join('') : `<div class="empty">Aucune tâche — ajoute-en une !</div>`;
+
+  box.querySelectorAll('[data-done]').forEach(cb => cb.addEventListener('change', e => {
+    const id = Number(e.target.dataset.done); const P = planLoad(); const wk = weekKey();
+    P.done = { [wk]: { ...(P.done[wk] || {}), [id]: e.target.checked } };   // ne conserve que la semaine courante
+    planSave(); renderPlanList();
+  }));
+  box.querySelectorAll('[data-bell]').forEach(b => b.addEventListener('click', async () => {
+    const t = planLoad().tasks.find(x => x.id === Number(b.dataset.bell)); if (!t) return;
+    t.notify = !t.notify; planSave(); renderPlanList();
+    if (isNative()) { const ok = await planReschedule(t.notify); if (t.notify && !ok) toast(PERM_DENIED_MSG, 'err', 4500); refreshPlanStatus(); }
+  }));
+  box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openPlanForm(Number(b.dataset.edit))));
+  box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    const P = planLoad(); const t = P.tasks.find(x => x.id === Number(b.dataset.del)); if (!t) return;
+    if (!confirm(`Supprimer « ${t.title} » ?`)) return;
+    P.tasks = P.tasks.filter(x => x.id !== t.id); planSave(); renderPlanList();
+    if (isNative()) { planReschedule(false); refreshPlanStatus(); }
+  }));
+}
+
+function openPlanForm(id) {
+  planEditingId = id;
+  const t = id != null ? planLoad().tasks.find(x => x.id === id) : null;
+  $('#planFormTitle').textContent = t ? 'Modifier la tâche' : 'Nouvelle tâche';
+  $('#pfEmoji').value  = t ? t.emoji : '';
+  $('#pfTitle').value  = t ? t.title : '';
+  $('#pfDay').value    = String(t ? t.day : 5);
+  $('#pfTime').value   = t ? t.time : '17:00';
+  $('#pfNotify').checked = t ? !!t.notify : true;
+  const card = $('#planFormCard'); card.hidden = false;
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#pfTitle').focus();
+}
+
+async function savePlanForm() {
+  const title = $('#pfTitle').value.trim(); if (!title) return toast('Donne un titre à la tâche', 'err');
+  const P = planLoad();
+  const data = { emoji: ($('#pfEmoji').value.trim() || '🔔'), title, day: Number($('#pfDay').value), time: $('#pfTime').value || '17:00', notify: $('#pfNotify').checked };
+  if (planEditingId != null) { const t = P.tasks.find(x => x.id === planEditingId); if (t) Object.assign(t, data); }
+  else P.tasks.push({ id: P.nextId++, ...data });
+  planSave(); $('#planFormCard').hidden = true; planEditingId = null; renderPlanList();
+  if (isNative()) { const ok = await planReschedule(data.notify); if (data.notify && !ok) return toast(PERM_DENIED_MSG, 'err', 4500); refreshPlanStatus(); }
+  toast('✅ Enregistré', 'ok');
+}
+
+// Bandeau d'état des rappels : navigateur / permission refusée / alarmes exactes.
+async function refreshPlanStatus() {
+  const el = $('#planStatus'); if (!el) return;
+  if (!isNative() || !ln()) { el.innerHTML = 'ℹ️ Les rappels par notification fonctionnent dans l’app Android. Ici, la liste seule.'; return; }
+  const perm = await planPermission(false);
+  if (perm !== 'granted') {
+    el.innerHTML = `❌ Notifications non autorisées. <button class="btn btn-sm btn-primary" id="planPermBtn" type="button">Autoriser</button>`;
+    $('#planPermBtn')?.addEventListener('click', async () => { await planReschedule(true); refreshPlanStatus(); });
+    return;
+  }
+  const n = planLoad().tasks.filter(t => t.notify).length;
+  el.innerHTML = (await planExactAllowed())
+    ? `🔔 Rappels actifs — ${n} programmé(s).`
+    : `⚠️ Rappels actifs (${n}), mais Android peut les décaler de quelques minutes. <button class="btn btn-sm btn-ghost" id="planExactBtn" type="button">Autoriser les rappels précis</button>`;
+  $('#planExactBtn')?.addEventListener('click', async () => { try { await ln().changeExactNotificationSetting(); } catch {} });
+}
+
 const VIEWS = {
   horaires: { title: 'Horaires', render: renderHoraires },
+  planning: { title: 'Planning', render: renderPlanning },
   annonce:  { title: 'Annonce',  render: renderAnnonce },
   top8:     { title: 'Top 8',    render: renderTop8 },
   reglages: { title: 'Réglages', render: renderReglages },
@@ -432,4 +636,11 @@ function setDot(ok) { const d = $('#botDot'); d.className = 'topbar-dot ' + (ok 
   const configured = S.get('botUrl') && S.get('secret');
   go(configured ? (S.get('tab') || 'horaires') : 'reglages');
   if (configured) { try { await loadChannels(); setDot(true); } catch { setDot(false); } }
+  // Planning : un tap sur un rappel ouvre l'onglet ; et on resynchronise les
+  // rappels au lancement (sans redemander la permission).
+  const L = ln();
+  if (L) {
+    try { L.addListener('localNotificationActionPerformed', () => go('planning')); } catch {}
+    planReschedule(false);
+  }
 })();

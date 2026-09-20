@@ -160,7 +160,7 @@ pre.msg {
 /* ── Barre d'onglets ───────────────────────────────────────── */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: rgba(255,255,255,0.86);
@@ -172,6 +172,23 @@ pre.msg {
 .tab-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; }
 .tab.active { color: var(--purple-deep); }
 .tab.active .tab-ico { transform: translateY(-1px) scale(1.12); }
+
+/* ── Planning hebdo ────────────────────────────────────────── */
+.plan-progress { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.task { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-top: 1px dashed var(--card-border); }
+.task:first-child { border-top: none; }
+.task-check { display: flex; align-items: center; }
+.task-check input { width: 22px; height: 22px; accent-color: var(--purple); cursor: pointer; margin: 0; }
+.task-main { flex: 1; min-width: 0; }
+.task-title { font-weight: 800; font-size: 14px; line-height: 1.2; overflow-wrap: anywhere; }  /* passe sur 2 lignes plutôt que de tronquer */
+.task-when { font-size: 12px; color: var(--text-soft); font-weight: 700; }
+.task.done .task-title { text-decoration: line-through; opacity: 0.55; }
+.task-bell, .task-ico {
+  flex: 0 0 auto; width: 36px; height: 36px; padding: 0;
+  border-radius: 10px; border: 1.5px solid var(--card-border); background: #fff;
+  font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.task-bell.on { border-color: var(--purple); background: rgba(119,105,221,0.12); }
 
 /* ── Toast ─────────────────────────────────────────────────── */
 .toast {
