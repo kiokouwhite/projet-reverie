@@ -6185,6 +6185,25 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
 .hr-questions-right-home #hrQuestionsWrap .hr-question-block {
   /* L'écart vertical est géré par le gap / la répartition de la grille. */
   margin-bottom: 0;
+  /* Chaque question dans sa propre carte, bien distincte des voisines :
+     fond pastel plein, bordure arrondie, ombre douce (variables du thème →
+     suit le mode nuit). */
+  background: var(--bg2, #fff0fa);
+  border: 2px solid var(--border, #e2c8f5);
+  border-radius: 16px;
+  padding: 14px 16px 12px;
+  box-shadow: 0 6px 18px rgba(120, 80, 200, 0.10);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.hr-questions-right-home #hrQuestionsWrap .hr-question-block:hover {
+  border-color: var(--purple, #9b7fe8);
+  box-shadow: 0 8px 24px rgba(120, 80, 200, 0.16);
+}
+/* Titre de la carte séparé de ses options par un filet pointillé. */
+.hr-questions-right-home #hrQuestionsWrap .hr-q-header {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px dashed var(--border, #e2c8f5);
 }
 /* Écrans étroits : on repasse à 1 question par ligne pour rester lisible. */
 @media (max-width: 760px) {
