@@ -205,7 +205,7 @@ function hrBuildQuestions() {
         <span class="hr-q-num">Q${qi + 1}</span>
         <input type="text" class="hr-q-text" value="${escHR(q.text)}"
           oninput="hrSetQText(${qi}, this.value)" placeholder="Question…">
-        ${hrMoveBtnsHTML(`hrMoveQuestion(${qi}, -1)`, `hrMoveQuestion(${qi}, 1)`, qi === 0, qi === HR.questions.length - 1, 'la question')}
+        ${hrDragHandleHTML('la question')}
       </div>
       <div class="hr-options-list" id="hrOpts${qi}">
         ${q.options.map((opt, oi) => hrOptionHTML(qi, oi, opt)).join('')}
@@ -213,6 +213,110 @@ function hrBuildQuestions() {
       <button class="hr-add-opt-btn" onclick="hrAddOption(${qi})">+ Ajouter une option</button>
     </div>
   `).join('');
+  hrBindQuestionDrag();
+}
+
+// ── RÉORDONNER PAR GLISSER-DÉPOSER (poignée ⋮⋮) ──────────────────────────────
+// Une poignée par option (dans sa question) et par question (dans la grille).
+// Pointer Events → marche à la souris ET au doigt. Pendant le glissé, l'élément
+// est réinséré en direct à la position survolée ; au relâchement, l'ordre du
+// DOM est recopié dans HR.questions puis sauvegardé. Flèches ↑ ↓ au clavier
+// sur la poignée = même déplacement pas à pas.
+function hrDragHandleHTML(what) {
+  return `<button type="button" class="hr-drag-handle" title="Glisser pour déplacer ${what} (↑ ↓ au clavier)" aria-label="Déplacer ${what}">
+      <svg viewBox="0 0 10 16" aria-hidden="true"><circle cx="3" cy="3" r="1.6"/><circle cx="7" cy="3" r="1.6"/><circle cx="3" cy="8" r="1.6"/><circle cx="7" cy="8" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="7" cy="13" r="1.6"/></svg>
+    </button>`;
+}
+
+function hrBindQuestionDrag() {
+  const wrap = document.getElementById('hrQuestionsWrap');
+  if (!wrap) return;
+  // Questions (grille : plusieurs par ligne possibles)
+  hrBindDragSort(wrap, '.hr-question-block', ':scope > .hr-question-block > .hr-q-header > .hr-drag-handle',
+    (from, to) => hrReorder(HR.questions, from, to),
+    (h, dir) => { const qi = hrQIndexOf(h); if (qi >= 0) hrMoveQuestion(qi, dir); });
+  // Options de chaque question (liste verticale)
+  HR.questions.forEach((q, qi) => {
+    const list = document.getElementById(`hrOpts${qi}`);
+    if (!list) return;
+    hrBindDragSort(list, '.hr-option-row', ':scope > .hr-option-row > .hr-drag-handle',
+      (from, to) => hrReorder(HR.questions[qi].options, from, to),
+      (h, dir) => { const oi = [...list.children].indexOf(h.closest('.hr-option-row')); if (oi >= 0) hrMoveOption(qi, oi, dir); });
+  });
+}
+function hrQIndexOf(handle) {
+  const block = handle.closest('.hr-question-block');
+  return block ? [...block.parentElement.children].indexOf(block) : -1;
+}
+function hrReorder(arr, from, to) {
+  if (!arr || from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
+  const [moved] = arr.splice(from, 1);
+  arr.splice(to, 0, moved);
+  hrSaveQuestions();
+  hrBuildQuestions();
+}
+
+// Tri par glisser-déposer générique.
+//   container : parent direct des items ; itemSel : sélecteur des items ;
+//   handleSel : sélecteur (depuis container) des poignées ; onDrop(from, to) ;
+//   onKey(handle, dir) pour ↑ ↓ au clavier.
+function hrBindDragSort(container, itemSel, handleSel, onDrop, onKey) {
+  const items = () => [...container.children].filter(el => el.matches(itemSel));
+  container.querySelectorAll(handleSel).forEach(handle => {
+    handle.onkeydown = e => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      onKey(handle, e.key === 'ArrowUp' ? -1 : 1);
+    };
+    handle.onpointerdown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const item = handle.closest(itemSel);
+      if (!item || item.parentElement !== container) return;
+      e.preventDefault();
+      // Pas de setPointerCapture : l'item est déplacé dans le DOM pendant le
+      // glissé, et Chrome cesse alors d'acheminer les événements vers la
+      // poignée capturante (relâchement jamais reçu → glissé « en l'air »).
+      // On écoute donc la fenêtre entière.
+      const pid = e.pointerId;
+      const from = items().indexOf(item);
+      item.classList.add('hr-dragging');
+      container.classList.add('hr-drag-active');
+      // Grille (plusieurs items sur une même ligne) ou liste verticale ?
+      const all = items();
+      const grid = all.some((it, i) => i > 0 && Math.abs(it.getBoundingClientRect().top - all[i - 1].getBoundingClientRect().top) < 8);
+      const move = ev => {
+        if (ev.pointerId !== pid) return;
+        const x = ev.clientX, y = ev.clientY;
+        const others = items().filter(el => el !== item);
+        // Nombre d'items que le pointeur a « dépassés » dans l'ordre de lecture
+        let idx = 0;
+        others.forEach(el => {
+          const r = el.getBoundingClientRect();
+          const after = grid
+            ? (y > r.bottom || (y >= r.top && x > r.left + r.width / 2))
+            : (y > r.top + r.height / 2);
+          if (after) idx++;
+        });
+        const current = items().indexOf(item);
+        if (idx === current) return;
+        if (idx >= others.length) container.appendChild(item);
+        else others[idx].before(item);
+      };
+      const up = ev => {
+        if (ev && ev.pointerId !== pid) return;
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        item.classList.remove('hr-dragging');
+        container.classList.remove('hr-drag-active');
+        const to = items().indexOf(item);
+        if (to !== from) onDrop(from, to);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    };
+  });
 }
 
 // Détecte si c'est un emoji Unicode (vs un nom custom comme "16h")
@@ -248,17 +352,9 @@ function hrOptionHTML(qi, oi, opt) {
         oninput="hrSetOptEmoji(${qi},${oi},this.value)">
       <input type="text" class="hr-label-input" value="${escHR(opt.label)}"
         placeholder="Label affiché" oninput="hrSetOptLabel(${qi},${oi},this.value)">
-      ${hrMoveBtnsHTML(`hrMoveOption(${qi},${oi},-1)`, `hrMoveOption(${qi},${oi},1)`, oi === 0, oi === (HR.questions[qi]?.options?.length || 0) - 1, "l'option")}
+      ${hrDragHandleHTML("l'option")}
       <button class="hr-del-opt-btn" onclick="hrDelOption(${qi},${oi})">✕</button>
     </div>`;
-}
-
-// Paire de flèches ▲ ▼ (réordonner). Désactivées aux extrémités.
-function hrMoveBtnsHTML(upCall, downCall, atTop, atBottom, what) {
-  return `<span class="hr-move-btns">
-      <button class="hr-move-btn" onclick="${upCall}" title="Monter ${what}" ${atTop ? 'disabled' : ''}>▲</button>
-      <button class="hr-move-btn" onclick="${downCall}" title="Descendre ${what}" ${atBottom ? 'disabled' : ''}>▼</button>
-    </span>`;
 }
 
 // ── EMOJIS UNICODE STANDARD (catégories Discord) ──────────────────────────────
@@ -1248,6 +1344,7 @@ function hrMoveOption(qi, oi, dir) {
   [opts[oi], opts[j]] = [opts[j], opts[oi]];
   hrSaveQuestions();
   hrBuildQuestions();
+  document.querySelector(`#hrOpt${qi}_${j} .hr-drag-handle`)?.focus();
 }
 function hrMoveQuestion(qi, dir) {
   const qs = HR.questions;
@@ -1256,6 +1353,7 @@ function hrMoveQuestion(qi, dir) {
   [qs[qi], qs[j]] = [qs[j], qs[qi]];
   hrSaveQuestions();
   hrBuildQuestions();
+  document.querySelector(`#hrQ${j} .hr-q-header .hr-drag-handle`)?.focus();
 }
 
 function escHR(s) { return (s||'').replace(/"/g,'&quot;'); }

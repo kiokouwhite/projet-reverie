@@ -32,7 +32,7 @@ Dans le panneau de gauche, la carte **« Type de sondage »** (3ᵉ onglet) perm
 
 ## 1. Préparer les questions
 
-Prépare tes questions et leurs options (chaque option a un **emoji** — c'est via cet emoji que les gens votent en réagissant). Les flèches **▲ ▼** à côté de chaque option (et de chaque question) permettent de **changer l'ordre** ; en Magna Arena, les 3 premières options correspondent, dans l'ordre, à Installation, Rangement et TO. Exemples typiques :
+Prépare tes questions et leurs options (chaque option a un **emoji** — c'est via cet emoji que les gens votent en réagissant). La poignée **⋮⋮** à côté de chaque option (et de chaque question) permet de la **glisser** pour changer l'ordre (ou ↑ ↓ au clavier une fois la poignée sélectionnée) ; en Magna Arena, les 3 premières options correspondent, dans l'ordre, à Installation, Rangement et TO. Exemples typiques :
 
 * « À quelle heure arrivez-vous ? » → 16h, 17h, 18h…
 * « À quelle heure partez-vous ? » → avant/pendant le rangement, à la fermeture…
