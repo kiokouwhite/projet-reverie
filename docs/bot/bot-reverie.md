@@ -13,7 +13,7 @@ description: Le bot Discord qui relie l'app à ton serveur.
 * 📊 **Lire les réactions** des sondages pour remonter les résultats dans l'app.
 * 🏷️ **Annoter les votants** avec leurs rôles (TO FG / TO Smash) pour l'auto-remplissage des tâches.
 * 🔔 Envoyer un **`@everyone`** en fin de sondage (si l'option est cochée).
-* 💾 Servir de **sauvegarde** pour tes modèles et préférences (backup).
+* 💾 Servir de **sauvegarde** pour tes modèles et préférences (backup). C'est aussi par là que l'**app mobile** récupère les questions de sondage que tu édites sur le site : elles arrivent sur le téléphone toutes seules, sans nouvelle version de l'app.
 
 ## Comment l'app lui parle
 

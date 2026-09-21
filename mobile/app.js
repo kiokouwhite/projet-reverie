@@ -95,6 +95,60 @@ const PRESETS = {
 const presetKey = () => (PRESETS[S.get('preset')] ? S.get('preset') : 'lorem');
 const questions = () => PRESETS[presetKey()].questions;
 
+// ── QUESTIONS SYNCHRONISÉES DEPUIS LE SITE ────────────────────────────────────
+// Le site pousse automatiquement ses réglages (dont les questions éditées,
+// clés hr_questions_lorem / hr_questions_magna) dans la sauvegarde du bot.
+// L'app les récupère via /backup-keys (léger) : ce que tu modifies sur le site
+// arrive ici tout seul. Repli : copie locale, puis questions intégrées.
+const SYNC_KEYS = ['hr_questions_lorem', 'hr_questions_magna'];
+let questionsSync = { at: null, source: 'builtin', lastTry: 0 };
+function applySyncedQuestions(values) {
+  let n = 0;
+  ['lorem', 'magna'].forEach(k => {
+    const raw = values && values['hr_questions_' + k];
+    if (!raw) return;
+    try {
+      const qs = JSON.parse(raw);
+      if (Array.isArray(qs) && qs.length && qs.every(q => q && Array.isArray(q.options))) { PRESETS[k].questions = qs; n++; }
+    } catch {}
+  });
+  return n;
+}
+(function loadQuestionsCache() {
+  try {
+    const c = JSON.parse(S.get('questionsCache') || 'null');
+    if (c && c.values && applySyncedQuestions(c.values)) questionsSync = { at: c.at || null, source: 'cache', lastTry: 0 };
+  } catch {}
+})();
+async function syncQuestions({ silent = true } = {}) {
+  questionsSync.lastTry = Date.now();
+  try {
+    const d = await api('/backup-keys?profile=default&keys=' + SYNC_KEYS.join(','), { timeout: 12000 });
+    const n = applySyncedQuestions(d.values || {});
+    if (n) {
+      questionsSync = { at: d.savedAt || new Date().toISOString(), source: 'site', lastTry: Date.now() };
+      S.set('questionsCache', JSON.stringify({ at: questionsSync.at, values: d.values }));
+    } else if (!silent) toast('ℹ️ Le site n’a encore rien sauvegardé (ouvre Horaires sur le site une fois)', '', 4500);
+    return n;
+  } catch (e) { if (!silent) toast('❌ ' + e.message, 'err', 4500); return 0; }
+}
+function relTime(iso) {
+  if (!iso) return '';
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'à l’instant';
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `il y a ${h} h`;
+  return `il y a ${Math.round(h / 24)} j`;
+}
+function syncHintHTML() {
+  const q = questionsSync;
+  const txt = q.source === 'site'  ? `🔄 Questions du site · sauvegarde ${relTime(q.at)}`
+            : q.source === 'cache' ? `📦 Questions du site (copie locale · ${relTime(q.at)})`
+            :                        '📋 Questions intégrées — le site n’a pas encore été synchronisé';
+  return `<div class="sync-row"><span class="hint">${esc(txt)}</span><button type="button" class="btn btn-sm" id="hrSyncBtn">↻</button></div>`;
+}
+
 // ── SALONS ────────────────────────────────────────────────────────────────────
 let channelsCache = null;
 async function loadChannels(force = false) {
@@ -305,6 +359,8 @@ function renderHoraires() {
       <div class="seg">
         ${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}" class="${k === pk ? 'active' : ''}">${esc(p.name)}<small>${esc(p.desc)}</small></button>`).join('')}
       </div>
+      ${syncHintHTML()}
+      <p class="hint" style="margin:6px 0 0">${questions().length} question(s) · ${questions().reduce((a, q) => a + (q.options || []).length, 0)} option(s)</p>
     </div>
 
     <div class="card">
@@ -347,6 +403,18 @@ function renderHoraires() {
   mountChannelSelect('hrChanBox', 'hrChan', S.get('channelId'));
 
   $$('.seg button').forEach(b => b.addEventListener('click', () => { S.set('preset', b.dataset.preset); renderHoraires(); }));
+  $('#hrSyncBtn').addEventListener('click', async () => {
+    const btn = $('#hrSyncBtn'); busy(btn, true, '⏳');
+    const n = await syncQuestions({ silent: false });
+    busy(btn, false, '↻');
+    if (n) { toast('✅ Questions synchronisées depuis le site', 'ok'); renderHoraires(); }
+  });
+  // Synchro automatique (une fois par 5 min max) : si les questions ont changé,
+  // on ré-affiche.
+  if (Date.now() - questionsSync.lastTry > 5 * 60 * 1000 && S.get('botUrl') && S.get('secret')) {
+    const before = JSON.stringify(questions());
+    syncQuestions().then(n => { if (n && JSON.stringify(questions()) !== before && $('#hrPostBtn')) renderHoraires(); else if (n && $('#hrSyncBtn')) $('#hrSyncBtn').parentElement.outerHTML = syncHintHTML(); });
+  }
   $('#hrEveryone').addEventListener('change', e => S.set('everyone', e.target.checked ? '1' : '0'));
   $('#hrDay').addEventListener('change', e => S.set('day', e.target.value));
   $('#hrTime').addEventListener('change', e => S.set('time', e.target.value));
@@ -753,4 +821,14 @@ function setDot(ok) { const d = $('#botDot'); d.className = 'topbar-dot ' + (ok 
     try { L.addListener('localNotificationActionPerformed', () => go('planning')); } catch {}
     planReschedule(false);
   }
+  // Retour au premier plan après un moment : on reprend les questions du site
+  // (elles ont pu être modifiées entre-temps) et on ré-affiche Horaires.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !configured) return;
+    if (Date.now() - questionsSync.lastTry < 5 * 60 * 1000) return;
+    const before = JSON.stringify(PRESETS.lorem.questions) + JSON.stringify(PRESETS.magna.questions);
+    syncQuestions().then(n => {
+      if (n && JSON.stringify(PRESETS.lorem.questions) + JSON.stringify(PRESETS.magna.questions) !== before && $('#hrPostBtn')) renderHoraires();
+    });
+  });
 })();

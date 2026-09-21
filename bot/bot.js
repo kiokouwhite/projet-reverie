@@ -436,6 +436,26 @@ app.post('/backup', (req, res) => {
   }
 });
 
+// GET /backup-keys?profile=default&keys=hr_questions_lorem,hr_questions_magna
+// → seulement les clés localStorage demandées du dernier blob (LÉGER : sans
+// les images IndexedDB). Utilisé par l'app mobile pour reprendre les questions
+// de sondage éditées sur le site (poussées ici par la sauvegarde auto).
+app.get('/backup-keys', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  try {
+    const fp = backupFilePath(req.query.profile);
+    if (!fs.existsSync(fp)) return res.json({ ok: true, empty: true, savedAt: null, values: {} });
+    const data = JSON.parse(fs.readFileSync(fp, 'utf8'));
+    const keys = String(req.query.keys || '').split(',').map(k => k.trim()).filter(Boolean).slice(0, 50);
+    const ls = (data && data.ls && typeof data.ls === 'object') ? data.ls : {};
+    const values = {};
+    keys.forEach(k => { if (Object.prototype.hasOwnProperty.call(ls, k)) values[k] = ls[k]; });
+    res.json({ ok: true, empty: false, savedAt: data.savedAt || null, values });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── DÉTECTION TOURNOIS START.GG ─────────────────────────────────────────────
 // Config envoyée par l'app web depuis l'onglet Configuration :
 //   { channels: [discordChannelId, ...], keywords: ['Lorem', 'Magna'] }
