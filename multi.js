@@ -169,7 +169,7 @@ async function importAllEvents() {
   // Tout est coché par défaut. Le filtre s'applique sur tournament.events, donc
   // toute la suite (nuages + import) ne voit que les jeux retenus.
   if (typeof showImportGameMenu === 'function') {
-    const selMap = new Map(); // vgKey → { name, imgUrl, entrants }
+    const selMap = new Map(); // vgKey → { name, imgUrl, events: [{ id, name, entrants }] }
     (tournament.events || []).forEach(e => {
       if (!e.videogame) return;
       const vgKey = String(e.videogame.id || e.videogame.name || '');
@@ -178,17 +178,36 @@ async function importAllEvents() {
       const imgs = e.videogame.images || [];
       const img  = imgs.find(i => i.type === 'profile')
                 || imgs.find(i => i.type === 'primary') || imgs[0];
-      const ex = selMap.get(vgKey);
-      if (ex) { ex.entrants += cnt; }
-      else selMap.set(vgKey, {
-        name:     e.videogame.displayName || e.videogame.name || e.name,
-        imgUrl:   img?.url || null,
-        entrants: cnt,
+      if (!selMap.has(vgKey)) selMap.set(vgKey, {
+        name:   e.videogame.displayName || e.videogame.name || e.name,
+        imgUrl: img?.url || null,
+        events: [],
       });
+      selMap.get(vgKey).events.push({ id: e.id, name: e.name || '', entrants: cnt });
     });
-    const menuGames = Array.from(selMap.entries())
-      .map(([vgKey, g]) => ({ vgKey, name: g.name, imgUrl: g.imgUrl, entrants: g.entrants }))
-      .sort((a, b) => b.entrants - a.entrants); // les plus gros jeux d'abord
+    // Un jeu = une ligne… SAUF si le tournoi contient PLUSIEURS events pour le
+    // même jeu (ex. « MAIN EVENT » + « Liste d'attente » en Smash) : on affiche
+    // alors une ligne PAR EVENT (nom de l'event visible) et seul le plus gros
+    // est coché par défaut. Avant, tous les events du jeu partaient en bloc et
+    // la liste d'attente (6 joueurs, aucun perso reporté) arrivait en premier
+    // dans la nav → « Smash n'importe plus ses persos ».
+    const menuGames = [];
+    selMap.forEach((g, vgKey) => {
+      if (g.events.length <= 1) {
+        menuGames.push({ vgKey, name: g.name, imgUrl: g.imgUrl, entrants: g.events[0]?.entrants || 0 });
+        return;
+      }
+      const biggest = g.events.reduce((a, b) => (b.entrants > a.entrants ? b : a), g.events[0]);
+      g.events.forEach(ev => menuGames.push({
+        vgKey:     `${vgKey}#${ev.id}`,   // clé PAR EVENT (cf. filtre ci-dessous)
+        name:      g.name,
+        sub:       ev.name,
+        imgUrl:    g.imgUrl,
+        entrants:  ev.entrants,
+        defaultOn: ev === biggest,
+      }));
+    });
+    menuGames.sort((a, b) => b.entrants - a.entrants); // les plus gros d'abord
 
     if (menuGames.length) {
       const selectedKeys = await showImportGameMenu(menuGames, tournament.name);
@@ -200,10 +219,11 @@ async function importAllEvents() {
         showStatus('error', '❌ Sélectionne au moins un jeu à importer.');
         btn.disabled=false; btn.textContent='🔍 Chercher'; return;
       }
-      // Ne garde que les events des jeux cochés.
+      // Ne garde que les events cochés : clé par jeu (cas normal) OU clé par
+      // event (jeu présent plusieurs fois dans le tournoi).
       tournament.events = (tournament.events || []).filter(e => {
         const vgKey = String(e.videogame?.id || e.videogame?.name || '');
-        return selectedKeys.has(vgKey);
+        return selectedKeys.has(vgKey) || selectedKeys.has(`${vgKey}#${e.id}`);
       });
     }
   }
@@ -298,6 +318,11 @@ async function importAllEvents() {
     const events = [];
     const noLayoutEvents = [];
 
+    // Taille de l'event retenu comme source start.gg (roster du picker) par
+    // jeu — réinitialisé à chaque import (sinon un tournoi précédent plus
+    // gros bloquerait la mise à jour).
+    window._sggEventEntrants = {};
+
     rawEvents.forEach(e => {
       const gameName = e.videogame?.displayName || e.videogame?.name || '';
       const builtinId = detectGameFromStartGG(gameName || e.name);
@@ -312,6 +337,12 @@ async function importAllEvents() {
       // dans le picker (full roster ou dérivé des sélections de sets).
       const _storeSgg = (internalId) => {
         if (!internalId) return;
+        // Si le jeu a plusieurs events importés (main + liste d'attente…), on
+        // garde le PLUS GROS comme source du roster : l'ordre start.gg n'est
+        // pas fiable (la liste d'attente peut arriver avant le main event).
+        const cnt = Math.max(e.numEntrants || 0, e.entrants?.pageInfo?.total || 0);
+        if ((window._sggEventEntrants[internalId] || 0) > cnt) return;
+        window._sggEventEntrants[internalId] = cnt;
         if (e.videogame?.id) {
           window._sggVideogameId = window._sggVideogameId || {};
           window._sggVideogameId[internalId] = e.videogame.id;
@@ -720,6 +751,13 @@ function onMainTournamentNameInput() {
 window.onMainTournamentNameInput = onMainTournamentNameInput;
 
 // ── NAVIGATION MULTI-GRAPH ────────────────────────────────────────────────────
+// Libellé d'un graph dans la nav : nom du jeu, complété du nom de l'event
+// quand le même jeu est importé plusieurs fois (main + liste d'attente…).
+function multiGraphLabel(graph) {
+  const dup = graphs.filter(g => g.game === graph.game).length > 1;
+  return (dup && graph.eventName) ? `${graph.gameName} · ${graph.eventName}` : graph.gameName;
+}
+
 function renderMultiPreview() {
   if (!graphs.length) return;
   const graph = graphs[currentGraphIdx];
@@ -734,7 +772,7 @@ function renderMultiPreview() {
 
   // Mettre à jour le compteur
   const counter = document.getElementById('graphCounter');
-  if (counter) counter.textContent = `${currentGraphIdx+1} / ${graphs.length} — ${graph.gameName}`;
+  if (counter) counter.textContent = `${currentGraphIdx+1} / ${graphs.length} — ${multiGraphLabel(graph)}`;
 
   // Synchroniser le panneau gauche avec ce graph
   currentGame = graph.game;

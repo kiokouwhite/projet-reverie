@@ -7,7 +7,10 @@
 //
 //  API :
 //    showImportGameMenu(games, tournamentName) → Promise<Set<vgKey> | null>
-//      games : [{ vgKey, name, imgUrl, entrants }]
+//      games : [{ vgKey, name, imgUrl, entrants, sub?, defaultOn? }]
+//        sub       : sous-titre (nom de l'event) — utilisé quand un même jeu a
+//                    plusieurs events dans le tournoi (main + liste d'attente…)
+//        defaultOn : false → ligne DÉCOCHÉE au départ (event secondaire)
 //      résout avec un Set des vgKey COCHÉS, ou null si l'utilisateur annule.
 //
 //  Le menu se construit dynamiquement (aucune édition d'index.html requise) et
@@ -60,6 +63,8 @@ function _igmInjectStyles() {
   .igm-name { font-weight:700; font-size:.92rem; color:var(--text,#4a3060);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .igm-ent { font-size:.76rem; color:var(--text-soft,#9b7fb8); margin-top:1px; }
+  .igm-sub-ev { font-size:.74rem; font-weight:600; color:var(--purple-deep,#7654c4);
+    margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .igm-foot { display:flex; gap:10px; padding:14px 22px 18px; }
   .igm-btn { flex:1; padding:11px 0; border-radius:999px; font-weight:700; font-size:.92rem;
     cursor:pointer; border:none; transition:.15s; }
@@ -77,8 +82,10 @@ function _igmInjectStyles() {
 function showImportGameMenu(games, tournamentName) {
   return new Promise(resolve => {
     _igmInjectStyles();
-    // Tout coché par défaut.
-    const sel = new Set(games.map(g => g.vgKey));
+    // Tout coché par défaut — sauf les lignes marquées defaultOn:false
+    // (events secondaires d'un jeu présent plusieurs fois : liste d'attente…).
+    const sel = new Set(games.filter(g => g.defaultOn !== false).map(g => g.vgKey));
+    const hasSecondary = games.some(g => g.defaultOn === false);
 
     const ov = document.createElement('div');
     ov.className = 'igm-overlay';
@@ -86,7 +93,7 @@ function showImportGameMenu(games, tournamentName) {
       <div class="igm-modal" role="dialog" aria-modal="true" aria-label="Choisir les jeux à importer">
         <div class="igm-head">
           <p class="igm-title">🎮 Jeux à importer</p>
-          <div class="igm-sub">${tournamentName ? _igmEsc(tournamentName) + '<br>' : ''}Décoche ceux que tu ne veux pas importer.</div>
+          <div class="igm-sub">${tournamentName ? _igmEsc(tournamentName) + '<br>' : ''}Décoche ceux que tu ne veux pas importer.${hasSecondary ? '<br>Un jeu a plusieurs events : seul le plus gros est coché.' : ''}</div>
         </div>
         <div class="igm-toolbar">
           <button class="igm-tool" data-act="all">Tout cocher</button>
@@ -105,7 +112,7 @@ function showImportGameMenu(games, tournamentName) {
 
     games.forEach(g => {
       const row = document.createElement('div');
-      row.className = 'igm-row';
+      row.className = 'igm-row' + (g.defaultOn === false ? ' off' : '');
       row.dataset.key = g.vgKey;
       const ent = g.entrants ? `${g.entrants} entrant${g.entrants > 1 ? 's' : ''}` : '';
       row.innerHTML = `
@@ -115,6 +122,7 @@ function showImportGameMenu(games, tournamentName) {
           : `<div class="igm-thumb"></div>`}
         <div class="igm-info">
           <div class="igm-name">${_igmEsc(g.name)}</div>
+          ${g.sub ? `<div class="igm-sub-ev">${_igmEsc(g.sub)}</div>` : ''}
           ${ent ? `<div class="igm-ent">${ent}</div>` : ''}
         </div>`;
       row.addEventListener('click', () => {

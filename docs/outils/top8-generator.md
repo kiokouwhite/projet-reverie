@@ -20,7 +20,7 @@ Le **TOP8 Generator** transforme les résultats d'un tournoi en un beau visuel c
 1. Assure-toi d'avoir renseigné ta [clé API start.gg](../demarrage/configuration.md).
 2. Colle le **lien du tournoi** start.gg dans le champ prévu.
 3. Clique sur **🔍 Chercher**.
-4. Si le tournoi a plusieurs jeux, un menu te laisse **cocher les jeux à importer**.
+4. Si le tournoi a plusieurs jeux, un menu te laisse **cocher les jeux à importer**. Si un même jeu a **plusieurs events** (ex. « MAIN EVENT » + « Liste d'attente »), chaque event a sa propre ligne et **seul le plus gros est coché** par défaut : coche l'autre si tu veux aussi son Top 8.
 5. Les noms des joueurs (et souvent leurs personnages) se remplissent automatiquement.
 
 {% hint style="info" %}
