@@ -131,15 +131,20 @@ async function mountChannelSelect(containerId, selectId, selected) {
 const channelName = id => (channelsCache || []).find(c => c.id === id)?.name || id;
 
 // ── PLANNING (auto-répartition depuis les votes, miroir simplifié du site) ────
-function autoAssign(results) {
-  const uName = u => (typeof u === 'object' ? u.name : u);
-  const uObj  = u => (typeof u === 'object' ? u : { id: null, name: u });
+// Toutes les personnes ayant voté (dédoublonnées par nom, id Discord + flags TO)
+function collectPeople(results) {
+  const uObj = u => (typeof u === 'object' ? u : { id: null, name: u });
   const all = new Map();
   (results || []).forEach(r => (r.reactions || []).forEach(re => (re.users || []).forEach(u => {
     const o = uObj(u); const ex = all.get(o.name);
     if (!ex) all.set(o.name, { id: o.id || null, name: o.name, toFG: !!o.toFG, toSmash: !!o.toSmash });
     else { ex.toFG = ex.toFG || !!o.toFG; ex.toSmash = ex.toSmash || !!o.toSmash; if (!ex.id && o.id) ex.id = o.id; }
   })));
+  return all;
+}
+function autoAssign(results) {
+  const uName = u => (typeof u === 'object' ? u.name : u);
+  const all = collectPeople(results);
   const get = n => all.get(n) || { id: null, name: n };
   const voters = (qi, emoji) => {
     const re = (results[qi]?.reactions || []).find(x => x.emoji === emoji);
@@ -181,6 +186,101 @@ function planMessage(A) {
 const PLAN_LABELS = { install:'🚀 Installation', accueil:'🏠 Accueil', regie:'💻 Régie', seeding:'🌱 Seeding', rangement:'🧹 Rangement', to:'🎮 TO', to_smash:'💥 TO Smash', to_fg:'🎮 TO FG' };
 const chips = us => us.length ? `<div class="chips">${us.map(u => `<span class="chip">${esc(u.name)}</span>`).join('')}</div>` : `<span class="chip empty">personne</span>`;
 
+// ── PLANNING MODIFIABLE À LA MAIN ────────────────────────────────────────────
+// Après « Charger les résultats », la répartition auto peut être retouchée :
+// touche un nom → « Déplacer vers … » / « Retirer » ; ＋ sur un rôle → ajoute
+// un votant (ou un nom libre) ; ↺ Auto → recalcule depuis les votes.
+// Le brouillon est mémorisé (localStorage) tant que les votes n'ont pas changé.
+const PRESET_ROLES = {
+  lorem: ['install', 'accueil', 'regie', 'seeding', 'rangement', 'to_smash', 'to_fg'],
+  magna: ['install', 'rangement', 'to'],
+};
+const planRoles = () => PRESET_ROLES[presetKey()] || Object.keys(PLAN_LABELS);
+let lastPlan = null;   // { sig, A, manual }
+const resultsSig = results => JSON.stringify((results || []).map(r => (r.reactions || []).map(re =>
+  [re.emoji, (re.users || []).map(u => (typeof u === 'object' ? u.name : u)).sort()])));
+function planNormalize(A) { Object.keys(PLAN_LABELS).forEach(k => { if (!Array.isArray(A[k])) A[k] = []; }); return A; }
+function ensurePlan(results) {
+  const sig = resultsSig(results);
+  if (lastPlan && lastPlan.sig === sig) return lastPlan;
+  try { const d = JSON.parse(S.get('planDraft') || 'null'); if (d && d.sig === sig && d.A) { lastPlan = { sig, A: planNormalize(d.A), manual: !!d.manual }; return lastPlan; } } catch {}
+  lastPlan = { sig, A: planNormalize(autoAssign(results)), manual: false };
+  return lastPlan;
+}
+function planPersist() { try { S.set('planDraft', JSON.stringify(lastPlan)); } catch {} }
+function planEdit(fn) { fn(lastPlan.A); lastPlan.manual = true; planPersist(); renderPlan(); }
+function planRemove(A, name, role) { A[role] = (A[role] || []).filter(u => u.name !== name); }
+function planAdd(A, user, role) { if (!(A[role] || []).some(u => u.name === user.name)) (A[role] = A[role] || []).push(user); }
+
+// Feuille d'actions en bas d'écran → Promise<value | null>
+function sheet(title, items) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div'); ov.className = 'sheet-ov';
+    ov.innerHTML = `<div class="sheet" role="dialog" aria-label="${esc(title)}"><div class="sheet-title">${esc(title)}</div>` +
+      items.map((it, i) => `<button type="button" class="sheet-btn${it.danger ? ' danger' : ''}" data-i="${i}">${esc(it.label)}</button>`).join('') +
+      `<button type="button" class="sheet-btn cancel" data-i="-1">Annuler</button></div>`;
+    const close = v => { ov.remove(); resolve(v); };
+    ov.addEventListener('click', e => {
+      const b = e.target.closest('.sheet-btn');
+      if (b) { const i = Number(b.dataset.i); close(i >= 0 ? items[i].value : null); }
+      else if (e.target === ov) close(null);
+    });
+    document.body.appendChild(ov);
+  });
+}
+
+function renderPlan() {
+  const box = $('#hrPlan'); if (!box || !lastPlan) return;
+  const A = lastPlan.A, roles = planRoles();
+  box.innerHTML = roles.map(k => `
+    <div class="plan-sec" data-role="${k}">
+      <div class="plan-sec-head"><span class="plan-sec-title">${PLAN_LABELS[k]}</span><button type="button" class="plan-add" data-role="${k}" aria-label="Ajouter à ${esc(PLAN_LABELS[k])}">＋</button></div>
+      ${(A[k] || []).length
+        ? `<div class="chips">${A[k].map(u => `<button type="button" class="chip chip-btn" data-role="${k}" data-name="${esc(u.name)}">${esc(u.name)}</button>`).join('')}</div>`
+        : '<span class="chip empty">personne</span>'}
+    </div>`).join('') +
+    `<div class="plan-tools"><span class="hint">${lastPlan.manual ? '✏️ Modifié à la main' : '🤖 Répartition automatique'} · touche un nom pour le déplacer</span>${lastPlan.manual ? '<button type="button" class="btn btn-sm" id="hrPlanReset">↺ Auto</button>' : ''}</div>`;
+  $('#hrPlanMsg').textContent = planMessage(A);
+
+  box.onclick = async e => {
+    const chip = e.target.closest('.chip-btn');
+    const add  = e.target.closest('.plan-add');
+    const reset = e.target.closest('#hrPlanReset');
+    if (chip) {
+      const { role, name } = chip.dataset;
+      const choice = await sheet(`${name} · ${PLAN_LABELS[role]}`, [
+        ...roles.filter(r => r !== role).map(r => ({ label: `→ ${PLAN_LABELS[r]}`, value: 'mv:' + r })),
+        { label: '✕ Retirer du planning', value: 'rm', danger: true },
+      ]);
+      if (!choice) return;
+      planEdit(A => {
+        const user = (A[role] || []).find(u => u.name === name) || { id: null, name };
+        planRemove(A, name, role);
+        if (choice.startsWith('mv:')) planAdd(A, user, choice.slice(3));
+      });
+      toast(choice === 'rm' ? `✕ ${name} retiré` : `✅ ${name} → ${PLAN_LABELS[choice.slice(3)]}`, 'ok', 1800);
+    } else if (add) {
+      const role = add.dataset.role;
+      const people = [...collectPeople(lastResults).values()].filter(u => !(A[role] || []).some(x => x.name === u.name));
+      const choice = await sheet(`Ajouter à ${PLAN_LABELS[role]}`, [
+        ...people.map(u => ({ label: u.name, value: 'p:' + u.name })),
+        { label: '✏️ Autre nom…', value: 'other' },
+      ]);
+      if (!choice) return;
+      let user = null;
+      if (choice === 'other') { const n = (prompt('Nom à ajouter :') || '').trim(); if (!n) return; user = { id: null, name: n }; }
+      else user = people.find(u => u.name === choice.slice(2));
+      if (!user) return;
+      planEdit(A => planAdd(A, user, role));
+      toast(`✅ ${user.name} → ${PLAN_LABELS[role]}`, 'ok', 1800);
+    } else if (reset) {
+      lastPlan = { sig: lastPlan.sig, A: planNormalize(autoAssign(lastResults)), manual: false };
+      planPersist(); renderPlan();
+      toast('↺ Répartition automatique rétablie', 'ok', 1800);
+    }
+  };
+}
+
 // ── VUE : HORAIRES ────────────────────────────────────────────────────────────
 let lastResults = null;
 function renderHoraires() {
@@ -209,7 +309,7 @@ function renderHoraires() {
     </div>
 
     <div class="card" id="hrPlanCard" hidden>
-      <div class="card-title">🗂️ Planning (auto)</div>
+      <div class="card-title">🗂️ Planning</div>
       <div id="hrPlan"></div>
       <pre class="msg" id="hrPlanMsg"></pre>
       <div class="row">
@@ -312,14 +412,10 @@ function renderResults(results) {
       }).join('') + `</div>`;
   }).join('') || `<div class="empty">Aucun résultat.</div>`;
 
-  // Planning auto
-  const A = autoAssign(results);
-  const secs = Object.keys(PLAN_LABELS).filter(k => A[k].length);
-  const card = $('#hrPlanCard');
-  if (!secs.length) { card.hidden = true; return; }
-  card.hidden = false;
-  $('#hrPlan').innerHTML = secs.map(k => `<div class="plan-sec"><div class="plan-sec-title">${PLAN_LABELS[k]}</div>${chips(A[k])}</div>`).join('');
-  $('#hrPlanMsg').textContent = planMessage(A);
+  // Planning : répartition auto, puis retouchable à la main (cf. renderPlan)
+  ensurePlan(results);
+  $('#hrPlanCard').hidden = false;
+  renderPlan();
 }
 
 // ── VUE : ANNONCE ─────────────────────────────────────────────────────────────
