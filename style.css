@@ -5615,12 +5615,12 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
 
 /* Emoji pick button */
 .hr-emoji-pick-btn {
-  min-width: 36px;
-  max-width: 60px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
+  min-width: 46px;
+  max-width: 70px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(119,105,221,0.30);
+  background: rgba(119,105,221,0.08);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -5630,7 +5630,24 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   padding: 0 4px;
   overflow: hidden;
 }
-.hr-emoji-pick-btn:hover { background: rgba(255,255,255,0.14); }
+.hr-emoji-pick-btn:hover { background: rgba(119,105,221,0.20); border-color: rgba(119,105,221,0.55); }
+.hr-pick-uni { font-size: 22px; line-height: 1; }
+/* Saisie manuelle en bas du sélecteur d'emoji */
+.hr-picker-manual { display: flex; gap: 6px; flex-shrink: 0; }
+.hr-picker-manual-input {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  padding: 6px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.07);
+  color: var(--text-main); font-size: 12px;
+}
+.hr-picker-manual-input:focus { outline: none; border-color: var(--accent); }
+.hr-picker-manual-ok {
+  flex-shrink: 0; padding: 0 12px; border-radius: 8px;
+  border: 1px solid rgba(119,105,221,0.30); background: rgba(119,105,221,0.12);
+  color: var(--accent, #7769DD); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.hr-picker-manual-ok:hover { background: rgba(119,105,221,0.24); }
 .hr-pick-icon { font-size: 14px; }
 .hr-pick-name {
   font-size: 9px;

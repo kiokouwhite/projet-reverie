@@ -331,7 +331,7 @@ function hrOptionHTML(qi, oi, opt) {
   if (!opt.emoji) {
     btnContent = '<span class="hr-pick-icon">🔍</span>';
   } else if (isUni) {
-    btnContent = `<span style="font-size:18px;line-height:1">${opt.emoji}</span>`;
+    btnContent = `<span class="hr-pick-uni">${opt.emoji}</span>`;
   } else {
     // Custom emoji : si on a déjà chargé les emojis (app + serveur), afficher
     // l'image. Sinon fallback sur le nom abrégé.
@@ -345,12 +345,9 @@ function hrOptionHTML(qi, oi, opt) {
   }
   return `
     <div class="hr-option-row" id="hrOpt${qi}_${oi}">
-      <button class="hr-emoji-pick-btn" onclick="hrOpenPicker(${qi},${oi})" title="Choisir un emoji">
+      <button type="button" class="hr-emoji-pick-btn" onclick="hrOpenPicker(${qi},${oi})" title="Cliquer pour changer l'emoji${opt.emoji ? ' (' + escHR(opt.emoji) + ')' : ''}">
         ${btnContent}
       </button>
-      <input type="text" class="hr-emoji-input" value="${escHR(opt.emoji)}"
-        placeholder=":emoji:" id="hrEmojiInput${qi}_${oi}"
-        oninput="hrSetOptEmoji(${qi},${oi},this.value)">
       <input type="text" class="hr-label-input" value="${escHR(opt.label)}"
         placeholder="Label affiché" oninput="hrSetOptLabel(${qi},${oi},this.value)">
       ${hrDragHandleHTML("l'option")}
@@ -1227,9 +1224,26 @@ function hrRenderPicker(popup, qi, oi, tab) {
       <input type="text" class="hr-picker-search" placeholder="🔍 Rechercher…" oninput="hrFilterPicker(this.value,${qi},${oi})">
     </div>
     ${catBarHTML}
-    <div class="hr-picker-body">${bodyHTML}</div>`;
+    <div class="hr-picker-body">${bodyHTML}</div>
+    <div class="hr-picker-manual">
+      <input type="text" class="hr-picker-manual-input" value="${escHR(HR.questions[qi]?.options?.[oi]?.emoji || '')}"
+        placeholder="✏️ ou tape un emoji / un nom (16h, seeding…)"
+        onkeydown="if (event.key === 'Enter') { event.preventDefault(); hrPickManual(this, ${qi}, ${oi}); }">
+      <button type="button" class="hr-picker-manual-ok" onclick="hrPickManual(this.previousElementSibling, ${qi}, ${oi})">OK</button>
+    </div>`;
 
   popup.querySelector('.hr-picker-search').focus();
+}
+
+// Saisie manuelle dans le sélecteur : un emoji Unicode collé, ou le NOM d'un
+// emoji custom du serveur (« 16h », « :seeding: »…). Remplace l'ancien champ
+// texte qui doublonnait l'emoji dans chaque ligne d'option.
+function hrPickManual(input, qi, oi) {
+  const v = String(input?.value || '').trim().replace(/^:+|:+$/g, '');
+  if (!v) return;
+  if (hrIsUnicode(v)) { hrPickEmoji(qi, oi, v, '', true); return; }
+  const found = HR_EMOJIS.find(e => e.name === v);
+  hrPickEmoji(qi, oi, v, found ? found.url : '', false);
 }
 
 function hrSwitchPickerTab(popup, qi, oi, tab) {
@@ -1310,7 +1324,7 @@ function hrPickEmoji(qi, oi, value, url, isUnicode) {
   const btn = document.querySelector(`#hrOpt${qi}_${oi} .hr-emoji-pick-btn`);
   if (btn) {
     if (isUnicode) {
-      btn.innerHTML = `<span style="font-size:18px;line-height:1">${value}</span>`;
+      btn.innerHTML = `<span class="hr-pick-uni">${value}</span>`;
     } else {
       const abbr = value.length > 5 ? value.slice(0, 5) + '…' : value;
       btn.innerHTML = `<img src="${url}" class="hr-emoji-thumb" onerror="this.outerHTML='<span class=\\'hr-pick-name\\'>${abbr}</span>'">`;
