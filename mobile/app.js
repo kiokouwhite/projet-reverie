@@ -396,9 +396,12 @@ function renderHoraires() {
         </select>
         <input type="time" id="hrTime" value="${esc(S.get('time', '17:00'))}">
       </div>
+      <p class="hint" id="hrWeeklyState" style="margin:8px 0 0"></p>
       <button class="btn" id="hrWeeklyOn" type="button">🔁 Activer l’envoi hebdo</button>
       <button class="btn btn-danger" id="hrWeeklyOff" type="button">✕ Désactiver</button>
     </div>`;
+  renderWeeklyState();
+  syncAutoTask();
 
   mountChannelSelect('hrChanBox', 'hrChan', S.get('channelId'));
 
@@ -468,15 +471,24 @@ function renderHoraires() {
     try {
       const dayOfWeek = Number($('#hrDay').value);
       await api('/horaires-schedule', { method: 'POST', body: { channelId, questions: questions(), dayOfWeek, hour: h, minute: m, everyone: $('#hrEveryone').checked, preset: presetKey(), presetName: PRESETS[presetKey()].name } });
-      planUpsertAuto({ dayOfWeek, hour: h, minute: m, presetName: PRESETS[presetKey()].name, channelId });
+      planUpsertAuto({ preset: presetKey(), dayOfWeek, hour: h, minute: m, presetName: PRESETS[presetKey()].name, channelId });
+      planAutoSync.schedules = (planAutoSync.schedules || []).filter(x => x.preset !== presetKey()).concat([{ preset: presetKey(), dayOfWeek, hour: h, minute: m }]);
+      renderWeeklyState();
       if (isNative()) planReschedule(false);
-      toast(`✅ Envoi hebdo activé (${$('#hrDay').selectedOptions[0].textContent} ${$('#hrTime').value}) · ajouté au Planning`, 'ok', 4000);
+      toast(`✅ ${PRESETS[presetKey()].name} : envoi hebdo activé (${$('#hrDay').selectedOptions[0].textContent} ${$('#hrTime').value}) · ajouté au Planning`, 'ok', 4000);
     } catch (e) { toast('❌ ' + e.message, 'err', 4500); }
     finally { busy(btn, false, '🔁 Activer l’envoi hebdo'); }
   });
   $('#hrWeeklyOff').addEventListener('click', async () => {
     const btn = $('#hrWeeklyOff'); busy(btn, true, '⏳…');
-    try { await api('/horaires-schedule', { method: 'DELETE' }); planRemoveAuto(); if (isNative()) planReschedule(false); toast('✅ Envoi hebdo désactivé · retiré du Planning', 'ok'); }
+    try {
+      await api('/horaires-schedule?preset=' + encodeURIComponent(presetKey()), { method: 'DELETE' });
+      planRemoveAuto(presetKey());
+      planAutoSync.schedules = (planAutoSync.schedules || []).filter(x => x.preset !== presetKey());
+      renderWeeklyState();
+      if (isNative()) planReschedule(false);
+      toast(`✅ ${PRESETS[presetKey()].name} : envoi hebdo désactivé · retiré du Planning`, 'ok');
+    }
     catch (e) { toast('❌ ' + e.message, 'err', 4500); }
     finally { busy(btn, false, '✕ Désactiver'); }
   });
@@ -615,26 +627,30 @@ let planEditingId = null;
 // l'heure programmés (rappel activé). Elle suit l'état du bot : mise à jour si
 // le jour / l'heure / le type changent, retirée quand l'envoi est désactivé.
 // Elle n'est pas modifiable à la main (sauf la cloche) — ça se règle sur le site.
-const PLAN_AUTO_ID = 900001;   // id stable (sert aussi d'id de notification)
-let planAutoSync = { lastTry: 0 };
-const planAutoTask = () => planLoad().tasks.find(t => t.id === PLAN_AUTO_ID) || null;
+// Une tâche PAR TYPE de sondage programmé (ids stables = ids de notification).
+const PLAN_AUTO_IDS = { lorem: 900001, magna: 900002 };
+const planAutoIdFor = preset => PLAN_AUTO_IDS[preset] || 900000;
+let planAutoSync = { lastTry: 0, schedules: null };
+const planAutoTask = preset => planLoad().tasks.find(t => t.id === planAutoIdFor(preset)) || null;
 function planUpsertAuto(s) {
   const P = planLoad();
+  const preset = s.preset || 'default';
   const time  = `${String(s.hour ?? 0).padStart(2, '0')}:${String(s.minute ?? 0).padStart(2, '0')}`;
   const title = `Sondages${s.presetName ? ' « ' + s.presetName + ' »' : ''} envoyés automatiquement`;
-  let t = planAutoTask(), changed = false;
+  let t = planAutoTask(preset), changed = false;
   if (!t) {
-    t = { id: PLAN_AUTO_ID, emoji: '📨', title, day: Number(s.dayOfWeek) || 0, time, notify: true, auto: 'horaires', channel: s.channelId || '' };
+    t = { id: planAutoIdFor(preset), emoji: '📨', title, day: Number(s.dayOfWeek) || 0, time, notify: true, auto: 'horaires', preset, channel: s.channelId || '' };
     P.tasks.unshift(t); changed = true;
-  } else if (t.title !== title || t.day !== Number(s.dayOfWeek) || t.time !== time) {
-    t.title = title; t.day = Number(s.dayOfWeek) || 0; t.time = time; t.channel = s.channelId || t.channel; changed = true;
+  } else if (t.title !== title || t.day !== Number(s.dayOfWeek) || t.time !== time || t.preset !== preset) {
+    t.title = title; t.day = Number(s.dayOfWeek) || 0; t.time = time; t.preset = preset; t.channel = s.channelId || t.channel; changed = true;
   }
   if (changed) planSave();
   return changed;
 }
-function planRemoveAuto() {
+// Sans argument : retire TOUTES les tâches automatiques.
+function planRemoveAuto(preset) {
   const P = planLoad(); const n = P.tasks.length;
-  P.tasks = P.tasks.filter(t => t.id !== PLAN_AUTO_ID);
+  P.tasks = P.tasks.filter(t => preset ? t.id !== planAutoIdFor(preset) : !t.auto);
   if (P.tasks.length === n) return false;
   planSave(); return true;
 }
@@ -644,10 +660,28 @@ async function syncAutoTask({ force = false } = {}) {
   planAutoSync.lastTry = Date.now();
   try {
     const d = await api('/horaires-schedule', { timeout: 12000 });
-    const changed = (d.active && d.schedule) ? planUpsertAuto(d.schedule) : planRemoveAuto();
+    const list = Array.isArray(d.schedules) ? d.schedules : (d.active && d.schedule ? [d.schedule] : []);
+    planAutoSync.schedules = list;
+    let changed = false;
+    list.forEach(s => { if (planUpsertAuto(s)) changed = true; });
+    const keep = new Set(list.map(s => planAutoIdFor(s.preset || 'default')));
+    const P = planLoad(); const n = P.tasks.length;
+    P.tasks = P.tasks.filter(t => !t.auto || keep.has(t.id));
+    if (P.tasks.length !== n) { planSave(); changed = true; }
     if (changed) { if ($('#planList')) renderPlanList(); if (isNative()) planReschedule(false); }
+    renderWeeklyState();
     return changed;
   } catch { return false; }
+}
+// Ligne d'état de l'envoi hebdo POUR LE TYPE SÉLECTIONNÉ (carte Horaires).
+function renderWeeklyState() {
+  const el = $('#hrWeeklyState'); if (!el) return;
+  const list = planAutoSync.schedules;
+  if (!list) { el.textContent = ''; return; }
+  const s = list.find(x => (x.preset || 'default') === presetKey());
+  el.textContent = s
+    ? `✅ Actif pour ${PRESETS[presetKey()].name} : ${DAYS_FR[s.dayOfWeek] || '?'} à ${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
+    : `⏸️ Aucun envoi hebdo pour ${PRESETS[presetKey()].name}`;
 }
 
 function planLoad() {

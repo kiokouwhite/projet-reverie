@@ -56,7 +56,7 @@ Pour que le `@everyone` **notifie** réellement, le bot doit avoir la permission
 
 ## 3. Programmer chaque semaine
 
-Tu peux aussi **programmer** les sondages pour qu'ils partent automatiquement chaque semaine (planification hebdo gérée par le bot), sans avoir à revenir cliquer. Dès que l'envoi hebdo est activé, une tâche « 📨 Sondages envoyés automatiquement » apparaît toute seule dans le **Planning de l'app mobile**, au jour et à l'heure programmés, avec un rappel ; elle disparaît si tu désactives l'envoi.
+Tu peux aussi **programmer** les sondages pour qu'ils partent automatiquement chaque semaine (planification hebdo gérée par le bot), sans avoir à revenir cliquer. Il y a **une programmation par type de sondage** : Lorem Ipsum et Magna Arena peuvent chacun partir à leur propre jour et heure ; « Activer » et « Désactiver » agissent sur le type sélectionné, dont l'état s'affiche sous les boutons. Dès qu'un envoi hebdo est activé, une tâche « 📨 Sondages « <type> » envoyés automatiquement » apparaît toute seule dans le **Planning de l'app mobile**, au jour et à l'heure programmés, avec un rappel ; elle disparaît si tu désactives l'envoi de ce type.
 
 ## 4. Lire les résultats
 

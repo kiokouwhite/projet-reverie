@@ -1096,8 +1096,22 @@ app.get('/channels', async (req, res) => {
 // Stockage en mémoire
 let horairesLastChannelId = '';
 let horairesLastMessageIds = [];
-let horairesWeeklyConfig = null;
+// UNE programmation PAR TYPE de sondage (clé = preset : 'lorem', 'magna'…,
+// 'default' si l'appelant n'en précise pas). Chacune a son salon, ses
+// questions, son jour et son heure ; un seul timer les sert toutes.
+let horairesWeeklySchedules = {};
 let horairesWeeklyInterval = null;
+const horairesFiredAt = {};   // clé → minute du dernier envoi (anti double-tir)
+const hrSchedKey = p => String(p || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'default';
+function hrSchedSummary(key, cfg) {
+  return {
+    preset: key, presetName: cfg.presetName || null,
+    dayOfWeek: cfg.dayOfWeek, hour: cfg.hour, minute: cfg.minute,
+    channelId: cfg.channelId, everyone: !!cfg.everyone,
+    questionCount: Array.isArray(cfg.questions) ? cfg.questions.length : 0,
+    updatedAt: cfg.updatedAt || null,
+  };
+}
 
 // ── Persistance de la programmation hebdomadaire ─────────────────────────────
 // Fichier stocké dans PERSIST_DIR (/home/reverie-data) → survit aux restarts
@@ -1107,8 +1121,8 @@ const HORAIRES_SCHED_FILE = path.join(PERSIST_DIR, 'horaires-schedule.json');
 
 function saveHorairesSchedule() {
   try {
-    if (horairesWeeklyConfig) {
-      fs.writeFileSync(HORAIRES_SCHED_FILE, JSON.stringify(horairesWeeklyConfig, null, 2), 'utf8');
+    if (Object.keys(horairesWeeklySchedules).length) {
+      fs.writeFileSync(HORAIRES_SCHED_FILE, JSON.stringify({ version: 2, schedules: horairesWeeklySchedules }, null, 2), 'utf8');
     } else if (fs.existsSync(HORAIRES_SCHED_FILE)) {
       fs.unlinkSync(HORAIRES_SCHED_FILE);
     }
@@ -1121,19 +1135,21 @@ function saveHorairesSchedule() {
 // Utilisé par POST /horaires-schedule ET par la restauration au démarrage.
 function armHorairesInterval() {
   if (horairesWeeklyInterval) { clearInterval(horairesWeeklyInterval); horairesWeeklyInterval = null; }
-  if (!horairesWeeklyConfig) return;
+  if (!Object.keys(horairesWeeklySchedules).length) return;
   horairesWeeklyInterval = setInterval(async () => {
-    const cfg = horairesWeeklyConfig;
-    if (!cfg) return;
     const now = new Date();
-    if (now.getDay() === cfg.dayOfWeek && now.getHours() === cfg.hour && now.getMinutes() === cfg.minute) {
+    const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+    for (const [key, cfg] of Object.entries(horairesWeeklySchedules)) {
+      if (!cfg || now.getDay() !== cfg.dayOfWeek || now.getHours() !== cfg.hour || now.getMinutes() !== cfg.minute) continue;
+      if (horairesFiredAt[key] === minuteKey) continue;   // déjà envoyé cette minute
+      horairesFiredAt[key] = minuteKey;
       try {
         const ids = await postHorairesMessages(cfg.channelId, cfg.questions, !!cfg.everyone);
         horairesLastChannelId  = cfg.channelId;
         horairesLastMessageIds = ids;
-        console.log(`📅 [HEBDO] Sondages postés automatiquement`);
+        console.log(`📅 [HEBDO] Sondages « ${cfg.presetName || key} » postés automatiquement`);
       } catch (e) {
-        console.error('Erreur schedule horaires :', e.message);
+        console.error(`Erreur schedule horaires (${key}) :`, e.message);
       }
     }
   }, 60000);
@@ -1146,12 +1162,18 @@ function loadHorairesSchedule() {
       console.log('📅 [HORAIRES] Aucune programmation hebdo enregistrée.');
       return;
     }
-    const cfg = JSON.parse(fs.readFileSync(HORAIRES_SCHED_FILE, 'utf8'));
-    if (!cfg || !cfg.channelId) return;
-    horairesWeeklyConfig = cfg;
+    const data = JSON.parse(fs.readFileSync(HORAIRES_SCHED_FILE, 'utf8'));
+    if (data && data.version === 2 && data.schedules && typeof data.schedules === 'object') {
+      horairesWeeklySchedules = data.schedules;
+    } else if (data && data.channelId) {
+      // Ancien format (une seule programmation) → migré sous sa clé de preset.
+      horairesWeeklySchedules = { [hrSchedKey(data.preset)]: data };
+      saveHorairesSchedule();
+    } else return;
     armHorairesInterval();
     const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
-    console.log(`📅 [HORAIRES] Programmation hebdo restaurée : ${days[cfg.dayOfWeek]} à ${cfg.hour}h${String(cfg.minute).padStart(2,'0')} (salon ${cfg.channelId})`);
+    Object.entries(horairesWeeklySchedules).forEach(([key, cfg]) =>
+      console.log(`📅 [HORAIRES] Programmation hebdo restaurée (${cfg.presetName || key}) : ${days[cfg.dayOfWeek]} à ${cfg.hour}h${String(cfg.minute).padStart(2,'0')} (salon ${cfg.channelId})`));
   } catch (e) {
     console.warn('📅 [HORAIRES] Lecture schedule échouée :', e.message);
   }
@@ -1404,17 +1426,14 @@ app.get('/horaires-latest', async (req, res) => {
 // POST /horaires-schedule — activer l'envoi hebdomadaire
 // GET /horaires-schedule — état de l'envoi hebdomadaire (sans les questions).
 // Utilisé par l'app mobile pour refléter l'envoi programmé dans son Planning.
+// GET /horaires-schedule[?preset=lorem] — toutes les programmations
+// (`schedules`) + `schedule` = celle du preset demandé (ou la première).
 app.get('/horaires-schedule', (req, res) => {
   if (!checkSecret(req, res)) return;
-  const cfg = horairesWeeklyConfig;
-  if (!cfg) return res.json({ ok: true, active: false, schedule: null });
-  res.json({ ok: true, active: true, schedule: {
-    dayOfWeek: cfg.dayOfWeek, hour: cfg.hour, minute: cfg.minute,
-    channelId: cfg.channelId, everyone: !!cfg.everyone,
-    preset: cfg.preset || null, presetName: cfg.presetName || null,
-    questionCount: Array.isArray(cfg.questions) ? cfg.questions.length : 0,
-    updatedAt: cfg.updatedAt || null,
-  } });
+  const schedules = Object.entries(horairesWeeklySchedules).map(([k, c]) => hrSchedSummary(k, c));
+  const wanted = req.query.preset ? hrSchedKey(req.query.preset) : null;
+  const schedule = wanted ? (schedules.find(s => s.preset === wanted) || null) : (schedules[0] || null);
+  res.json({ ok: true, active: schedules.length > 0, schedules, schedule });
 });
 
 app.post('/horaires-schedule', async (req, res) => {
@@ -1422,27 +1441,31 @@ app.post('/horaires-schedule', async (req, res) => {
   const { channelId, questions, dayOfWeek, hour, minute, everyone, preset, presetName } = req.body;
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
 
-  horairesWeeklyConfig = {
+  const key = hrSchedKey(preset);
+  horairesWeeklySchedules[key] = {
     channelId, questions, dayOfWeek, hour, minute, everyone: !!everyone,
-    preset: preset || null, presetName: presetName || null,   // affichage (Planning de l'app mobile)
+    preset: key, presetName: presetName || null,   // affichage (site + Planning de l'app mobile)
     updatedAt: new Date().toISOString(),
   };
-  armHorairesInterval();         // (re)arme le timer (annule l'ancien si besoin)
+  armHorairesInterval();         // (re)arme le timer unique
   saveHorairesSchedule();        // persiste sur disque → survit au prochain restart/deploy
 
   const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
-  console.log(`🗓️ Sondages programmés chaque ${days[dayOfWeek]} à ${hour}h${String(minute).padStart(2,'0')}`);
-  res.json({ ok: true, dayOfWeek, hour, minute });
+  console.log(`🗓️ Sondages « ${presetName || key} » programmés chaque ${days[dayOfWeek]} à ${hour}h${String(minute).padStart(2,'0')}`);
+  res.json({ ok: true, preset: key, dayOfWeek, hour, minute, schedules: Object.entries(horairesWeeklySchedules).map(([k, c]) => hrSchedSummary(k, c)) });
 });
 
 // DELETE /horaires-schedule — désactiver l'envoi hebdomadaire
+// DELETE /horaires-schedule?preset=lorem — désactive CE type ; sans preset,
+// désactive tout (ancien comportement).
 app.delete('/horaires-schedule', (req, res) => {
   if (!checkSecret(req, res)) return;
-  if (horairesWeeklyInterval) clearInterval(horairesWeeklyInterval);
-  horairesWeeklyInterval = null;
-  horairesWeeklyConfig   = null;
-  saveHorairesSchedule();        // supprime le fichier → reste désactivé après restart
-  res.json({ ok: true });
+  const preset = req.query.preset || (req.body && req.body.preset);
+  if (preset) delete horairesWeeklySchedules[hrSchedKey(preset)];
+  else horairesWeeklySchedules = {};
+  armHorairesInterval();         // coupe le timer s'il ne reste rien
+  saveHorairesSchedule();        // supprime le fichier si vide → reste désactivé après restart
+  res.json({ ok: true, schedules: Object.entries(horairesWeeklySchedules).map(([k, c]) => hrSchedSummary(k, c)) });
 });
 
 // ── PHOTOS DEPUIS UN CANAL DISCORD ────────────────────────────────────────────

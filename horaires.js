@@ -90,6 +90,7 @@ function hrInit() {
   if (hrInitDone) return;
   hrInitDone = true;
   hrLoadPreset();      // type de sondage actif (AVANT questions/planRoles qui en dépendent)
+  setTimeout(hrRefreshWeeklyStatus, 1200);   // état hebdo du type actif (une fois le bot configuré)
   hrLoadBotSettings();
   hrLoadQuestions();   // charge les questions du preset (sauvegardées ou défaut)
   hrLoadPlanRolesSkeleton(); // restaure les plages du preset (+ plages custom ajoutées)
@@ -1558,7 +1559,7 @@ async function hrSetWeekly() {
     const data = await res.json();
     if (data.ok) {
       const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
-      hrWeeklyStatus('ok', `✅ Envoi chaque ${days[day]} à ${timeVal}`);
+      hrWeeklyStatus('ok', `✅ ${hrPresetName()} : envoi chaque ${days[day]} à ${timeVal}`);
     } else {
       hrWeeklyStatus('error', `❌ ${data.error}`);
     }
@@ -1573,16 +1574,46 @@ async function hrCancelWeekly() {
   if (!botUrl || !secret) { hrWeeklyStatus('error', '❌ Configure le bot d\'abord'); return; }
 
   try {
-    const res  = await fetch(`${botUrl}/horaires-schedule`, {
+    // Ne désactive que le TYPE de sondage sélectionné (une programmation par type).
+    const res  = await fetch(`${botUrl}/horaires-schedule?preset=${encodeURIComponent(HR.preset)}`, {
       method: 'DELETE',
       headers: { 'x-secret': secret },
     });
     const data = await res.json();
-    if (data.ok) hrWeeklyStatus('ok', '✅ Envoi hebdomadaire désactivé');
+    if (data.ok) hrWeeklyStatus('ok', `✅ Envoi hebdo désactivé pour ${hrPresetName()}`);
     else hrWeeklyStatus('error', `❌ ${data.error}`);
   } catch(e) {
     hrWeeklyStatus('error', `❌ ${e.message}`);
   }
+}
+
+function hrPresetName() {
+  return (typeof HR_PRESET_DEFAULTS !== 'undefined' && HR_PRESET_DEFAULTS[HR.preset]?.name) || HR.preset;
+}
+
+// État de l'envoi hebdo POUR LE TYPE SÉLECTIONNÉ (lu chez le bot) : affiché à
+// l'ouverture et à chaque changement de type ; jour / heure du sélecteur
+// alignés sur la programmation existante.
+async function hrRefreshWeeklyStatus() {
+  const botUrl = hrGetBotUrl(), secret = hrGetSecret();
+  const el = document.getElementById('hrWeeklyStatus');
+  if (!botUrl || !secret || !el) return;
+  try {
+    const res  = await fetch(`${botUrl}/horaires-schedule?preset=${encodeURIComponent(HR.preset)}`, { headers: { 'x-secret': secret } });
+    const data = await res.json();
+    if (!data.ok) return;
+    const s = data.schedule;
+    if (s && s.preset === HR.preset) {
+      const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+      const hh = String(s.hour).padStart(2, '0'), mm = String(s.minute).padStart(2, '0');
+      const dayEl = document.getElementById('hrDay'), timeEl = document.getElementById('hrTime');
+      if (dayEl)  dayEl.value  = String(s.dayOfWeek);
+      if (timeEl) timeEl.value = `${hh}:${mm}`;
+      hrWeeklyStatus('ok', `✅ ${hrPresetName()} : envoi chaque ${days[s.dayOfWeek]} à ${hh}:${mm}`);
+    } else {
+      el.style.display = 'none';   // pas de programmation pour ce type
+    }
+  } catch (e) { /* bot injoignable : on n'affiche rien */ }
 }
 
 // ── RÉSULTATS ─────────────────────────────────────────────────────────────────
@@ -3137,6 +3168,7 @@ function hrSetPreset(preset) {
   hrLoadPlanRolesSkeleton();  // zones du preset (repart des défauts si pas de skeleton)
   hrBuildQuestions();         // re-render l'éditeur de questions à droite
   hrRenderPresetCard();       // maj visuelle du sélecteur
+  hrRefreshWeeklyStatus();    // état de l'envoi hebdo de CE type
   // Résultats déjà chargés → re-répartir selon le nouveau preset + re-render.
   if (HR.lastResults && typeof hrRenderPlanningRoles === 'function') {
     hrAutoAssign(HR.lastResults);
