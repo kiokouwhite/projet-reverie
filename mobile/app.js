@@ -466,14 +466,17 @@ function renderHoraires() {
     const [h, m] = ($('#hrTime').value || '17:00').split(':').map(Number);
     const btn = $('#hrWeeklyOn'); busy(btn, true, '⏳…');
     try {
-      await api('/horaires-schedule', { method: 'POST', body: { channelId, questions: questions(), dayOfWeek: Number($('#hrDay').value), hour: h, minute: m, everyone: $('#hrEveryone').checked } });
-      toast(`✅ Envoi hebdo activé (${$('#hrDay').selectedOptions[0].textContent} ${$('#hrTime').value})`, 'ok', 4000);
+      const dayOfWeek = Number($('#hrDay').value);
+      await api('/horaires-schedule', { method: 'POST', body: { channelId, questions: questions(), dayOfWeek, hour: h, minute: m, everyone: $('#hrEveryone').checked, preset: presetKey(), presetName: PRESETS[presetKey()].name } });
+      planUpsertAuto({ dayOfWeek, hour: h, minute: m, presetName: PRESETS[presetKey()].name, channelId });
+      if (isNative()) planReschedule(false);
+      toast(`✅ Envoi hebdo activé (${$('#hrDay').selectedOptions[0].textContent} ${$('#hrTime').value}) · ajouté au Planning`, 'ok', 4000);
     } catch (e) { toast('❌ ' + e.message, 'err', 4500); }
     finally { busy(btn, false, '🔁 Activer l’envoi hebdo'); }
   });
   $('#hrWeeklyOff').addEventListener('click', async () => {
     const btn = $('#hrWeeklyOff'); busy(btn, true, '⏳…');
-    try { await api('/horaires-schedule', { method: 'DELETE' }); toast('✅ Envoi hebdo désactivé', 'ok'); }
+    try { await api('/horaires-schedule', { method: 'DELETE' }); planRemoveAuto(); if (isNative()) planReschedule(false); toast('✅ Envoi hebdo désactivé · retiré du Planning', 'ok'); }
     catch (e) { toast('❌ ' + e.message, 'err', 4500); }
     finally { busy(btn, false, '✕ Désactiver'); }
   });
@@ -606,6 +609,47 @@ const TEST_NOTIF_ID = 999999;
 let PLAN = null;
 let planEditingId = null;
 
+// ── TÂCHE AUTOMATIQUE : l'envoi hebdo des sondages ───────────────────────────
+// Quand l'envoi hebdomadaire est activé (sur le site ou ici), une tâche
+// « Sondages envoyés automatiquement » apparaît dans le Planning au jour et à
+// l'heure programmés (rappel activé). Elle suit l'état du bot : mise à jour si
+// le jour / l'heure / le type changent, retirée quand l'envoi est désactivé.
+// Elle n'est pas modifiable à la main (sauf la cloche) — ça se règle sur le site.
+const PLAN_AUTO_ID = 900001;   // id stable (sert aussi d'id de notification)
+let planAutoSync = { lastTry: 0 };
+const planAutoTask = () => planLoad().tasks.find(t => t.id === PLAN_AUTO_ID) || null;
+function planUpsertAuto(s) {
+  const P = planLoad();
+  const time  = `${String(s.hour ?? 0).padStart(2, '0')}:${String(s.minute ?? 0).padStart(2, '0')}`;
+  const title = `Sondages${s.presetName ? ' « ' + s.presetName + ' »' : ''} envoyés automatiquement`;
+  let t = planAutoTask(), changed = false;
+  if (!t) {
+    t = { id: PLAN_AUTO_ID, emoji: '📨', title, day: Number(s.dayOfWeek) || 0, time, notify: true, auto: 'horaires', channel: s.channelId || '' };
+    P.tasks.unshift(t); changed = true;
+  } else if (t.title !== title || t.day !== Number(s.dayOfWeek) || t.time !== time) {
+    t.title = title; t.day = Number(s.dayOfWeek) || 0; t.time = time; t.channel = s.channelId || t.channel; changed = true;
+  }
+  if (changed) planSave();
+  return changed;
+}
+function planRemoveAuto() {
+  const P = planLoad(); const n = P.tasks.length;
+  P.tasks = P.tasks.filter(t => t.id !== PLAN_AUTO_ID);
+  if (P.tasks.length === n) return false;
+  planSave(); return true;
+}
+async function syncAutoTask({ force = false } = {}) {
+  if (!S.get('botUrl') || !S.get('secret')) return false;
+  if (!force && Date.now() - planAutoSync.lastTry < 5 * 60 * 1000) return false;
+  planAutoSync.lastTry = Date.now();
+  try {
+    const d = await api('/horaires-schedule', { timeout: 12000 });
+    const changed = (d.active && d.schedule) ? planUpsertAuto(d.schedule) : planRemoveAuto();
+    if (changed) { if ($('#planList')) renderPlanList(); if (isNative()) planReschedule(false); }
+    return changed;
+  } catch { return false; }
+}
+
 function planLoad() {
   if (PLAN) return PLAN;
   try { PLAN = JSON.parse(S.get('planning', 'null')); } catch { PLAN = null; }
@@ -708,6 +752,7 @@ function renderPlanning() {
     </div>`;
   renderPlanList();
   refreshPlanStatus();
+  syncAutoTask();
   $('#planTestBtn')?.addEventListener('click', planTestNotification);
   $('#planAddBtn').addEventListener('click', () => openPlanForm(null));
   $('#pfCancel').addEventListener('click', () => { $('#planFormCard').hidden = true; planEditingId = null; });
@@ -723,12 +768,16 @@ function renderPlanList() {
       <label class="task-check"><input type="checkbox" data-done="${t.id}" ${done[t.id] ? 'checked' : ''}></label>
       <div class="task-main">
         <div class="task-title">${esc(t.emoji)} ${esc(t.title)}</div>
-        <div class="task-when">${DAYS_FR[t.day] || '?'} · ${esc(t.time)}</div>
+        <div class="task-when">${DAYS_FR[t.day] || '?'} · ${esc(t.time)}${t.auto ? ' · <span class="task-auto">🌐 envoi hebdo du site</span>' : ''}</div>
       </div>
       <button type="button" class="task-bell${t.notify ? ' on' : ''}" data-bell="${t.id}" title="Rappel">${t.notify ? '🔔' : '🔕'}</button>
-      <button type="button" class="task-ico" data-edit="${t.id}" title="Modifier">✏️</button>
-      <button type="button" class="task-ico" data-del="${t.id}" title="Supprimer">🗑️</button>
+      ${t.auto
+        ? `<button type="button" class="task-ico" data-auto="${t.id}" title="Géré par l’envoi hebdo">🌐</button>`
+        : `<button type="button" class="task-ico" data-edit="${t.id}" title="Modifier">✏️</button>
+      <button type="button" class="task-ico" data-del="${t.id}" title="Supprimer">🗑️</button>`}
     </div>`).join('') : `<div class="empty">Aucune tâche — ajoute-en une !</div>`;
+  box.querySelectorAll('[data-auto]').forEach(b => b.addEventListener('click', () =>
+    toast('🌐 Cette tâche suit l’envoi hebdo des sondages : change le jour / l’heure dans Horaires (site ou app), ou désactive l’envoi pour la retirer', '', 5000)));
 
   box.querySelectorAll('[data-done]').forEach(cb => cb.addEventListener('change', e => {
     const id = Number(e.target.dataset.done); const P = planLoad(); const wk = weekKey();
@@ -813,7 +862,7 @@ function setDot(ok) { const d = $('#botDot'); d.className = 'topbar-dot ' + (ok 
 (async function boot() {
   const configured = S.get('botUrl') && S.get('secret');
   go(configured ? (S.get('tab') || 'horaires') : 'reglages');
-  if (configured) { try { await loadChannels(); setDot(true); } catch { setDot(false); } }
+  if (configured) { try { await loadChannels(); setDot(true); } catch { setDot(false); } syncAutoTask(); }
   // Planning : un tap sur un rappel ouvre l'onglet ; et on resynchronise les
   // rappels au lancement (sans redemander la permission).
   const L = ln();
@@ -825,6 +874,7 @@ function setDot(ok) { const d = $('#botDot'); d.className = 'topbar-dot ' + (ok 
   // (elles ont pu être modifiées entre-temps) et on ré-affiche Horaires.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !configured) return;
+    syncAutoTask();
     if (Date.now() - questionsSync.lastTry < 5 * 60 * 1000) return;
     const before = JSON.stringify(PRESETS.lorem.questions) + JSON.stringify(PRESETS.magna.questions);
     syncQuestions().then(n => {

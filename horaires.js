@@ -1551,7 +1551,9 @@ async function hrSetWeekly() {
     const res  = await fetch(`${botUrl}/horaires-schedule`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-      body: JSON.stringify({ channelId, questions: HR.questions, dayOfWeek: day, hour, minute, everyone: hrGetEveryone() }),
+      body: JSON.stringify({ channelId, questions: HR.questions, dayOfWeek: day, hour, minute, everyone: hrGetEveryone(),
+        // Type de sondage → l'app mobile l'affiche dans son Planning (« Sondages « Magna Arena » envoyés automatiquement »)
+        preset: HR.preset, presetName: (typeof HR_PRESET_DEFAULTS !== 'undefined' && HR_PRESET_DEFAULTS[HR.preset]?.name) || HR.preset }),
     });
     const data = await res.json();
     if (data.ok) {

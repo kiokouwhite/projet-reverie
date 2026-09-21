@@ -56,7 +56,7 @@ Pour que le `@everyone` **notifie** réellement, le bot doit avoir la permission
 
 ## 3. Programmer chaque semaine
 
-Tu peux aussi **programmer** les sondages pour qu'ils partent automatiquement chaque semaine (planification hebdo gérée par le bot), sans avoir à revenir cliquer.
+Tu peux aussi **programmer** les sondages pour qu'ils partent automatiquement chaque semaine (planification hebdo gérée par le bot), sans avoir à revenir cliquer. Dès que l'envoi hebdo est activé, une tâche « 📨 Sondages envoyés automatiquement » apparaît toute seule dans le **Planning de l'app mobile**, au jour et à l'heure programmés, avec un rappel ; elle disparaît si tu désactives l'envoi.
 
 ## 4. Lire les résultats
 

@@ -1402,12 +1402,31 @@ app.get('/horaires-latest', async (req, res) => {
 });
 
 // POST /horaires-schedule — activer l'envoi hebdomadaire
+// GET /horaires-schedule — état de l'envoi hebdomadaire (sans les questions).
+// Utilisé par l'app mobile pour refléter l'envoi programmé dans son Planning.
+app.get('/horaires-schedule', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const cfg = horairesWeeklyConfig;
+  if (!cfg) return res.json({ ok: true, active: false, schedule: null });
+  res.json({ ok: true, active: true, schedule: {
+    dayOfWeek: cfg.dayOfWeek, hour: cfg.hour, minute: cfg.minute,
+    channelId: cfg.channelId, everyone: !!cfg.everyone,
+    preset: cfg.preset || null, presetName: cfg.presetName || null,
+    questionCount: Array.isArray(cfg.questions) ? cfg.questions.length : 0,
+    updatedAt: cfg.updatedAt || null,
+  } });
+});
+
 app.post('/horaires-schedule', async (req, res) => {
   if (!checkSecret(req, res)) return;
-  const { channelId, questions, dayOfWeek, hour, minute, everyone } = req.body;
+  const { channelId, questions, dayOfWeek, hour, minute, everyone, preset, presetName } = req.body;
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
 
-  horairesWeeklyConfig = { channelId, questions, dayOfWeek, hour, minute, everyone: !!everyone };
+  horairesWeeklyConfig = {
+    channelId, questions, dayOfWeek, hour, minute, everyone: !!everyone,
+    preset: preset || null, presetName: presetName || null,   // affichage (Planning de l'app mobile)
+    updatedAt: new Date().toISOString(),
+  };
   armHorairesInterval();         // (re)arme le timer (annule l'ancien si besoin)
   saveHorairesSchedule();        // persiste sur disque → survit au prochain restart/deploy
 
