@@ -1445,7 +1445,7 @@ function selectCostume(slotIdx, costume) {
 function openCropAdjusterForSlot(slotIdx) {
   const p = players[slotIdx];
   if (!p.charId) return;
-  openCropAdjuster(p.charId, p.costume, slotIdx);
+  openCropAdjuster(p.charId, p.costume || 1, slotIdx);
 }
 
 
@@ -3306,28 +3306,31 @@ function generatePreview() {
   // saute le rendu canvas (sinon on verrait le template Lorem Ipsum par défaut).
   if (_togglePreviewEmptyState()) return;
 
-  // Précharger les murals puis dessiner
+  // Précharger les murals puis dessiner. Jeu « image » = jeu d'origine pour un
+  // layout converti (ex. sf6__lm → sf6) : même clé de cache que le rendu custom
+  // et que la modale de cadrage, au lieu d'un 404 dans le mauvais dossier.
+  const _gImg = (typeof _cropGame === 'function') ? _cropGame() : currentGame;
   const toLoad = [];
   players.forEach(p => {
     if (p.charId) toLoad.push(new Promise(resolve => {
-      const key = `${currentGame}_${p.charId}_${p.costume}`;
+      const key = `${_gImg}_${p.charId}_${p.costume}`;
       if(imgCache[key]?._loaded) { resolve(); return; }
       if(!imgCache[key]) imgCache[key] = {_loaded:false, _img:null};
       const img = new Image();
       img.crossOrigin = 'anonymous'; // canvas CORS-clean (Insta toDataURL)
       img.onload  = () => { imgCache[key]._loaded=true; imgCache[key]._img=img; resolve(); };
       img.onerror = () => resolve();
-      img.src = getMuralArtUrl(p.charId, p.costume);
+      img.src = getMuralArtUrl(p.charId, p.costume, _gImg);
     }));
     if (p.charId2) toLoad.push(new Promise(resolve => {
-      const key2 = `${currentGame}_${p.charId2}_${p.costume2||1}`;
+      const key2 = `${_gImg}_${p.charId2}_${p.costume2||1}`;
       if(imgCache[key2]?._loaded) { resolve(); return; }
       if(!imgCache[key2]) imgCache[key2] = {_loaded:false, _img:null};
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload  = () => { imgCache[key2]._loaded=true; imgCache[key2]._img=img; resolve(); };
       img.onerror = () => resolve();
-      img.src = getMuralArtUrl(p.charId2, p.costume2||1);
+      img.src = getMuralArtUrl(p.charId2, p.costume2||1, _gImg);
     }));
     // Image perso hébergée par start.gg (jeux custom / persos non mappés
     // localement). Chargée en CORS-clean pour rester exportable (toDataURL).

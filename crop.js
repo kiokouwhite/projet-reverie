@@ -27,9 +27,16 @@ function loadManualCrops() {
   try { return JSON.parse(localStorage.getItem('top8_crop_data') || '{}'); }
   catch { return {}; }
 }
+// Clé de stockage d'un cadrage. Le costume est normalisé (`|| 1`) : les jeux
+// sans costumes peuvent avoir un costume vide côté joueur alors que le rendu
+// des layouts custom lit `costume || 1` → sans normalisation, la modale et le
+// graph ne parlaient pas de la même clé.
+function _cropKey(charId, costume) {
+  return `${ICON_BASENAME[charId]}${costume || 1}`;
+}
 function saveManualCrop(charId, costume, cx, cy, zoom, flip) {
   const data = loadManualCrops();
-  data[`${ICON_BASENAME[charId]}${costume}`] = { cx, cy, zoom, flip: !!flip };
+  data[_cropKey(charId, costume)] = { cx, cy, zoom, flip: !!flip };
   localStorage.setItem('top8_crop_data', JSON.stringify(data));
 }
 
@@ -44,13 +51,19 @@ function _cropGame() {
   const g = (typeof currentGame !== 'undefined') ? currentGame : 'ssbu';
   try {
     const L = (typeof LAYOUTS !== 'undefined') ? LAYOUTS[g] : null;
-    if (L && L.baseGame) return L.baseGame;
+    // baseGame vit sur l'objet Layout Maker (_lm) ; lmRegisterLayout ne le
+    // recopiait pas sur l'entrée LAYOUTS → on regarde les deux. Sans ça, sur
+    // SF6 / GGST convertis, la modale résolvait « sf6__lm » (jamais d'image
+    // sous cette clé) et retombait sur l'image start.gg alors que le graph
+    // dessinait le mural local → on cadrait une AUTRE image que le visuel.
+    const base = L && (L.baseGame || (L._lm && L._lm.baseGame));
+    if (base) return base;
   } catch (e) {}
   return g;
 }
 
 function getCrop(charId, costume) {
-  const key = `${ICON_BASENAME[charId]}${costume}`;
+  const key = _cropKey(charId, costume);
   // 1. Ajustement manuel (priorité absolue)
   const manual = loadManualCrops()[key];
   if (manual) return { ...manual, source: 'manual' };
@@ -71,7 +84,7 @@ function getCrop(charId, costume) {
 }
 
 function hasCropData(charId, costume) {
-  const key = `${ICON_BASENAME[charId]}${costume}`;
+  const key = _cropKey(charId, costume);
   return !!(loadManualCrops()[key] || cropsJson[key]);
 }
 
@@ -317,14 +330,22 @@ function toggleCropFlip() {
   const btn = document.getElementById('flipBtn');
   if (btn) btn.classList.toggle('active', cropAdjust.flip);
   const canvas = document.getElementById('cropCanvas');
+  const img = _cropModalImage(cropAdjust.charId, cropAdjust.costume);
+  if (img) renderCropPreview(canvas, img);
+}
+
+// Image affichée dans la modale = LA MÊME que celle dessinée sur le graph :
+// mural local du jeu effectif (baseGame pour un layout converti), sinon
+// l'image start.gg du joueur (charImgUrl).
+function _cropModalImage(charId, costume) {
   const _g = _cropGame();
-  let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
-  // Même fallback start.gg que dans openCropAdjuster
+  let img = imgCache[`${_g}_${charId}_${costume || 1}`]?._img
+         || imgCache[`${_g}_${charId}_${costume}`]?._img;
   if (!img && typeof players !== 'undefined') {
-    const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
+    const pWithUrl = players.find(p => p && p.charId === charId && p.charImgUrl);
     if (pWithUrl) img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
   }
-  if (img) renderCropPreview(canvas, img);
+  return img || null;
 }
 
 function openCropAdjuster(charId, costume, slotIdx) {
@@ -339,17 +360,7 @@ function openCropAdjuster(charId, costume, slotIdx) {
 
   const modal  = document.getElementById('cropModal');
   const canvas = document.getElementById('cropCanvas');
-  const _g = _cropGame();
-  let img    = imgCache[`${_g}_${charId}_${costume}`]?._img;
-  // Fallback : image start.gg préchargée si le mural local manque
-  // (Alex SF6 par ex.). On cherche dans players[] le charImgUrl associé
-  // à ce charId pour récupérer la clé du cache fallback.
-  if (!img && typeof players !== 'undefined') {
-    const pWithUrl = players.find(p => p && p.charId === charId && p.charImgUrl);
-    if (pWithUrl) {
-      img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
-    }
-  }
+  const img = _cropModalImage(charId, costume);
   if (!img) { alert("Génère d'abord l'aperçu pour charger l'image."); return; }
 
   // Source indicator
@@ -423,13 +434,12 @@ function updateCropZoom(val) {
   cropAdjust.zoom = parseFloat(val);
   document.getElementById('zoomVal').textContent = parseFloat(val).toFixed(1);
   const canvas = document.getElementById('cropCanvas');
-  const _g2 = _cropGame();
-  const img = imgCache[`${_g2}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+  const img = _cropModalImage(cropAdjust.charId, cropAdjust.costume);
   if (img) renderCropPreview(canvas, img);
 }
 
 function resetCropToAuto() {
-  const key = `${ICON_BASENAME[cropAdjust.charId]}${cropAdjust.costume}`;
+  const key = _cropKey(cropAdjust.charId, cropAdjust.costume);
   // Supprimer l'ajustement manuel pour revenir à l'auto
   const data = loadManualCrops();
   delete data[key];
@@ -441,8 +451,7 @@ function resetCropToAuto() {
   document.getElementById('zoomVal').textContent = parseFloat(cropAdjust.zoom).toFixed(1);
   document.getElementById('cropSource').textContent = cropsJson[key] ? '🤖 Détection automatique' : '⚙️ Valeur par défaut';
   const canvas = document.getElementById('cropCanvas');
-  const _g2 = _cropGame();
-  const img = imgCache[`${_g2}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
+  const img = _cropModalImage(cropAdjust.charId, cropAdjust.costume);
   if (img) renderCropPreview(canvas, img);
 }
 
@@ -826,12 +835,7 @@ function _bindCropCanvasEvents() {
   } else {
     // Mode crop : restore le drag d'image
     canvas.style.cursor = 'grab';
-    const _g = _cropGame();
-    let img = imgCache[`${_g}_${cropAdjust.charId}_${cropAdjust.costume}`]?._img;
-    if (!img && typeof players !== 'undefined') {
-      const pWithUrl = players.find(p => p && p.charId === cropAdjust.charId && p.charImgUrl);
-      if (pWithUrl) img = imgCache[`__sg__${pWithUrl.charImgUrl}`]?._img;
-    }
+    const img = _cropModalImage(cropAdjust.charId, cropAdjust.costume);
     canvas.onmousedown = e => {
       cropAdjust.dragging = true;
       cropAdjust.startX = e.clientX; cropAdjust.startY = e.clientY;

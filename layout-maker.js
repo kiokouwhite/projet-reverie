@@ -2676,6 +2676,7 @@ function lmRegisterLayout(layout) {
     slots:       layout.slots,
     slotType:    'custom_lm',
     _lm:         layout,
+    baseGame:    layout.baseGame || null,   // jeu d'origine d'un layout converti (cf. _cropGame)
     nameColors:    layout.nameColors    || ['#ffffff','#ffffff','#ffffff'],
     rankStyle:     layout.rankStyle     || { weight:'900', strokeColor:'#000', strokeWidth:0, numbersOnly:false },
     customPolygon:  layout.customPolygon  || [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],
@@ -3598,6 +3599,9 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
     const srcX = Math.max(0, Math.min(img.naturalWidth  - srcSize, img.naturalWidth  * c.cx - srcSize/2));
     const srcY = Math.max(0, Math.min(img.naturalHeight - srcSize, img.naturalHeight * c.cy - srcSize/2));
     const dS = Math.max(w, h);
+    // « Retourner l'image » (flip du cadrage manuel) : miroir horizontal autour
+    // du centre de la carte — était ignoré sur les layouts custom.
+    if (c.flip) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
     ctx.drawImage(img, srcX, srcY, srcSize, srcSize, cx-dS/2, cy-dS/2, dS, dS);
     ctx.restore();
   }

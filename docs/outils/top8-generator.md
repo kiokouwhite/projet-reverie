@@ -65,7 +65,7 @@ Un **layout** = le modèle graphique des cartes (forme, police, position des nom
 
 ## Recadrer une image
 
-Quand tu ajustes le cadrage d'une image de personnage (surtout sur les layouts custom), une **indication en pointillé** montre ce qui sera réellement visible dans la carte.
+Quand tu ajustes le cadrage d'une image de personnage (surtout sur les layouts custom), une **indication en pointillé** montre ce qui sera réellement visible dans la carte. La modale affiche la **même image** que celle dessinée sur le graph (mural local, sinon image start.gg), y compris sur SF6 / GGST convertis, et « Retourner l'image » s'applique aussi à ces layouts.
 
 ## Problèmes fréquents
 
