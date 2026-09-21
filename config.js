@@ -80,10 +80,10 @@ function cfgPropagateToInputs(startgg, url, secret) {
 }
 
 // ── BASCULE AFFICHAGE EN CLAIR DES MOTS DE PASSE ───────────────────────────
-// Protégée par un mot de passe admin ("gnarpyadmin"). Une fois validé pour
+// Protégée par un mot de passe admin ("reverieadmin*"). Une fois validé pour
 // la session, tous les champs type="password" du panel Configuration
 // passent en type="text". Re-clic = re-cache.
-const CFG_REVEAL_PASSWORD = 'gnarpyadmin';
+const CFG_REVEAL_PASSWORD = 'reverieadmin*';
 let _cfgRevealed = false;
 
 function cfgToggleReveal() {
