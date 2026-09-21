@@ -146,9 +146,12 @@ function autoAssign(results) {
   const uName = u => (typeof u === 'object' ? u.name : u);
   const all = collectPeople(results);
   const get = n => all.get(n) || { id: null, name: n };
-  const voters = (qi, emoji) => {
-    const re = (results[qi]?.reactions || []).find(x => x.emoji === emoji);
-    return [...new Set((re?.users || []).map(uName))].map(get);
+  // Votes par emoji, toutes questions confondues : les emojis sont uniques
+  // d'une question à l'autre, et le site permet de réordonner les questions.
+  const voters = (_qi, emoji) => {
+    const names = new Set();
+    (results || []).forEach(r => (r.reactions || []).forEach(re => { if (re.emoji === emoji) (re.users || []).forEach(u => names.add(uName(u))); }));
+    return [...names].map(get);
   };
   const A = { install: [], rangement: [], accueil: [], regie: [], seeding: [], to: [], to_smash: [], to_fg: [] };
 

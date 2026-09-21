@@ -205,6 +205,7 @@ function hrBuildQuestions() {
         <span class="hr-q-num">Q${qi + 1}</span>
         <input type="text" class="hr-q-text" value="${escHR(q.text)}"
           oninput="hrSetQText(${qi}, this.value)" placeholder="Question…">
+        ${hrMoveBtnsHTML(`hrMoveQuestion(${qi}, -1)`, `hrMoveQuestion(${qi}, 1)`, qi === 0, qi === HR.questions.length - 1, 'la question')}
       </div>
       <div class="hr-options-list" id="hrOpts${qi}">
         ${q.options.map((opt, oi) => hrOptionHTML(qi, oi, opt)).join('')}
@@ -247,8 +248,17 @@ function hrOptionHTML(qi, oi, opt) {
         oninput="hrSetOptEmoji(${qi},${oi},this.value)">
       <input type="text" class="hr-label-input" value="${escHR(opt.label)}"
         placeholder="Label affiché" oninput="hrSetOptLabel(${qi},${oi},this.value)">
+      ${hrMoveBtnsHTML(`hrMoveOption(${qi},${oi},-1)`, `hrMoveOption(${qi},${oi},1)`, oi === 0, oi === (HR.questions[qi]?.options?.length || 0) - 1, "l'option")}
       <button class="hr-del-opt-btn" onclick="hrDelOption(${qi},${oi})">✕</button>
     </div>`;
+}
+
+// Paire de flèches ▲ ▼ (réordonner). Désactivées aux extrémités.
+function hrMoveBtnsHTML(upCall, downCall, atTop, atBottom, what) {
+  return `<span class="hr-move-btns">
+      <button class="hr-move-btn" onclick="${upCall}" title="Monter ${what}" ${atTop ? 'disabled' : ''}>▲</button>
+      <button class="hr-move-btn" onclick="${downCall}" title="Descendre ${what}" ${atBottom ? 'disabled' : ''}>▼</button>
+    </span>`;
 }
 
 // ── EMOJIS UNICODE STANDARD (catégories Discord) ──────────────────────────────
@@ -1228,6 +1238,26 @@ function hrDelOption(qi, oi) {
   hrBuildQuestions();
 }
 
+// Réordonner : échange avec le voisin (dir = -1 monter, +1 descendre).
+// NB : en Magna Arena, les 3 PREMIÈRES options (par position) alimentent
+// Installation / Rangement / TO → l'ordre des options y a un sens.
+function hrMoveOption(qi, oi, dir) {
+  const opts = HR.questions[qi]?.options; if (!opts) return;
+  const j = oi + dir;
+  if (j < 0 || j >= opts.length) return;
+  [opts[oi], opts[j]] = [opts[j], opts[oi]];
+  hrSaveQuestions();
+  hrBuildQuestions();
+}
+function hrMoveQuestion(qi, dir) {
+  const qs = HR.questions;
+  const j = qi + dir;
+  if (j < 0 || j >= qs.length) return;
+  [qs[qi], qs[j]] = [qs[j], qs[qi]];
+  hrSaveQuestions();
+  hrBuildQuestions();
+}
+
 function escHR(s) { return (s||'').replace(/"/g,'&quot;'); }
 
 // ── HELPERS BOT ───────────────────────────────────────────────────────────────
@@ -1655,9 +1685,11 @@ function hrAutoAssign(results) {
   HR.planRoles.forEach(r => { r.users = []; });
   if (!results || !results.length) return;
 
-  const q0 = results[0]?.reactions || [];   // heure d'arrivée
-  const q1 = results[1]?.reactions || [];   // heure de départ
-  const q2 = results[2]?.reactions || [];   // tâche préférée
+  // Toutes les réactions de tous les sondages : les emojis (16h, 0h, seeding…)
+  // sont uniques d'une question à l'autre, on n'a donc pas besoin de savoir
+  // QUELLE question est la 1re, la 2e… (l'utilisateur peut les réordonner).
+  const q0 = (results[0]?.reactions) || [];   // Magna : question unique
+  const allReactions = results.flatMap(r => (r?.reactions) || []);
 
   // Helpers pour gérer users en string ou { id, name }
   const uName = u => (typeof u === 'object' ? u.name : u);
@@ -1667,7 +1699,7 @@ function hrAutoAssign(results) {
   // — on merge les flags trouvés sur n'importe quelle réaction (le bot peut
   // ne les annoter que sur une des réactions de la même personne).
   const allUsers = new Map();
-  [...q0, ...q1, ...q2].forEach(r => {
+  allReactions.forEach(r => {
     (r.users || []).forEach(u => {
       const obj = uObj(u);
       if (!allUsers.has(obj.name)) {
@@ -1707,13 +1739,13 @@ function hrAutoAssign(results) {
     return;
   }
 
-  // Sets de noms par option
-  const arr  = {};
-  q0.forEach(r => { arr[r.emoji]  = new Set((r.users || []).map(uName)); });
-  const dep  = {};
-  q1.forEach(r => { dep[r.emoji]  = new Set((r.users || []).map(uName)); });
-  const task = {};
-  q2.forEach(r => { task[r.emoji] = new Set((r.users || []).map(uName)); });
+  // Sets de noms par emoji (toutes questions confondues)
+  const byEmoji = {};
+  allReactions.forEach(r => {
+    const set = byEmoji[r.emoji] || (byEmoji[r.emoji] = new Set());
+    (r.users || []).forEach(u => set.add(uName(u)));
+  });
+  const arr = byEmoji, dep = byEmoji, task = byEmoji;
 
   const inst    = arr['16h']      || new Set();
   const a17     = arr['17h']      || new Set();
@@ -1792,7 +1824,16 @@ function hrMiiTeamOf(user) {
 // les emojis (ex : 🏠 au lieu du string 'accueil'). Match par label de l'option,
 // fallback par index (seeding=0, accueil=1, regie=2 dans la config par défaut).
 function hrMiiGetPriorityEmojis() {
-  const q3opts = HR.questions?.[2]?.options || [];
+  // La question « tâche en priorité » n'est plus forcément la 3e (réordonnable) :
+  // on prend celle dont les options couvrent le PLUS de mots-clés seeding /
+  // régie / accueil (la question d'arrivée parle aussi d'« Accueil partie 1 »,
+  // mais elle ne matche qu'un mot-clé sur trois), sinon la 3e.
+  const score = q => ['seeding', 'r[ée]gie', 'accueil']
+    .filter(k => (q.options || []).some(o => new RegExp(k, 'i').test(`${o.label} ${o.emoji}`))).length;
+  let qTask = null, bestScore = 0;
+  (HR.questions || []).forEach(q => { const sc = score(q); if (sc > bestScore) { qTask = q; bestScore = sc; } });
+  if (!qTask) qTask = HR.questions?.[2];
+  const q3opts = qTask?.options || [];
   let accueilEmoji = null;
   let regieEmoji   = null;
   for (const opt of q3opts) {
