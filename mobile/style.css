@@ -184,6 +184,7 @@ pre.msg {
 .task-when { font-size: 12px; color: var(--text-soft); font-weight: 700; }
 .task.done .task-title { text-decoration: line-through; opacity: 0.55; }
 .task-auto { color: var(--purple-deep); font-weight: 800; }
+.task-auto-mark { width: 22px; font-size: 15px; text-align: center; opacity: 0.55; user-select: none; }
 .task-bell, .task-ico {
   flex: 0 0 auto; width: 36px; height: 36px; padding: 0;
   border-radius: 10px; border: 1.5px solid var(--card-border); background: #fff;

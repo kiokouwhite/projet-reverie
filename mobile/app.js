@@ -762,10 +762,17 @@ function renderPlanning() {
 function renderPlanList() {
   const P = planLoad(); const wk = weekKey(); const done = P.done[wk] || {};
   const box = $('#planList'); if (!box) return;
-  $('#planCount').textContent = `${P.tasks.filter(t => done[t.id]).length} / ${P.tasks.length} tâche(s) faite(s)`;
+  // Les tâches automatiques (envoi hebdo du site) ne se cochent pas : rien à
+  // faire à la main. Elles ne comptent pas dans « tâches faites ».
+  const manual = P.tasks.filter(t => !t.auto);
+  $('#planCount').textContent = manual.length
+    ? `${manual.filter(t => done[t.id]).length} / ${manual.length} tâche(s) faite(s)`
+    : 'Rien à cocher cette semaine';
   box.innerHTML = P.tasks.length ? P.tasks.map(t => `
-    <div class="task${done[t.id] ? ' done' : ''}">
-      <label class="task-check"><input type="checkbox" data-done="${t.id}" ${done[t.id] ? 'checked' : ''}></label>
+    <div class="task${!t.auto && done[t.id] ? ' done' : ''}${t.auto ? ' task-is-auto' : ''}">
+      ${t.auto
+        ? '<span class="task-check task-auto-mark" title="Automatique — rien à cocher">🔁</span>'
+        : `<label class="task-check"><input type="checkbox" data-done="${t.id}" ${done[t.id] ? 'checked' : ''}></label>`}
       <div class="task-main">
         <div class="task-title">${esc(t.emoji)} ${esc(t.title)}</div>
         <div class="task-when">${DAYS_FR[t.day] || '?'} · ${esc(t.time)}${t.auto ? ' · <span class="task-auto">🌐 envoi hebdo du site</span>' : ''}</div>
