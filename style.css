@@ -5536,6 +5536,22 @@ body.dc-no-tournament #dcPage .left-slide:not(#dcSlide0) {
   flex-shrink: 0;
 }
 .hr-del-opt-btn:hover { background: rgba(220,53,69,0.3); }
+/* En-tête « Questions du sondage » : bouton ＋ Nouvelle question à droite */
+.hr-questions-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hr-new-q-btn {
+  flex-shrink: 0;
+  background: rgba(119,105,221,0.10);
+  border: 1px solid rgba(119,105,221,0.30);
+  color: var(--accent, #7769DD);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.hr-new-q-btn:hover { background: rgba(119,105,221,0.22); }
+.hr-del-q-btn:disabled { opacity: 0.3; cursor: default; }
 /* Poignée ⋮⋮ de glisser-déposer (options et questions) */
 .hr-drag-handle {
   flex-shrink: 0;

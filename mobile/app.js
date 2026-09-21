@@ -156,9 +156,20 @@ function autoAssign(results) {
   const A = { install: [], rangement: [], accueil: [], regie: [], seeding: [], to: [], to_smash: [], to_fg: [] };
 
   if (presetKey() === 'magna') {
-    // 3 premières options par position → install / rangement / to (TO = votes)
+    // Options reconnues par leur libellé (install / rangement / TO), position en
+    // repli — même logique que le site (hrMagnaZoneByEmoji).
     const opts = questions()[0]?.options || [];
-    ['install', 'rangement', 'to'].forEach((k, i) => { if (opts[i]) A[k] = voters(0, opts[i].emoji); });
+    const KEYS = { install: /install/i, rangement: /rang/i, to: /\bto\b|to-?ing|r[ée]gie|arbitr/i };
+    const used = new Set(), matched = new Set();
+    Object.entries(KEYS).forEach(([k, re]) => {
+      const i = opts.findIndex((o, j) => !used.has(j) && re.test(`${o.label || ''} ${o.emoji || ''}`));
+      if (i >= 0) { A[k] = voters(0, opts[i].emoji); used.add(i); matched.add(k); }
+    });
+    ['install', 'rangement', 'to'].forEach(k => {          // repli par position
+      if (matched.has(k)) return;
+      const i = opts.findIndex((o, j) => !used.has(j));
+      if (i >= 0) { A[k] = voters(0, opts[i].emoji); used.add(i); }
+    });
     return A;
   }
   // Lorem Ipsum

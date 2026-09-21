@@ -206,6 +206,7 @@ function hrBuildQuestions() {
         <input type="text" class="hr-q-text" value="${escHR(q.text)}"
           oninput="hrSetQText(${qi}, this.value)" placeholder="Question…">
         ${hrDragHandleHTML('la question')}
+        <button type="button" class="hr-del-opt-btn hr-del-q-btn" onclick="hrDelQuestion(${qi})" title="Supprimer la question" ${HR.questions.length <= 1 ? 'disabled' : ''}>✕</button>
       </div>
       <div class="hr-options-list" id="hrOpts${qi}">
         ${q.options.map((opt, oi) => hrOptionHTML(qi, oi, opt)).join('')}
@@ -1334,6 +1335,32 @@ function hrDelOption(qi, oi) {
   hrBuildQuestions();
 }
 
+// Bouton « ＋ Nouvelle question » (en-tête du panneau) : ajoute une question
+// vide avec une première option, puis met le curseur dans son intitulé.
+function hrAddQuestion() {
+  HR.questions.push({ text: '', options: [{ emoji: '', label: '' }] });
+  hrSaveQuestions();
+  hrBuildQuestions();
+  const qi = HR.questions.length - 1;
+  const block = document.getElementById(`hrQ${qi}`);
+  if (block) {
+    block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    block.querySelector('.hr-q-text')?.focus();
+  }
+}
+
+// Croix dans l'en-tête d'une question. On garde toujours AU MOINS une
+// question (le bouton est désactivé sinon) ; confirmation si elle n'est pas vide.
+function hrDelQuestion(qi) {
+  const q = HR.questions[qi];
+  if (!q || HR.questions.length <= 1) return;
+  const filled = (q.text || '').trim() || (q.options || []).some(o => (o.label || '').trim() || (o.emoji || '').trim());
+  if (filled && !confirm(`Supprimer la question « ${q.text || 'sans titre'} » et ses ${(q.options || []).length} option(s) ?`)) return;
+  HR.questions.splice(qi, 1);
+  hrSaveQuestions();
+  hrBuildQuestions();
+}
+
 // Réordonner : échange avec le voisin (dir = -1 monter, +1 descendre).
 // NB : en Magna Arena, les 3 PREMIÈRES options (par position) alimentent
 // Installation / Rangement / TO → l'ordre des options y a un sens.
@@ -1824,8 +1851,7 @@ function hrAutoAssign(results) {
   if (HR.preset === 'magna') {
     const setU = (id, users) => { const r = HR.planRoles.find(x => x.id === id); if (r) r.users = users; };
     const opts = HR.questions[0]?.options || [];
-    const zoneByEmoji = {};
-    ['install', 'rangement', 'to'].forEach((zone, i) => { if (opts[i]) zoneByEmoji[opts[i].emoji] = zone; });
+    const zoneByEmoji = hrMagnaZoneByEmoji(opts);
     const buckets = { install: [], rangement: [], to: [] };
     q0.forEach(r => {
       const zone = zoneByEmoji[r.emoji];
@@ -1880,6 +1906,26 @@ function hrAutoAssign(results) {
   // Un même votant peut figurer dans les deux slots s'il a les deux rôles.
   setUsers('to_smash', [...allUsers.values()].filter(u => u.toSmash));
   setUsers('to_fg',    [...allUsers.values()].filter(u => u.toFG));
+}
+
+// Magna : quelle option alimente quelle zone ? D'abord par MOT-CLÉ dans le
+// libellé (Installation / Rangement / TO, TOing, Régie…) — l'utilisateur peut
+// réordonner ou ajouter des options (ex. « Seeding » en tête) sans casser la
+// répartition. Les zones encore sans option prennent, en repli, les options
+// restantes dans l'ordre (comportement historique « 3 premières options »).
+function hrMagnaZoneByEmoji(opts) {
+  const KEYS = { install: /install/i, rangement: /rang/i, to: /\bto\b|to-?ing|r[ée]gie|arbitr/i };
+  const zoneByEmoji = {}, used = new Set();
+  Object.entries(KEYS).forEach(([zone, re]) => {
+    const o = (opts || []).find((x, i) => !used.has(i) && re.test(`${x.label || ''} ${x.emoji || ''}`));
+    if (o) { zoneByEmoji[o.emoji] = zone; used.add(opts.indexOf(o)); }
+  });
+  ['install', 'rangement', 'to'].forEach(zone => {
+    if (Object.values(zoneByEmoji).includes(zone)) return;
+    const i = (opts || []).findIndex((x, j) => !used.has(j));
+    if (i >= 0) { zoneByEmoji[opts[i].emoji] = zone; used.add(i); }
+  });
+  return zoneByEmoji;
 }
 
 // Construit l'UI planning (chips + textarea)
