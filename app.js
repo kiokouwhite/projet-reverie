@@ -523,17 +523,21 @@ function dcTcNavigate(delta) { dcTcGo(_dcTcActive + delta); }
 
 // Questions retiré (vit dans la colonne droite). Programme hebdo fusionné
 // dans Bot Discord (un seul slide pour tout le setup d'envoi). Reste 2 slides.
+// Ordre des cartes (Type de sondage en premier). `slide` = id du contenu
+// (#hrSlide0 = bot, #hrSlide1 = actions, #hrSlide2 = type) : l'ordre des cartes
+// est indépendant de l'ordre des blocs dans index.html.
 const HR_TC_PANELS = [
-  { label: 'Bot',     roman: 'I',   accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',    icon: 'bot' },
-  { label: 'Actions', roman: 'II',  accent: '#e85a8a', emoji: '📨', name: 'Actions',        icon: 'actions' },
-  { label: 'Type',    roman: 'III', accent: '#c07dd4', emoji: '📋', name: 'Type de sondage', icon: 'preset' },
+  { label: 'Type',    roman: 'I',   accent: '#c07dd4', emoji: '📋', name: 'Type de sondage', icon: 'preset',  slide: 2 },
+  { label: 'Bot',     roman: 'II',  accent: '#46d18f', emoji: '🤖', name: 'Bot Discord',    icon: 'bot',     slide: 0 },
+  { label: 'Actions', roman: 'III', accent: '#e85a8a', emoji: '📨', name: 'Actions',        icon: 'actions', slide: 1 },
 ];
+const _hrTcSlideId = idx => (HR_TC_PANELS[idx] && HR_TC_PANELS[idx].slide != null) ? HR_TC_PANELS[idx].slide : idx;
 
 let _hrTcActive = 0;
 let _hrTcLocked = false;
 
 function _hrTcSetSlide(idx, visible) {
-  const el = document.getElementById(`hrSlide${idx}`);
+  const el = document.getElementById(`hrSlide${_hrTcSlideId(idx)}`);
   if (!el) return;
   el.style.opacity = visible ? '1' : '0';
   el.style.pointerEvents = visible ? 'auto' : 'none';
@@ -608,7 +612,7 @@ function hrTcGo(target) {
   const dir = target > _hrTcActive ? 'right' : 'left';
   _hrTcLocked = true;
 
-  const srcSlide  = document.getElementById(`hrSlide${target}`);
+  const srcSlide  = document.getElementById(`hrSlide${_hrTcSlideId(target)}`);
   const inContent = document.getElementById('hrTcInContent');
   if (inContent && srcSlide) inContent.innerHTML = srcSlide.innerHTML;
 
