@@ -382,10 +382,19 @@ function checkSecret(req, res) {
 
 // ── ROUTE : Health check ──────────────────────────────────────────────────────
 app.get('/', (req, res) => {
+  // client.isReady() + état du websocket : le tag reste en cache même quand
+  // la passerelle Discord est coupée, donc on expose l'état réel.
+  const wsStatus = client.ws && typeof client.ws.status === 'number' ? client.ws.status : null;   // 0 = READY
+  const connected = !!(client.isReady && client.isReady()) && wsStatus === 0;
   res.json({
-    ok:     true,
-    status: 'Bot en ligne',
-    bot:    client.user?.tag || 'Connexion en cours...',
+    ok:        true,
+    status:    connected ? 'Bot en ligne' : 'Connexion Discord perdue — reconnexion en cours',
+    bot:       client.user?.tag || 'Connexion en cours...',
+    discord:   connected,
+    wsStatus,
+    ping:      client.ws ? client.ws.ping : null,
+    uptimeSec: Math.round(process.uptime()),
+    scheduleTz: SCHEDULE_TZ,
   });
 });
 
@@ -1103,6 +1112,19 @@ let horairesWeeklySchedules = {};
 let horairesWeeklyInterval = null;
 const horairesFiredAt = {};   // clé → minute du dernier envoi (anti double-tir)
 const hrSchedKey = p => String(p || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'default';
+// Fuseau des programmations : heure de Paris (l'asso), quel que soit le fuseau
+// du serveur (la VM Oracle est en UTC → « minuit » partait à 2h du matin).
+const SCHEDULE_TZ = process.env.SCHEDULE_TZ || 'Europe/Paris';
+const HR_WEEKDAYS = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+function hrNowInTz(date = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: SCHEDULE_TZ, weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(date);
+    const get = t => (parts.find(p => p.type === t) || {}).value;
+    return { day: HR_WEEKDAYS[get('weekday')], hour: Number(get('hour')) % 24, minute: Number(get('minute')) };
+  } catch (e) {
+    return { day: date.getDay(), hour: date.getHours(), minute: date.getMinutes() };
+  }
+}
 function hrSchedSummary(key, cfg) {
   return {
     preset: key, presetName: cfg.presetName || null,
@@ -1138,9 +1160,10 @@ function armHorairesInterval() {
   if (!Object.keys(horairesWeeklySchedules).length) return;
   horairesWeeklyInterval = setInterval(async () => {
     const now = new Date();
-    const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
+    const t = hrNowInTz(now);   // jour / heure / minute à l'heure de Paris
+    const minuteKey = String(Math.floor(now.getTime() / 60000));
     for (const [key, cfg] of Object.entries(horairesWeeklySchedules)) {
-      if (!cfg || now.getDay() !== cfg.dayOfWeek || now.getHours() !== cfg.hour || now.getMinutes() !== cfg.minute) continue;
+      if (!cfg || t.day !== cfg.dayOfWeek || t.hour !== cfg.hour || t.minute !== cfg.minute) continue;
       if (horairesFiredAt[key] === minuteKey) continue;   // déjà envoyé cette minute
       horairesFiredAt[key] = minuteKey;
       try {
@@ -1173,7 +1196,7 @@ function loadHorairesSchedule() {
     armHorairesInterval();
     const days = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
     Object.entries(horairesWeeklySchedules).forEach(([key, cfg]) =>
-      console.log(`📅 [HORAIRES] Programmation hebdo restaurée (${cfg.presetName || key}) : ${days[cfg.dayOfWeek]} à ${cfg.hour}h${String(cfg.minute).padStart(2,'0')} (salon ${cfg.channelId})`));
+      console.log(`📅 [HORAIRES] Programmation hebdo restaurée (${cfg.presetName || key}) : ${days[cfg.dayOfWeek]} à ${cfg.hour}h${String(cfg.minute).padStart(2,'0')} (heure de ${SCHEDULE_TZ}, salon ${cfg.channelId})`));
   } catch (e) {
     console.warn('📅 [HORAIRES] Lecture schedule échouée :', e.message);
   }
