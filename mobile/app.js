@@ -654,24 +654,57 @@ function planRemoveAuto(preset) {
   if (P.tasks.length === n) return false;
   planSave(); return true;
 }
+// Annonces Discord programmées depuis le site (GET /scheduled) → tâches
+// PONCTUELLES dans le Planning (id 910000 + id de l'annonce), notification
+// à l'heure d'envoi. Elles disparaissent d'elles-mêmes une fois postées ou
+// annulées sur le site.
+const ANN_TASK_BASE = 910000;
+function planUpsertAnnounce(a) {
+  const P = planLoad();
+  const id = ANN_TASK_BASE + Number(a.id);
+  const at = Number(a.scheduledAt);
+  const d = new Date(at);
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const first = String(a.messagePreview || '').split('\n')[0].trim();
+  const chan = a.channelName || channelName(a.channelId);
+  const title = `Annonce Discord${first ? ' · ' + first.slice(0, 40) : ''}${chan ? ' → #' + chan : ''}`;
+  let t = P.tasks.find(x => x.id === id), changed = false;
+  if (!t) { t = { id, emoji: '📢', title, day: d.getDay(), time, at, notify: true, auto: 'annonce', channel: a.channelId || '' }; P.tasks.unshift(t); changed = true; }
+  else if (t.title !== title || t.at !== at) { t.title = title; t.at = at; t.day = d.getDay(); t.time = time; changed = true; }
+  if (changed) planSave();
+  return changed;
+}
 async function syncAutoTask({ force = false } = {}) {
   if (!S.get('botUrl') || !S.get('secret')) return false;
   if (!force && Date.now() - planAutoSync.lastTry < 5 * 60 * 1000) return false;
   planAutoSync.lastTry = Date.now();
+  let changed = false, ok = false;
+  // 1. Envois hebdo des sondages
   try {
     const d = await api('/horaires-schedule', { timeout: 12000 });
     const list = Array.isArray(d.schedules) ? d.schedules : (d.active && d.schedule ? [d.schedule] : []);
     planAutoSync.schedules = list;
-    let changed = false;
     list.forEach(s => { if (planUpsertAuto(s)) changed = true; });
     const keep = new Set(list.map(s => planAutoIdFor(s.preset || 'default')));
     const P = planLoad(); const n = P.tasks.length;
-    P.tasks = P.tasks.filter(t => !t.auto || keep.has(t.id));
+    P.tasks = P.tasks.filter(t => t.auto !== 'horaires' || keep.has(t.id));
     if (P.tasks.length !== n) { planSave(); changed = true; }
-    if (changed) { if ($('#planList')) renderPlanList(); if (isNative()) planReschedule(false); }
-    renderWeeklyState();
-    return changed;
-  } catch { return false; }
+    ok = true;
+  } catch {}
+  // 2. Annonces programmées (ponctuelles)
+  try {
+    const d = await api('/scheduled', { timeout: 12000 });
+    const list = Array.isArray(d.scheduled) ? d.scheduled.filter(a => Number(a.scheduledAt) > Date.now() - 60000) : [];
+    list.forEach(a => { if (planUpsertAnnounce(a)) changed = true; });
+    const keep = new Set(list.map(a => ANN_TASK_BASE + Number(a.id)));
+    const P = planLoad(); const n = P.tasks.length;
+    P.tasks = P.tasks.filter(t => t.auto !== 'annonce' || keep.has(t.id));
+    if (P.tasks.length !== n) { planSave(); changed = true; }
+    ok = true;
+  } catch {}
+  if (changed) { if ($('#planList')) renderPlanList(); if (isNative()) planReschedule(false); }
+  renderWeeklyState();
+  return ok && changed;
 }
 // Ligne d'état de l'envoi hebdo POUR LE TYPE SÉLECTIONNÉ (carte Horaires).
 function renderWeeklyState() {
@@ -729,13 +762,17 @@ async function planReschedule(ask = true) {
   try {
     const pending = await L.getPending();
     if (pending?.notifications?.length) await L.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
-    const notifications = planLoad().tasks.filter(t => t.notify).map(t => {
+    const notifications = planLoad().tasks.filter(t => t.notify && !(t.at && t.at < Date.now())).map(t => {
       const [h, m] = String(t.time || '17:00').split(':').map(Number);
       return {
         id: t.id,
         title: `${t.emoji} ${t.title}`.trim(),
-        body: 'C’est le moment — Projet Rêverie',
-        schedule: { on: { weekday: t.day + 1, hour: h, minute: m }, repeats: true, allowWhileIdle: true },
+        body: t.at ? 'Envoi programmé — Projet Rêverie' : 'C’est le moment — Projet Rêverie',
+        // Ponctuelle (annonce programmée) : une seule fois à la date exacte ;
+        // sinon rappel hebdomadaire.
+        schedule: t.at
+          ? { at: new Date(t.at), allowWhileIdle: true }
+          : { on: { weekday: t.day + 1, hour: h, minute: m }, repeats: true, allowWhileIdle: true },
         extra: { tab: 'planning' },
       };
     });
@@ -809,7 +846,7 @@ function renderPlanList() {
         : `<label class="task-check"><input type="checkbox" data-done="${t.id}" ${done[t.id] ? 'checked' : ''}></label>`}
       <div class="task-main">
         <div class="task-title">${esc(t.emoji)} ${esc(t.title)}</div>
-        <div class="task-when">${DAYS_FR[t.day] || '?'} · ${esc(t.time)}${t.auto ? ' · <span class="task-auto">🌐 envoi hebdo du site</span>' : ''}</div>
+        <div class="task-when">${t.at ? esc(new Date(t.at).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit' })) : (DAYS_FR[t.day] || '?')} · ${esc(t.time)}${t.auto === 'annonce' ? ' · <span class="task-auto">🌐 annonce programmée</span>' : (t.auto ? ' · <span class="task-auto">🌐 envoi hebdo du site</span>' : '')}</div>
       </div>
       <button type="button" class="task-bell${t.notify ? ' on' : ''}" data-bell="${t.id}" title="Rappel">${t.notify ? '🔔' : '🔕'}</button>
       ${t.auto
@@ -817,8 +854,12 @@ function renderPlanList() {
         : `<button type="button" class="task-ico" data-edit="${t.id}" title="Modifier">✏️</button>
       <button type="button" class="task-ico" data-del="${t.id}" title="Supprimer">🗑️</button>`}
     </div>`).join('') : `<div class="empty">Aucune tâche — ajoute-en une !</div>`;
-  box.querySelectorAll('[data-auto]').forEach(b => b.addEventListener('click', () =>
-    toast('🌐 Cette tâche suit l’envoi hebdo des sondages : change le jour / l’heure dans Horaires (site ou app), ou désactive l’envoi pour la retirer', '', 5000)));
+  box.querySelectorAll('[data-auto]').forEach(b => b.addEventListener('click', () => {
+    const t = planLoad().tasks.find(x => x.id === Number(b.dataset.auto));
+    toast(t && t.auto === 'annonce'
+      ? '🌐 Annonce programmée depuis le site : elle partira à l’heure indiquée, puis disparaîtra d’ici. Pour l’annuler : Annonce Discord sur le site.'
+      : '🌐 Cette tâche suit l’envoi hebdo des sondages : change le jour / l’heure dans Horaires (site ou app), ou désactive l’envoi pour la retirer', '', 5000);
+  }));
 
   box.querySelectorAll('[data-done]').forEach(cb => cb.addEventListener('change', e => {
     const id = Number(e.target.dataset.done); const P = planLoad(); const wk = weekKey();

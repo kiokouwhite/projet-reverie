@@ -50,3 +50,7 @@ Pour poster, le bot doit être configuré (URL + secret dans l'onglet [Configura
 ## Copier le texte
 
 Un bouton permet aussi de **copier le message en texte brut**, si tu préfères le coller toi-même.
+
+{% hint style="info" %}
+**Annonce programmée :** elle apparaît automatiquement dans le **Planning de l'app mobile** avec une notification à l'heure d'envoi, et disparaît une fois postée (ou annulée ici). Les annonces programmées sont conservées par le bot même s'il redémarre.
+{% endhint %}

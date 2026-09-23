@@ -850,9 +850,91 @@ app.post('/edit-announce', async (req, res) => {
 });
 
 // ── PLANIFICATION ─────────────────────────────────────────────────────────────
-// Stockage en mémoire des messages planifiés
-const scheduled = new Map(); // id → { id, channelId, message, scheduledAt, timer }
+// Annonces planifiées : en mémoire (timers) ET sur disque (PERSIST_DIR) →
+// elles survivent aux redémarrages / redéploiements du bot. Au démarrage,
+// chaque annonce est ré-armée ; si son heure est passée pendant l'arrêt
+// (moins de 24 h), elle est postée immédiatement, sinon abandonnée (loggé).
+const scheduled = new Map(); // id → { id, channelId, message, embeds, trailing, scheduledAt, timer }
 let schedCounter = 1;
+const SCHED_ANN_FILE = path.join(PERSIST_DIR, 'scheduled-announces.json');
+const SCHED_MISSED_MAX_MS = 24 * 3600 * 1000;
+const TIMER_MAX_MS = 2147483647;   // limite de setTimeout (~24,8 jours) → au-delà, on ré-arme par paliers
+
+function saveScheduledAnnounces() {
+  try {
+    const list = Array.from(scheduled.values()).map(({ timer, ...rest }) => rest);
+    if (list.length) fs.writeFileSync(SCHED_ANN_FILE, JSON.stringify({ version: 1, counter: schedCounter, list }, null, 2), 'utf8');
+    else if (fs.existsSync(SCHED_ANN_FILE)) fs.unlinkSync(SCHED_ANN_FILE);
+  } catch (e) { console.warn('🕐 [PLANIFIÉ] Écriture fichier échouée :', e.message); }
+}
+
+async function fireScheduledAnnounce(entry) {
+  const { id, channelId, message, embeds, trailing } = entry;
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel?.isTextBased()) {
+      // Résolution des emojis d'application au moment de l'envoi (et pas
+      // de la planification) pour récupérer une map fraîche.
+      const emojiMap = await getAppEmojiMap();
+      const payload = {};
+      if (message) payload.content = substituteAppEmojis(message, emojiMap);
+      if (Array.isArray(embeds) && embeds.length) {
+        payload.embeds = embeds.map(e => {
+          const out = { ...e };
+          if (out.title)        out.title       = substituteAppEmojis(out.title, emojiMap);
+          if (out.description)  out.description = substituteAppEmojis(out.description, emojiMap);
+          if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
+          return out;
+        });
+      }
+      await channel.send(payload);
+      // 2e post optionnel : trailing (closing + URL + mentions de rôle).
+      // Posté APRÈS les embeds pour que les mentions pinguent.
+      if (trailing) {
+        await channel.send({ content: substituteAppEmojis(trailing, emojiMap) });
+      }
+      console.log(`📢 [PLANIFIÉ #${id}] Annonce postée dans #${channel.name}${trailing ? ' (+ trailing)' : ''}`);
+    }
+  } catch (e) {
+    console.error(`❌ [PLANIFIÉ #${id}] Erreur :`, e.message);
+  } finally {
+    scheduled.delete(id);
+    saveScheduledAnnounces();
+  }
+}
+
+// (Ré)arme le timer d'une annonce. Paliers si l'échéance dépasse la limite
+// de setTimeout ; envoi immédiat si l'heure est déjà passée.
+function armScheduledAnnounce(entry) {
+  const delay = entry.scheduledAt - Date.now();
+  if (delay <= 0) { fireScheduledAnnounce(entry); return; }
+  const wait = Math.min(delay, TIMER_MAX_MS - 1000);
+  entry.timer = setTimeout(() => {
+    if (entry.scheduledAt - Date.now() > 1000) armScheduledAnnounce(entry);   // palier suivant
+    else fireScheduledAnnounce(entry);
+  }, wait);
+}
+
+function loadScheduledAnnounces() {
+  try {
+    if (!fs.existsSync(SCHED_ANN_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(SCHED_ANN_FILE, 'utf8'));
+    const list = Array.isArray(data?.list) ? data.list : [];
+    schedCounter = Math.max(schedCounter, Number(data?.counter) || 1, ...list.map(e => (Number(e.id) || 0) + 1));
+    const now = Date.now();
+    for (const e of list) {
+      if (!e || !e.channelId || !e.scheduledAt) continue;
+      const late = now - e.scheduledAt;
+      if (late > SCHED_MISSED_MAX_MS) { console.warn(`🕐 [PLANIFIÉ #${e.id}] Échéance dépassée de ${Math.round(late / 3600000)} h pendant l'arrêt → abandonnée`); continue; }
+      scheduled.set(e.id, { ...e, timer: null });
+      if (late > 0) console.warn(`🕐 [PLANIFIÉ #${e.id}] Échéance passée pendant l'arrêt (${Math.round(late / 60000)} min) → envoi immédiat`);
+      else console.log(`🕐 [PLANIFIÉ #${e.id}] Annonce restaurée, envoi dans ${Math.round((e.scheduledAt - now) / 60000)} min`);
+      armScheduledAnnounce(scheduled.get(e.id));
+    }
+    saveScheduledAnnounces();
+  } catch (e) { console.warn('🕐 [PLANIFIÉ] Lecture fichier échouée :', e.message); }
+}
+loadScheduledAnnounces();
 
 // ── ROUTE : Planifier une annonce ─────────────────────────────────────────────
 // Body attendu :
@@ -880,40 +962,10 @@ app.post('/schedule-announce', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'La date est dans le passé' });
 
   const id = schedCounter++;
-  const timer = setTimeout(async () => {
-    try {
-      const channel = await client.channels.fetch(channelId);
-      if (channel?.isTextBased()) {
-        // Résolution des emojis d'application au moment de l'envoi (et pas
-        // de la planification) pour récupérer une map fraîche.
-        const emojiMap = await getAppEmojiMap();
-        const payload = {};
-        if (message) payload.content = substituteAppEmojis(message, emojiMap);
-        if (Array.isArray(embeds) && embeds.length) {
-          payload.embeds = embeds.map(e => {
-            const out = { ...e };
-            if (out.title)        out.title       = substituteAppEmojis(out.title, emojiMap);
-            if (out.description)  out.description = substituteAppEmojis(out.description, emojiMap);
-            if (out.footer?.text) out.footer = { ...out.footer, text: substituteAppEmojis(out.footer.text, emojiMap) };
-            return out;
-          });
-        }
-        await channel.send(payload);
-        // 2e post optionnel : trailing (closing + URL + mentions de rôle).
-        // Posté APRÈS les embeds pour que les mentions pinguent.
-        if (trailing) {
-          await channel.send({ content: substituteAppEmojis(trailing, emojiMap) });
-        }
-        console.log(`📢 [PLANIFIÉ #${id}] Annonce postée dans #${channel.name}${trailing ? ' (+ trailing)' : ''}`);
-      }
-    } catch(e) {
-      console.error(`❌ [PLANIFIÉ #${id}] Erreur :`, e.message);
-    } finally {
-      scheduled.delete(id);
-    }
-  }, delay);
-
-  scheduled.set(id, { id, channelId, message, embeds, trailing, scheduledAt, timer });
+  const entry = { id, channelId, message: message || '', embeds, trailing, scheduledAt, createdAt: Date.now(), timer: null };
+  scheduled.set(id, entry);
+  armScheduledAnnounce(entry);
+  saveScheduledAnnounces();        // survit à un redémarrage du bot
   console.log(`🕐 Annonce #${id} planifiée dans ${Math.round(delay/1000)}s${embeds ? ' [embeds]' : ''}${trailing ? ' [+ trailing]' : ''}`);
   res.json({ ok: true, id, scheduledAt, delayMs: delay });
 });
@@ -921,10 +973,16 @@ app.post('/schedule-announce', async (req, res) => {
 // ── ROUTE : Lister les annonces planifiées ────────────────────────────────────
 app.get('/scheduled', (req, res) => {
   if (!checkSecret(req, res)) return;
-  const list = Array.from(scheduled.values()).map(s => ({
-    id: s.id, channelId: s.channelId, scheduledAt: s.scheduledAt,
-    messagePreview: s.message.substring(0, 80) + (s.message.length > 80 ? '…' : ''),
-  }));
+  const list = Array.from(scheduled.values()).map(s => {
+    const msg = s.message || (Array.isArray(s.embeds) && s.embeds[0] && s.embeds[0].title) || '';
+    let channelName = null;
+    try { channelName = client.channels.cache.get(s.channelId)?.name || null; } catch (e) {}
+    return {
+      id: s.id, channelId: s.channelId, channelName, scheduledAt: s.scheduledAt,
+      messagePreview: msg.substring(0, 80) + (msg.length > 80 ? '…' : ''),
+      hasEmbeds: Array.isArray(s.embeds) && s.embeds.length > 0,
+    };
+  });
   res.json({ ok: true, scheduled: list });
 });
 
@@ -936,6 +994,7 @@ app.delete('/scheduled/:id', (req, res) => {
   if (!entry) return res.status(404).json({ ok: false, error: 'Planification introuvable' });
   clearTimeout(entry.timer);
   scheduled.delete(id);
+  saveScheduledAnnounces();
   res.json({ ok: true, id });
 });
 
