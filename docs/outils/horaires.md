@@ -29,6 +29,7 @@ Dans le panneau de gauche, la carte **« Type de sondage »** (3ᵉ onglet) perm
 * Chaque type garde **ses propres questions** (tu peux les éditer indépendamment).
 * En **Magna Arena**, le **TO** se remplit directement à partir des **votes** du sondage (et non des rôles Discord).
 * Le type sélectionné est mémorisé et s'applique à l'envoi immédiat comme à l'envoi hebdomadaire.
+* Le **salon Discord** choisi est mémorisé **par type** (par ex. Lorem → #horaires, Magna → #to-commu), sur le site comme dans l'app mobile, qui reprend par défaut le salon choisi sur le site.
 
 ## 1. Préparer les questions
 

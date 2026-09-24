@@ -1405,11 +1405,32 @@ function hrGetBotUrl()   { return (document.getElementById('hrBotUrl')?.value   
 function hrGetSecret()   { return (document.getElementById('hrBotSecret')?.value || '').trim(); }
 function hrGetChannelId(){ return (document.getElementById('hrChannelId')?.value || '').trim(); }
 
+// Salon mémorisé PAR TYPE de sondage (Lorem → #horaires, Magna → #to-commu…) :
+// clé hr_last_channel_id_<preset>, repli sur l'ancienne clé globale.
+function hrChannelKey() { return 'hr_last_channel_id_' + (HR.preset || 'lorem'); }
+function hrRememberChannel(cid) {
+  if (!cid) return;
+  HR.lastChannelId = cid;
+  try { localStorage.setItem(hrChannelKey(), cid); localStorage.setItem('hr_last_channel_id', cid); } catch {}
+}
+// Restaure le salon du type courant dans le sélecteur (appelé au chargement
+// et à chaque changement de type).
+function hrRestoreChannelForPreset() {
+  let cid = null;
+  try { cid = localStorage.getItem(hrChannelKey()) || localStorage.getItem('hr_last_channel_id'); } catch {}
+  if (!cid) return;
+  HR.lastChannelId = cid;
+  const inp = document.getElementById('hrChannelId');
+  if (inp) inp.value = cid;
+  const pickerWrap = document.getElementById('hrChannelPickerWrap');
+  if (pickerWrap && typeof renderDcChannelPickerBtn === 'function') {
+    pickerWrap.innerHTML = renderDcChannelPickerBtn(cid, 'hrChannelId', 'hrChannelPickerWrap');
+  }
+}
+
 // Appelé quand un salon est choisi via le picker custom → persiste le choix.
 function hrOnChannelPicked() {
-  const cid = (document.getElementById('hrChannelId')?.value || '').trim();
-  HR.lastChannelId = cid;
-  try { localStorage.setItem('hr_last_channel_id', cid); } catch {}
+  hrRememberChannel((document.getElementById('hrChannelId')?.value || '').trim());
 }
 
 function hrPostStatus(type, msg) {
@@ -3168,6 +3189,7 @@ function hrSetPreset(preset) {
   hrLoadPlanRolesSkeleton();  // zones du preset (repart des défauts si pas de skeleton)
   hrBuildQuestions();         // re-render l'éditeur de questions à droite
   hrRenderPresetCard();       // maj visuelle du sélecteur
+  hrRestoreChannelForPreset(); // salon mémorisé pour CE type
   hrRefreshWeeklyStatus();    // état de l'envoi hebdo de CE type
   // Résultats déjà chargés → re-répartir selon le nouveau preset + re-render.
   if (HR.lastResults && typeof hrRenderPlanningRoles === 'function') {
@@ -3186,14 +3208,14 @@ function hrRenderPresetCard() {
 
 function hrSaveLastMessageIds() {
   localStorage.setItem('hr_last_msg_ids',   JSON.stringify(HR.lastMessageIds));
-  localStorage.setItem('hr_last_channel_id', HR.lastChannelId);
+  hrRememberChannel(HR.lastChannelId);   // salon du type courant (+ clé globale de repli)
 }
 
 function hrLoadLastMessageIds() {
   try {
     const ids = localStorage.getItem('hr_last_msg_ids');
     if (ids) HR.lastMessageIds = JSON.parse(ids);
-    const cid = localStorage.getItem('hr_last_channel_id');
+    const cid = localStorage.getItem(hrChannelKey()) || localStorage.getItem('hr_last_channel_id');
     if (cid) {
       HR.lastChannelId = cid;
       const inp = document.getElementById('hrChannelId');

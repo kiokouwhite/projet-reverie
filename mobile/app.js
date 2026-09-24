@@ -100,7 +100,12 @@ const questions = () => PRESETS[presetKey()].questions;
 // clés hr_questions_lorem / hr_questions_magna) dans la sauvegarde du bot.
 // L'app les récupère via /backup-keys (léger) : ce que tu modifies sur le site
 // arrive ici tout seul. Repli : copie locale, puis questions intégrées.
-const SYNC_KEYS = ['hr_questions_lorem', 'hr_questions_magna'];
+const SYNC_KEYS = ['hr_questions_lorem', 'hr_questions_magna', 'hr_last_channel_id_lorem', 'hr_last_channel_id_magna'];
+// Salon choisi sur le site pour chaque type → défaut de l'app (tant qu'on n'a
+// pas choisi un autre salon sur le téléphone pour ce type).
+function applySyncedChannels(values) {
+  ['lorem', 'magna'].forEach(k => { const v = values && values['hr_last_channel_id_' + k]; if (v) S.set('siteChannel_' + k, String(v)); });
+}
 let questionsSync = { at: null, source: 'builtin', lastTry: 0 };
 function applySyncedQuestions(values) {
   let n = 0;
@@ -118,6 +123,7 @@ function applySyncedQuestions(values) {
   try {
     const c = JSON.parse(S.get('questionsCache') || 'null');
     if (c && c.values && applySyncedQuestions(c.values)) questionsSync = { at: c.at || null, source: 'cache', lastTry: 0 };
+    if (c && c.values) applySyncedChannels(c.values);
   } catch {}
 })();
 async function syncQuestions({ silent = true } = {}) {
@@ -125,6 +131,11 @@ async function syncQuestions({ silent = true } = {}) {
   try {
     const d = await api('/backup-keys?profile=default&keys=' + SYNC_KEYS.join(','), { timeout: 12000 });
     const n = applySyncedQuestions(d.values || {});
+    applySyncedChannels(d.values || {});
+    // Le salon du site pour ce type vient d'arriver et aucun salon n'a été
+    // choisi ici pour ce type → on l'applique au sélecteur déjà affiché.
+    const pkNow = presetKey(), sel = $('#hrChan'), siteChan = S.get('siteChannel_' + pkNow);
+    if (sel && siteChan && !S.get('channelId_' + pkNow) && sel.value !== siteChan && sel.querySelector(`option[value="${siteChan}"]`)) sel.value = siteChan;
     if (n) {
       questionsSync = { at: d.savedAt || new Date().toISOString(), source: 'site', lastTry: Date.now() };
       S.set('questionsCache', JSON.stringify({ at: questionsSync.at, values: d.values }));
@@ -170,14 +181,16 @@ function channelSelectHTML(id, selected, channels) {
   return html + `</select>`;
 }
 // Remplit un conteneur avec le select des salons (charge la liste si besoin).
-async function mountChannelSelect(containerId, selectId, selected) {
+// storeKey : où mémoriser le choix (ex. 'channelId_lorem' pour le type de
+// sondage Lorem). La clé globale 'channelId' reste mise à jour comme repli.
+async function mountChannelSelect(containerId, selectId, selected, storeKey = 'channelId') {
   const box = $('#' + containerId);
   if (!box) return;
   box.innerHTML = `<div class="hint"><span class="spin">⏳</span> Chargement des salons…</div>`;
   try {
     const ch = await loadChannels();
     box.innerHTML = channelSelectHTML(selectId, selected, ch);
-    $('#' + selectId)?.addEventListener('change', e => S.set('channelId', e.target.value));
+    $('#' + selectId)?.addEventListener('change', e => { S.set(storeKey, e.target.value); S.set('channelId', e.target.value); });
   } catch (e) {
     box.innerHTML = `<div class="hint">❌ ${esc(e.message)}</div>`;
   }
@@ -403,7 +416,7 @@ function renderHoraires() {
   renderWeeklyState();
   syncAutoTask();
 
-  mountChannelSelect('hrChanBox', 'hrChan', S.get('channelId'));
+  mountChannelSelect('hrChanBox', 'hrChan', S.get('channelId_' + pk) || S.get('siteChannel_' + pk) || S.get('channelId'), 'channelId_' + pk);
 
   $$('.seg button').forEach(b => b.addEventListener('click', () => { S.set('preset', b.dataset.preset); renderHoraires(); }));
   $('#hrSyncBtn').addEventListener('click', async () => {
@@ -526,7 +539,7 @@ function renderAnnonce() {
       <textarea id="anMsg" placeholder="Ton annonce… (les @mentions et emojis Discord fonctionnent)">${esc(S.get('draft'))}</textarea>
       <button class="btn btn-primary" id="anPostBtn" type="button">📨 Poster</button>
     </div>`;
-  mountChannelSelect('anChanBox', 'anChan', S.get('channelId'));
+  mountChannelSelect('anChanBox', 'anChan', S.get('announceChannelId') || S.get('channelId'), 'announceChannelId');
   $('#anMsg').addEventListener('input', e => S.set('draft', e.target.value));
   $('#anPostBtn').addEventListener('click', async () => {
     const channelId = $('#anChan')?.value; const message = $('#anMsg').value.trim();
