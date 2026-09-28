@@ -3308,8 +3308,10 @@ function lmFormatPlayerName(playerOrName, fallback) {
 }
 
 // ── DÉCOUPE EN RÉGIONS (subdivision récursive) ───────────────────────────────
-// Chaque coupe DIVISE la région qui contient son milieu (la ligne s'arrête donc
-// aux coupes précédentes au lieu de traverser toute la carte). Coords carte 0-1.
+// Chaque coupe DIVISE la région qui contient son milieu, PLUS toute région
+// qu'elle traverse franchement (≥ 20 % de sa longueur) : une coupe courte
+// s'arrête aux coupes précédentes, mais deux diagonales en X (ou une croix)
+// donnent bien 4 zones. Coords carte 0-1.
 function lmPointInPoly(p, poly) {
   let c = false;
   for (let i=0, j=poly.length-1; i<poly.length; j=i++) {
@@ -3327,17 +3329,51 @@ function lmClipPolyHalf(poly, cut, keepPos) {
     if (inA) out.push(A);
     if (inA !== inB) { const t = ca/((ca-cb)||1e-9); out.push({ x:A.x+t*(B.x-A.x), y:A.y+t*(B.y-A.y) }); }
   }
-  return out;
+  // Sans doublons consécutifs (coupe passant par un sommet) : un sommet répété
+  // fait une arête de longueur nulle qui casse les clips et décale le centroïde.
+  const eps = 1e-7, dedup = [];
+  out.forEach(p => { const q = dedup[dedup.length-1]; if (!q || Math.abs(p.x-q.x) > eps || Math.abs(p.y-q.y) > eps) dedup.push(p); });
+  if (dedup.length > 1) { const f = dedup[0], l = dedup[dedup.length-1]; if (Math.abs(f.x-l.x) <= eps && Math.abs(f.y-l.y) <= eps) dedup.pop(); }
+  return dedup;
+}
+// Longueur (coords carte 0-1) de la portion du SEGMENT de coupe située à
+// l'intérieur d'une région (polygone convexe) — clipping paramétrique.
+function lmSegInPolyLen(cut, poly) {
+  const A = { x: cut.x1, y: cut.y1 }, B = { x: cut.x2, y: cut.y2 };
+  let area = 0;
+  for (let i = 0; i < poly.length; i++) { const P = poly[i], Q = poly[(i+1)%poly.length]; area += P.x*Q.y - Q.x*P.y; }
+  const o = area >= 0 ? 1 : -1;   // orientation du polygone → côté « intérieur »
+  let t0 = 0, t1 = 1;
+  for (let i = 0; i < poly.length; i++) {
+    const P = poly[i], Q = poly[(i+1)%poly.length];
+    const side = (p) => o * ((Q.x-P.x)*(p.y-P.y) - (Q.y-P.y)*(p.x-P.x));
+    const sa = side(A), sb = side(B);
+    if (sa < 0 && sb < 0) return 0;        // segment entièrement dehors
+    if (sa >= 0 && sb >= 0) continue;      // entièrement du bon côté de cette arête
+    const t = sa / (sa - sb);
+    if (sa < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+  }
+  return Math.max(0, t1 - t0) * Math.hypot(B.x - A.x, B.y - A.y);
 }
 function lmComputeCutRegions(cuts) {
   let regions = [[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]];
   (cuts||[]).forEach(cut => {
     if (!cut) return;
     const mid = { x:(cut.x1+cut.x2)/2, y:(cut.y1+cut.y2)/2 };
+    // Seuil de traversée : 20 % de la coupe (un léger dépassement dans la zone
+    // voisine ne la divise pas ; un X ou une croix divise les deux côtés).
+    const minLen = Math.max(0.02, 0.2 * Math.hypot(cut.x2-cut.x1, cut.y2-cut.y1));
     let ri = regions.findIndex(pl => lmPointInPoly(mid, pl));
     if (ri < 0) ri = regions.length - 1;
-    const neg = lmClipPolyHalf(regions[ri], cut, false), pos = lmClipPolyHalf(regions[ri], cut, true);
-    if (neg.length >= 3 && pos.length >= 3) regions.splice(ri, 1, neg, pos);
+    const next = [];
+    regions.forEach((pl, i) => {
+      if (i === ri || lmSegInPolyLen(cut, pl) >= minLen) {
+        const neg = lmClipPolyHalf(pl, cut, false), pos = lmClipPolyHalf(pl, cut, true);
+        if (neg.length >= 3 && pos.length >= 3) { next.push(neg, pos); return; }
+      }
+      next.push(pl);   // région non traversée (ou coupe dégénérée) : inchangée
+    });
+    regions = next;
   });
   return regions;
 }
@@ -3492,14 +3528,14 @@ function lmDrawOneSlot(ctx, slot, idx, sc, img, crop, name, cfg) {
   const _cuts = (Array.isArray(cfg.cuts) ? cfg.cuts.filter(Boolean) : []);
   const _imgsArr = (Array.isArray(cfg.charImgsMulti) ? (cfg.charImgsMulti[idx] || []) : []);
   // Mode multi actif si plusieurs persos OU au moins une découpe. Les ZONES sont
-  // définies par les coupes (coupes+1) ; sinon bandes auto selon les images.
+  // définies par les coupes (cf. lmComputeCutRegions) ; sinon bandes auto selon les images.
   const _multiActive = (cfg.charsPerPlayer > 1 || _cuts.length > 0) && (_imgsArr.some(Boolean) || _cuts.length > 0);
   if (_multiActive) {
     const left = cx - w/2, top = cy - h/2;
     if (_cuts.length) {
       // ── Découpe MANUELLE : SUBDIVISION RÉCURSIVE — chaque coupe divise la zone
-      // qui contient son milieu, donc sa ligne s'ARRÊTE aux coupes précédentes
-      // (pas de croisements parasites). Zones = coupes + 1.
+      // qui contient son milieu et celles qu'elle traverse franchement ; une
+      // coupe courte s'ARRÊTE aux coupes précédentes, un X donne 4 zones.
       const regions = lmComputeCutRegions(_cuts);
       const n = regions.length;
       const toPx = (p) => ({ x: left + p.x*w, y: top + p.y*h });
@@ -3921,11 +3957,12 @@ window.lmOpenCutEditor = lmOpenCutEditor; window.lmCutClose = lmCutClose; window
 function lmCEUpdateHint() {
   const h = document.getElementById('lmCutHint'); if (!h) return;
   const cur = (LM.cuts || []).length;
+  const nz  = lmComputeCutRegions(LM.cuts).length;   // zones réelles (2 coupes en X → 4)
   const edit = cur ? '<br><span style="opacity:.8">↔️ Glisse une ligne pour la déplacer • clic droit dessus pour la supprimer.</span>' : '';
   if (LM_CE.pending) { h.innerHTML = '🖱️ Clique le <strong>2e point</strong> de la découpe.'; return; }
-  if (cur >= LM_CE.MAX_CUTS) { h.innerHTML = `✅ ${cur} découpes → ${cur+1} zones (max).` + edit; return; }
+  if (cur >= LM_CE.MAX_CUTS) { h.innerHTML = `✅ ${cur} découpes → ${nz} zones (max).` + edit; return; }
   if (cur === 0) h.innerHTML = '🖱️ Clique <strong>2 points</strong> pour tracer une découpe (→ 2 zones).';
-  else h.innerHTML = `✅ ${cur} découpe(s) → ${cur+1} zones. Clique <strong>2 points</strong> pour en ajouter.` + edit;
+  else h.innerHTML = `✅ ${cur} découpe(s) → ${nz} zones. Clique <strong>2 points</strong> pour en ajouter.` + edit;
 }
 function lmCEPos(e) {
   const cv = document.getElementById('lmCutCanvas'); const r = cv.getBoundingClientRect();
@@ -3954,7 +3991,7 @@ function lmCEClick(e) {
   else {
     LM.cuts.push({ x1: LM_CE.pending.x, y1: LM_CE.pending.y, x2: nx, y2: ny });
     LM_CE.pending = null; LM_CE.selected = LM.cuts.length - 1;
-    LM.charsPerPlayer = Math.max(LM.charsPerPlayer || 1, LM.cuts.length + 1);
+    LM.charsPerPlayer = Math.max(LM.charsPerPlayer || 1, Math.min(4, lmComputeCutRegions(LM.cuts).length));   // zones réelles (X → 4)
     if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
     lmRenderPreview();
   }
@@ -3979,7 +4016,7 @@ function lmCEDeleteAt(e) {
   if (hit < 0) return;
   LM.cuts.splice(hit, 1);
   LM_CE.selected = -1; LM_CE.pending = null;
-  LM.charsPerPlayer = Math.max(1, LM.cuts.length + 1);
+  LM.charsPerPlayer = Math.max(1, Math.min(4, lmComputeCutRegions(LM.cuts).length));
   lmCEUpdateHint(); lmCEDraw(); lmRenderPreview();
 }
 function lmCEDraw() {
