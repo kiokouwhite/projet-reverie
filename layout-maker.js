@@ -1390,7 +1390,7 @@ window.lmLoadCharMulti = lmLoadCharMulti;
 // Nombre de persos par joueur (jeux d'équipe). Met à jour le mode + ré-importe
 // les persos depuis start.gg avec ce nombre, rafraîchit l'UI d'upload, puis re-rend.
 function lmSetCharsPerPlayer(n) {
-  LM.charsPerPlayer = Math.max(1, Math.min(3, n | 0));
+  LM.charsPerPlayer = Math.max(1, Math.min(4, n | 0));   // jusqu'à 4 (Marvel Tokon 4v4)
   lmHighlightCppBtn();
   if (typeof lmAutoImportChars === 'function') lmAutoImportChars();
   lmInitChars();
@@ -1407,7 +1407,7 @@ function lmHighlightCppBtn() {
 // personnage (players[i].charId) en image d'art via getMuralArtUrl() et on
 // la place dans le slot correspondant.
 // Détecte le nombre de persos par joueur d'après le Top start.gg chargé
-// (players[i].chars rempli à l'import). 1..3. Sert à passer en multi-persos auto.
+// (players[i].chars rempli à l'import). 1..4. Sert à passer en multi-persos auto.
 function lmDetectCharsPerPlayer() {
   if (typeof players === 'undefined' || !Array.isArray(players)) return 1;
   let max = 1;
@@ -1415,7 +1415,7 @@ function lmDetectCharsPerPlayer() {
     const n = (p && Array.isArray(p.chars)) ? p.chars.length : 0;
     if (n > max) max = n;
   });
-  return Math.max(1, Math.min(3, max));
+  return Math.max(1, Math.min(4, max));
 }
 window.lmDetectCharsPerPlayer = lmDetectCharsPerPlayer;
 
@@ -1468,7 +1468,7 @@ async function lmAutoImportChars() {
     }
   };
 
-  const N = Math.max(1, Math.min(3, LM.charsPerPlayer || 1));
+  const N = Math.max(1, Math.min(4, LM.charsPerPlayer || 1));
 
   // ── Jeu d'ÉQUIPE (plusieurs persos par joueur) ──
   if (N > 1) {

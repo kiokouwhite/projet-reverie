@@ -2318,6 +2318,12 @@ canvas { width: 100%; display: block; }
 }
 .lm-cpp-btn:hover { border-color: #b79bdf; }
 .lm-cpp-btn.lm-selected { background: #7c5cff; color: #fff; border-color: #7c5cff; }
+/* Ligne « Persos / joueur » : libellé + 4 boutons de même largeur sur UNE ligne.
+   (.title-row est une grille 4 colonnes définie plus bas → on la surcharge
+   avec une spécificité supérieure.) */
+.title-row.lm-cpp-row { display: flex; flex-wrap: nowrap; gap: 5px; align-items: center; }
+.title-row.lm-cpp-row > span { flex: 0 1 auto; min-width: 0; max-width: 42%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-row.lm-cpp-row .lm-cpp-btn { flex: 1 1 0; min-width: 0; padding: 5px 0; text-align: center; }
 
 /* Upload manuel par perso (jeux d'équipe) */
 .lm-multiup-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
