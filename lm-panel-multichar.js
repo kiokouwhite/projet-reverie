@@ -28,10 +28,12 @@ function lmPanelSlotHTML(p, i) {
   let cells = '';
   for (let k = 0; k < N; k++) {
     const url = (layout.charUrlsMulti && layout.charUrlsMulti[i] && layout.charUrlsMulti[i][k]) || '';
+    // Clic sur la vignette → choix du perso (roster local du jeu, ex. posters
+    // Marvel Tōkon, + roster start.gg) ; 📁 → import d'un fichier image.
     const thumb = url
-      ? `<div class="lm-pchar-thumb has-img" style="background-image:url('${url}')" onclick="lmPanelUploadChar(${i},${k})" title="Changer l'image"><span class="lm-pchar-num">${k+1}</span></div>`
-      : `<div class="lm-pchar-thumb" onclick="lmPanelUploadChar(${i},${k})" title="Charger une image"><span class="lm-pchar-num">${k+1}</span><span class="lm-pchar-add">＋</span></div>`;
-    cells += `<div class="lm-pchar">${thumb}<button class="btn lm-pchar-crop" onclick="lmOpenMultiCrop(${i},${k})" ${url?'':'disabled'} title="Cadrer ce perso">✏️ Cadrer</button></div>`;
+      ? `<div class="lm-pchar-thumb has-img" style="background-image:url('${url}')" onclick="lmPanelPickChar(${i},${k})" title="Changer de perso"><span class="lm-pchar-num">${k+1}</span></div>`
+      : `<div class="lm-pchar-thumb" onclick="lmPanelPickChar(${i},${k})" title="Choisir un perso"><span class="lm-pchar-num">${k+1}</span><span class="lm-pchar-add">＋</span></div>`;
+    cells += `<div class="lm-pchar">${thumb}<div class="lm-pchar-actions"><button class="btn lm-pchar-crop" onclick="lmOpenMultiCrop(${i},${k})" ${url?'':'disabled'} title="Cadrer ce perso">✏️ Cadrer</button><button class="btn lm-pchar-crop lm-pchar-file" onclick="lmPanelUploadChar(${i},${k})" title="Importer une image (fichier)">📁</button></div></div>`;
   }
   return `
     <div class="slot-header">
@@ -39,10 +41,58 @@ function lmPanelSlotHTML(p, i) {
       <input type="text" placeholder="Pseudo" value="${esc(p.name)}"
              oninput="players[${i}].name=this.value; if(typeof generatePreview==='function')generatePreview();" style="flex:1;">
     </div>
-    <div class="lm-pchars-label">🎭 ${N} persos — clique une vignette pour charger, ✏️ pour cadrer</div>
+    <div class="lm-pchars-label">🎭 ${N} persos — clique une vignette pour choisir le perso, 📁 pour une image, ✏️ pour cadrer</div>
     <div class="lm-pchars">${cells}</div>`;
 }
 window.lmPanelSlotHTML = lmPanelSlotHTML;
+
+// Jeu dont le roster LOCAL s'applique au layout actif (baseGame ou nom du jeu,
+// ex. « Marvel Tokon: Fighting Souls » → mtfs). null si aucun roster local.
+function lmPanelRosterGame(layout) {
+  return (typeof lmLocalRosterGame === 'function') ? lmLocalRosterGame(layout) : null;
+}
+// URL actuelle de la zone k du slot i (surligne le perso choisi dans la modale).
+function lmPanelZoneUrl(i, k) {
+  const m = lmActiveMultiLayout(); if (!m) return null;
+  return (m.layout.charUrlsMulti && m.layout.charUrlsMulti[i] && m.layout.charUrlsMulti[i][k]) || null;
+}
+window.lmPanelZoneUrl = lmPanelZoneUrl;
+
+// Clic sur une vignette : modale de choix de perso (roster local du jeu +
+// roster start.gg de l'event importé) ; sans aucun roster → fichier image.
+function lmPanelPickChar(i, k) {
+  const m = lmActiveMultiLayout(); if (!m) return;
+  const game = lmPanelRosterGame(m.layout);
+  const sgg  = (typeof _sggRosterCache !== 'undefined' && _sggRosterCache[currentGame]) || [];
+  const meta = (typeof _sggMeta === 'function') ? (_sggMeta()[currentGame] || {}) : {};
+  const hasSgg = sgg.length > 0 || !!((window._sggVideogameId || {})[currentGame]
+    || (window._sggEventSlug || {})[currentGame] || meta.vgId || meta.slug);
+  if ((!game && !hasSgg) || typeof openModal !== 'function') { lmPanelUploadChar(i, k); return; }
+  openModal(i, 1, { i, k, n: m.N, game });
+}
+window.lmPanelPickChar = lmPanelPickChar;
+
+// Applique l'image `url` (poster local ou vignette start.gg) à la zone k du slot i.
+function lmPanelApplyChar(i, k, url, name) {
+  const m = lmActiveMultiLayout(); if (!m || !url) return;
+  const { layout } = m;
+  const put = (img) => {
+    layout.charUrlsMulti = layout.charUrlsMulti || [[],[],[]];
+    layout.charUrlsMulti[i] = layout.charUrlsMulti[i] || [];
+    layout.charUrlsMulti[i][k] = url;
+    layout.charImgsMulti = layout.charImgsMulti || [[],[],[]];
+    layout.charImgsMulti[i] = layout.charImgsMulti[i] || [];
+    layout.charImgsMulti[i][k] = img;
+    if (typeof generatePreview === 'function') generatePreview();
+    if (typeof renderSlots === 'function') renderSlots();
+    lmPersistActiveLayout();
+  };
+  const fail = () => { if (typeof showStatus === 'function') showStatus('error', `❌ Image de ${name || 'ce perso'} introuvable.`); };
+  if (typeof lmLoadFirstImage === 'function') { lmLoadFirstImage([url], (img) => img ? put(img) : fail()); return; }
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => put(img); img.onerror = fail; img.src = url;
+}
+window.lmPanelApplyChar = lmPanelApplyChar;
 
 // Upload d'une image pour le perso (slot i, zone k) du layout custom actif.
 function lmPanelUploadChar(i, k) {
@@ -78,7 +128,11 @@ window.lmPanelUploadChar = lmPanelUploadChar;
 // Persiste (best-effort) les retouches multi-persos du layout actif dans le coffre.
 async function lmPersistActiveLayout() {
   try {
-    const layout = window._activeCustomLayout; if (!layout || !layout.id) return;
+    // Le layout édité par le panneau est celui enregistré pour currentGame
+    // (LAYOUTS[currentGame]._lm) : il peut différer de _activeCustomLayout
+    // (layout déjà enregistré → lmRegisterLayout garde l'ancien objet).
+    const m = lmActiveMultiLayout();
+    const layout = (m && m.layout) || window._activeCustomLayout; if (!layout || !layout.id) return;
     const coffre = JSON.parse(localStorage.getItem('top8_coffre') || '[]');
     const idx = coffre.findIndex(l => l && l.id === layout.id);
     if (idx < 0) return;  // layout pas dans le coffre → édition live uniquement

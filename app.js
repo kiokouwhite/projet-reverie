@@ -1459,12 +1459,16 @@ function escHtml(s) {
 }
 
 // ── MODAL PERSONNAGE ──────────────────────────────────────────────────────────
-function openModal(idx, charSlot) {
+// zone (optionnel) : { i, k, n, game } → mode « zone » d'un layout custom
+// multi-persos (cf. lm-panel-multichar.js) : le perso choisi remplit la zone k
+// du slot i ; game = roster local à afficher (ex. mtfs), sinon roster start.gg.
+function openModal(idx, charSlot, zone) {
+  window._lmZonePick = zone || null;
   currentSlotIndex = idx;
   currentCharSlot = charSlot || 1;
   const layout = LAYOUTS[currentGame];
   const rankDisp = layout?.rankDisplay || CONFIG.RANKS_DISPLAY;
-  const slotLabel = currentCharSlot === 2 ? ' — 2ème perso' : '';
+  const slotLabel = zone ? ` — Perso ${zone.k + 1}/${zone.n}` : (currentCharSlot === 2 ? ' — 2ème perso' : '');
   document.getElementById('modalTitle').textContent =
     `${rankDisp[idx] || (idx+1)} — Choisir un personnage${slotLabel}`;
   document.getElementById('charSearch').value = '';
@@ -1589,13 +1593,21 @@ async function sggEnsureRoster(gameId) {
 // Construit la liste affichée dans le picker = roster local + persos start.gg
 // non déjà présents localement (dédoublonnage par nom normalisé).
 function _sggBuildPickerList() {
-  const localChars = (GAMES[currentGame]?.chars || []).map(c => ({ ...c, _src: 'local' }));
+  // Mode « zone » d'un layout custom : roster LOCAL du jeu détecté (ex. mtfs),
+  // complété par le roster start.gg de l'event importé pour ce layout.
+  const zone = window._lmZonePick;
+  const localGame = (zone && zone.game) || currentGame;
+  const localChars = (GAMES[localGame]?.chars || []).map(c => ({ ...c, _src: 'local', _game: localGame }));
   const sggList = _sggRosterCache[currentGame] || [];
   const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const seen = new Set(localChars.map(c => norm(c.name)));
+  const localIds = new Set(localChars.map(c => c.id));
   const merged = [...localChars];
   sggList.forEach(c => {
     if (seen.has(norm(c.name))) return;
+    // Même perso sous une autre graphie start.gg (« Black Panter », « Dr. Doom »…)
+    const mapped = (typeof findCharIdFromName === 'function') ? findCharIdFromName(c.name) : null;
+    if (mapped && localIds.has(mapped)) return;
     seen.add(norm(c.name));
     merged.push({ id: 'sgg_' + c.id, name: c.name, imgUrl: c.imgUrl, _src: 'sgg' });
   });
@@ -1620,19 +1632,22 @@ function renderCharGrid(filter) {
         } utilise le bouton d'import d'image sur le slot.</div>`;
     return;
   }
+  const zone = window._lmZonePick;
   chars.forEach(c => {
     const btn = document.createElement('button');
-    const isSelected = currentCharSlot === 2
-      ? players[currentSlotIndex]?.charId2 === c.id
-      : players[currentSlotIndex]?.charId  === c.id;
-    btn.className = 'char-btn' + (isSelected ? ' selected' : '');
     // Image du perso : 1) image start.gg (imgUrl), sinon 2) art local (mural)
     // pour les persos du roster interne → tout le monde a une image quand
     // l'asset existe ; 3) emoji en dernier recours (asset manquant).
     let imgSrc = c.imgUrl || null;
     if (!imgSrc && c._src === 'local' && typeof getMuralArtUrl === 'function') {
-      imgSrc = getMuralArtUrl(c.id, 1, currentGame);
+      imgSrc = getMuralArtUrl(c.id, 1, c._game || currentGame);
     }
+    const isSelected = zone
+      ? (!!imgSrc && typeof lmPanelZoneUrl === 'function' && lmPanelZoneUrl(zone.i, zone.k) === imgSrc)
+      : (currentCharSlot === 2
+          ? players[currentSlotIndex]?.charId2 === c.id
+          : players[currentSlotIndex]?.charId  === c.id);
+    btn.className = 'char-btn' + (isSelected ? ' selected' : '');
     const fb = c.icon || '🎮';
     const visual = imgSrc
       ? `<img src="${imgSrc}" class="icon" style="width:36px;height:36px;object-fit:cover;object-position:center top;border-radius:6px;" loading="lazy" onerror="this.outerHTML='<span class=&quot;icon&quot;>${fb}</span>'">`
@@ -1640,6 +1655,13 @@ function renderCharGrid(filter) {
     btn.innerHTML = `${visual}<span>${escHtml(c.name)}</span>`;
     btn.onclick = () => {
       const i = currentSlotIndex;
+      if (zone) {
+        // Layout custom multi-persos : l'image du perso remplit la zone k du slot i.
+        if (!imgSrc) return;
+        if (typeof lmPanelApplyChar === 'function') lmPanelApplyChar(zone.i, zone.k, imgSrc, c.name);
+        document.getElementById('charModal').style.display = 'none';
+        return;
+      }
       if (currentCharSlot === 2) {
         players[i].charId2  = c.id;
         players[i].costume2 = 1;

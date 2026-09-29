@@ -1445,17 +1445,20 @@ async function lmFetchEventChars(slug, apiKey) {
 window.lmFetchEventChars = lmFetchEventChars;
 
 // ── Roster LOCAL pour un layout custom ─────────────────────────────────────
-// Jeu dont les murals locaux s'appliquent à CE layout : baseGame (layout
+// Jeu dont les murals locaux s'appliquent à un layout : baseGame (layout
 // converti), sinon détection par le nom du jeu du layout (« Marvel Tokon… »
 // → mtfs), sinon le jeu du graph courant. null si pas de dossier de persos.
-function lmLocalRosterGame() {
+// src : l'état de l'éditeur (LM, défaut) ou un layout du coffre (panneau
+// « Options & Joueurs », cf. lm-panel-multichar.js).
+function lmLocalRosterGame(src) {
+  const L = src || LM;
   const has = id => !!(id && typeof GAMES !== 'undefined' && GAMES[id]
     && typeof GAME_CHAR_FOLDER !== 'undefined' && GAME_CHAR_FOLDER[id]);
-  if (has(LM.baseGame)) return LM.baseGame;
+  if (has(L.baseGame)) return L.baseGame;
   const gi = (typeof currentGraphIdx !== 'undefined') ? currentGraphIdx : 0;
   const g  = (typeof graphs !== 'undefined' && Array.isArray(graphs)) ? graphs[gi] : null;
   const detect = n => (n && typeof detectGameFromStartGG === 'function') ? detectGameFromStartGG(n) : null;
-  const byName = detect(LM.gameName);
+  const byName = detect(L.gameName) || detect(L.name);
   if (has(byName)) return byName;
   if (g && has(g.game)) return g.game;
   const byGraph = detect(g && g.gameName);

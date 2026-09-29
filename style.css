@@ -11508,6 +11508,10 @@ body.night-mode .dn-caption .dn-label.active {
 }
 .lm-pchar-crop:hover:not(:disabled) { background:#e2d6f8; }
 .lm-pchar-crop:disabled { opacity:.4; cursor:not-allowed; }
+/* Ligne d'actions sous la vignette : ✏️ Cadrer (extensible) + 📁 fichier */
+.lm-pchar-actions { display:flex; gap:4px; width:100%; }
+.lm-pchar-actions .lm-pchar-crop { width:auto; flex:1 1 auto; min-width:0; }
+.lm-pchar-actions .lm-pchar-file { flex:0 0 auto; padding:4px 5px; }
 
 /* ── Layout Maker : bouton "image de rang" (remplace le texte 1ER/2ÈME/3ÈME) ── */
 .lm-rank-img-btn {
