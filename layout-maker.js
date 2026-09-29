@@ -1444,6 +1444,43 @@ async function lmFetchEventChars(slug, apiKey) {
 }
 window.lmFetchEventChars = lmFetchEventChars;
 
+// ── Roster LOCAL pour un layout custom ─────────────────────────────────────
+// Jeu dont les murals locaux s'appliquent à CE layout : baseGame (layout
+// converti), sinon détection par le nom du jeu du layout (« Marvel Tokon… »
+// → mtfs), sinon le jeu du graph courant. null si pas de dossier de persos.
+function lmLocalRosterGame() {
+  const has = id => !!(id && typeof GAMES !== 'undefined' && GAMES[id]
+    && typeof GAME_CHAR_FOLDER !== 'undefined' && GAME_CHAR_FOLDER[id]);
+  if (has(LM.baseGame)) return LM.baseGame;
+  const gi = (typeof currentGraphIdx !== 'undefined') ? currentGraphIdx : 0;
+  const g  = (typeof graphs !== 'undefined' && Array.isArray(graphs)) ? graphs[gi] : null;
+  const detect = n => (n && typeof detectGameFromStartGG === 'function') ? detectGameFromStartGG(n) : null;
+  const byName = detect(LM.gameName);
+  if (has(byName)) return byName;
+  if (g && has(g.game)) return g.game;
+  const byGraph = detect(g && g.gameName);
+  return has(byGraph) ? byGraph : null;
+}
+// charId du roster `game` correspondant à un nom de perso start.gg, sinon null.
+function lmLocalCharId(name, game) {
+  if (!name || !game || typeof findCharIdFromName !== 'function') return null;
+  const id = findCharIdFromName(name);
+  return (id && GAMES[game] && GAMES[game].chars.some(c => c.id === id)) ? id : null;
+}
+// Charge la première image qui répond parmi `urls` (CORS d'abord, puis sans) ;
+// done(img|null, urlUtilisée). Permet le repli poster local → vignette start.gg.
+function lmLoadFirstImage(urls, done) {
+  const list = (urls || []).filter(Boolean);
+  const tryAt = (i, cors) => {
+    if (i >= list.length) return done(null, null);
+    const img = new Image(); if (cors) img.crossOrigin = 'anonymous';
+    img.onload  = () => done(img, list[i]);
+    img.onerror = () => cors ? tryAt(i, false) : tryAt(i + 1, true);
+    img.src = list[i];
+  };
+  tryAt(0, true);
+}
+
 async function lmAutoImportChars() {
   const statusEl = document.getElementById('lmAutoImportStatus');
   const setStatus = (msg, ok = true) => {
@@ -1487,6 +1524,14 @@ async function lmAutoImportChars() {
       try { const fetched = await lmFetchEventChars(slug, apiKey); if (fetched.some(c => c && c.length)) cbp = fetched; }
       catch(e) { console.warn('[LM] fetch chars :', e); }
     }
+    // Posters/murals LOCAUX (ex. Marvel Tōkon) à la place des vignettes start.gg
+    // quand le jeu du layout a un roster interne ; la vignette reste en repli.
+    const rosterGame = lmLocalRosterGame();
+    if (rosterGame) cbp = cbp.map(list => list && list.map(c => {
+      const cid   = c && lmLocalCharId(c.name, rosterGame);
+      const local = (cid && typeof getMuralArtUrl === 'function') ? getMuralArtUrl(cid, 1, rosterGame) : null;
+      return local ? Object.assign({}, c, { url: local, fallbackUrl: c.url }) : c;
+    }));
     // Si on a des persos à importer, on repart de slots PROPRES pour ne pas garder
     // ceux d'un ancien layout/event (ex. RoA2 restant sur une carte DBFZ).
     const _hasData = cbp.some(c => c && c.length);
@@ -1497,11 +1542,10 @@ async function lmAutoImportChars() {
       chars.forEach((c, k) => {
         const url = c && c.url; if (!url) return;
         attempted++; pending++;
-        const apply = (img) => { LM.charImgsMulti[i][k] = img; LM.charUrlsMulti[i][k] = url; loaded++; lmRenderPreview(); pending--; finish(); };
-        const img = new Image(); img.crossOrigin = 'anonymous';
-        img.onload  = () => apply(img);
-        img.onerror = () => { const img2 = new Image(); img2.onload = () => apply(img2); img2.onerror = () => { pending--; finish(); }; img2.src = url; };
-        img.src = url;
+        lmLoadFirstImage([url, c.fallbackUrl], (img, used) => {
+          if (img) { LM.charImgsMulti[i][k] = img; LM.charUrlsMulti[i][k] = used; loaded++; lmRenderPreview(); }
+          pending--; finish();
+        });
       });
     });
     if (attempted === 0) setStatus('ℹ️ Aucun perso trouvé sur start.gg (non reportés, ou sans image côté start.gg). Utilise l\'upload manuel ci-dessous.', false);
@@ -1516,6 +1560,14 @@ async function lmAutoImportChars() {
     // 2) Fallback : image hébergée par start.gg (jeux custom / persos non mappés).
     let url = (p.charId && typeof getMuralArtUrl === 'function')
       ? getMuralArtUrl(p.charId, p.costume || 1) : null;
+    // Layout custom d'un jeu à roster local (ex. Marvel Tōkon) : poster local
+    // d'après le nom start.gg du perso, vignette start.gg en repli.
+    let fallback = null;
+    const sggName = p.charNameStartgg || (Array.isArray(p.chars) && p.chars[0] && p.chars[0].name) || null;
+    if (!url && sggName) {
+      const rg = lmLocalRosterGame(), cid = rg && lmLocalCharId(sggName, rg);
+      if (cid && typeof getMuralArtUrl === 'function') { url = getMuralArtUrl(cid, 1, rg); fallback = p.charImgUrl || null; }
+    }
     if (!url && p.charImgUrl) url = p.charImgUrl;
     if (!url) return;
     attempted++; pending++;
@@ -1530,17 +1582,10 @@ async function lmAutoImportChars() {
       lmRenderPreview();
       pending--; finish();
     };
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload  = () => apply(img);
-    img.onerror = () => {
-      // Retry sans crossOrigin (visible mais non exportable si CORS bloque)
-      const img2 = new Image();
-      img2.onload  = () => apply(img2);
-      img2.onerror = () => { pending--; finish(); };
-      img2.src = url;
-    };
-    img.src = url;
+    // Essais : CORS puis sans CORS, puis l'URL de repli (vignette start.gg).
+    lmLoadFirstImage([url, fallback], (img, used) => {
+      if (img) { url = used; apply(img); } else { pending--; finish(); }
+    });
   });
 
   if (attempted === 0) {

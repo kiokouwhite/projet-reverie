@@ -30,6 +30,7 @@
     tekken8: { tint: '#dde6fa', ink: '#2563eb' },
     '2xko':  { tint: '#dff2e3', ink: '#16a34a' },
     dbfz:    { tint: '#fde9c7', ink: '#d97706' },
+    mtfs:    { tint: '#fee2e2', ink: '#b91c1c' },
   };
   // Couleur générique pour les autres jeux (layouts custom etc.)
   const FALLBACK_THEME = { tint: '#ece5f7', ink: '#6d28d9' };

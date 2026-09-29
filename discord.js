@@ -105,6 +105,7 @@ const DC_GAME_DESCRIPTIONS = {
   'guilty gear strive':      "Anime fighter d'Arc System Works (2021). Roman Cancels, vitesse élevée, 30+ persos.",
   'guilty gear xrd rev 2':   "Guilty Gear Xrd REV2 d'Arc System Works (2017). Le dernier opus 2.5D avant Strive, apprécié des puristes.",
   '2xko':                    "Tag fighter 2v2 de Riot Games dans l'univers League of Legends. En accès anticipé.",
+  'marvel tokon fighting souls': "Tag fighter 4v4 d'Arc System Works et PlayStation Studios (2026). Les héros Marvel en équipes de quatre, combos et assists frénétiques.",
   'mortal kombat 1':         "Reboot de la saga par NetherRealm (2023). Système Kameo Fighter et fatalities iconiques.",
   'dragon ball fighterz':    "Tag fighter 3v3 d'Arc System Works (2018). Visuels anime stylisés, gameplay nerveux.",
   'granblue fantasy versus rising': "Versus Rising d'Arc System Works (2023). Suite de GBVS avec roster élargi et rollback.",

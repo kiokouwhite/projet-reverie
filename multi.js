@@ -15,6 +15,7 @@ const GAME_NAV_COLORS = {
   '2xko':  '#FFD44E', // or 2XKO
   sf6:     '#FF3B30', // rouge SF6
   dbfz:    '#FF8C00', // orange DBZ
+  mtfs:    '#EC1D24', // rouge Marvel
 };
 
 function _hexToRgb(hex) {

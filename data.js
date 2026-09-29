@@ -85,7 +85,17 @@ const STARTGG_TO_ID = {
   "Incineroar":"incineroar","Piranha Plant":"piranah","Joker":"joker","Hero":"hero",
   "Banjo & Kazooie":"banjo","Terry":"terry","Byleth":"byleth","Min Min":"minmin",
   "Steve":"steve","Sephiroth":"sephiroth","Pyra":"pythra","Mythra":"pythra",
-  "Pyra/Mythra":"pythra","Kazuya":"kazuya","Sora":"sora"
+  "Pyra/Mythra":"pythra","Kazuya":"kazuya","Sora":"sora",
+
+  // ── MARVEL TŌKON: FIGHTING SOULS ─────────────────────────
+  // start.gg écrit « Black Panter », « Dr. Doom » et « Peni » : variantes incluses.
+  "Black Panther":"blackpanther","Black Panter":"blackpanther","Blade":"blade",
+  "Captain America":"capamerica","Carnage":"carnage","Danger":"danger",
+  "Deadpool":"deadpool","Dr. Doom":"doom","Doctor Doom":"doom",
+  "Ghost Rider":"ghostrider","Green Goblin":"greengoblin","Hulk":"hulk",
+  "Iron Man":"ironman","Loki":"loki","Magik":"magik","Magneto":"magneto",
+  "Ms. Marvel":"msmarvel","Peni":"peni","Peni Parker":"peni",
+  "Spider-Man":"spiderman","Star-Lord":"starlord","Storm":"storm","Wolverine":"wolverine"
 };
 
 // Nom de base des fichiers (sans numéro de costume)
@@ -137,6 +147,12 @@ const ICON_BASENAME = {
   kefla:"Kefla", goku_ui:"GokuUI", roshi:"MasterRoshi",
   gamma1:"Gamma1", gamma2:"Gamma2", gotenks:"Gotenks", videl:"Videl",
   broly_dbs:"BrolyDBS", goku_gt:"GokuGT", pan:"Pan",
+  // Marvel Tōkon: Fighting Souls (posters .webp, cf. CHAR_EXT_BY_GAME)
+  blackpanther:"BlackPanther", blade:"Blade", capamerica:"CaptainAmerica",
+  carnage:"Carnage", danger:"Danger", deadpool:"Deadpool", doom:"DoctorDoom",
+  ghostrider:"GhostRider", greengoblin:"GreenGoblin", hulk:"Hulk", ironman:"IronMan",
+  loki:"Loki", magik:"Magik", magneto:"Magneto", msmarvel:"MsMarvel", peni:"PeniParker",
+  spiderman:"SpiderMan", starlord:"StarLord", storm:"Storm", wolverine:"Wolverine",
   // SSBU
   mario:"Mario", dk:"DonkeyKong", link:"Link",
   samus:"Samus", darksamus:"DarkSamus", zsamus:"ZeroSuitSamus",
@@ -184,10 +200,15 @@ const GAME_CHAR_FOLDER = {
   tekken8: 'characters/T8',
   '2xko':  'characters/2XKO',
   dbfz:    'characters/DBFZ',
+  mtfs:    'characters/MTFS',   // Marvel Tōkon: Fighting Souls (posters .webp)
 };
 
 // Jeux avec costumes numérotés (Mario1.png, Mario2.png...)
 const GAMES_WITH_COSTUMES = ['ssbu'];
+
+// Extension unique pour TOUT le dossier d'un jeu (prioritaire sur les sets
+// par basename ci-dessous). MTFS : posters .webp.
+const CHAR_EXT_BY_GAME = { mtfs: 'webp' };
 
 // Basenames dont l'extension est .jpg
 const CHAR_EXT_JPG = new Set([
@@ -275,8 +296,8 @@ function getMuralArtUrl(charId, costume, game) {
   const base = ICON_BASENAME[charId];
   if (!base) return null;
   const folder = GAME_CHAR_FOLDER[g] || 'characters/SSBU';
-  let ext = 'png';
-  if (!GAMES_WITH_COSTUMES.includes(g)) {
+  let ext = CHAR_EXT_BY_GAME[g] || 'png';
+  if (!CHAR_EXT_BY_GAME[g] && !GAMES_WITH_COSTUMES.includes(g)) {
     if (CHAR_EXT_AVIF.has(base)) ext = 'avif';
     else if (CHAR_EXT_JPG.has(base)) ext = 'jpg';
   }
@@ -479,6 +500,34 @@ const GAMES = {
       {id:"dizzy",name:"Dizzy",icon:"🪽"},{id:"elphelt",name:"Elphelt",icon:"💒"},
       {id:"aba",name:"A.B.A",icon:"🔑"},{id:"johnny",name:"Johnny",icon:"🎩"},
       {id:"venom",name:"Venom",icon:"🎱"},{id:"slayer",name:"Slayer",icon:"🦇"}
+    ]
+  },
+  // Marvel Tōkon: Fighting Souls — tag 4v4 (Arc System Works). Pas de template
+  // built-in : « Sans layout » (parallélogrammes) ou layout custom du Layout
+  // Maker (4 persos / joueur). Posters : characters/MTFS/<Basename>.webp.
+  mtfs: {
+    name:"Marvel Tōkon: Fighting Souls", short:"MTFS", sub1:"MARVEL TŌKON: FIGHTING SOULS", sub2:"RÉSULTATS",
+    chars:[
+      {id:"blackpanther", name:"Black Panther",   icon:"🐆"},
+      {id:"blade",        name:"Blade",           icon:"🗡️"},
+      {id:"capamerica",   name:"Captain America", icon:"🛡️"},
+      {id:"carnage",      name:"Carnage",         icon:"🩸"},
+      {id:"danger",       name:"Danger",          icon:"🧬"},
+      {id:"deadpool",     name:"Deadpool",        icon:"🌮"},
+      {id:"doom",         name:"Doctor Doom",     icon:"👑"},
+      {id:"ghostrider",   name:"Ghost Rider",     icon:"🔥"},
+      {id:"greengoblin",  name:"Green Goblin",    icon:"🎃"},
+      {id:"hulk",         name:"Hulk",            icon:"💚"},
+      {id:"ironman",      name:"Iron Man",        icon:"🤖"},
+      {id:"loki",         name:"Loki",            icon:"🐍"},
+      {id:"magik",        name:"Magik",           icon:"⚔️"},
+      {id:"magneto",      name:"Magneto",         icon:"🧲"},
+      {id:"msmarvel",     name:"Ms. Marvel",      icon:"✨"},
+      {id:"peni",         name:"Peni Parker",     icon:"🕷️"},
+      {id:"spiderman",    name:"Spider-Man",      icon:"🕸️"},
+      {id:"starlord",     name:"Star-Lord",       icon:"🚀"},
+      {id:"storm",        name:"Storm",           icon:"⚡"},
+      {id:"wolverine",    name:"Wolverine",       icon:"🐾"},
     ]
   }
 };

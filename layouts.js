@@ -126,6 +126,18 @@ const LAYOUTS = {
     slots: [],
     useParallelogram: true,
   },
+
+  // ── MARVEL TŌKON: FIGHTING SOULS — Sans template (roster + posters locaux) ──
+  // Un layout custom nommé « Marvel Tokon: Fighting Souls » dans le coffre est
+  // utilisé automatiquement à l'import start.gg (findCoffreLayoutForGame).
+  mtfs: {
+    bgFile: null,
+    playerCount: 8,
+    rankLabels: ['1','2','3','4','5','5','7','7'],
+    rankDisplay: ['1er','2e','3e','4e','5e','5e','7e','7e'],
+    slots: [],
+    useParallelogram: true,
+  },
 };
 
 // Réécrit les `bgFile` relatifs en URLs absolues via le CDN, une seule fois.
@@ -148,11 +160,14 @@ const STARTGG_GAME_MAP = {
   'Street Fighter™ 6': 'sf6',
   'Dragon Ball FighterZ': 'dbfz',
   'DRAGON BALL FighterZ': 'dbfz',
+  'Marvel Tokon: Fighting Souls': 'mtfs',
+  'Marvel Tōkon: Fighting Souls': 'mtfs',
+  'MARVEL Tōkon: Fighting Souls': 'mtfs',
 };
 
 // Catégories
 const MAIN_GAMES = ['ssbu','ggst','tekken8','2xko','sf6'];
-const SIDE_GAMES = ['dbfz'];
+const SIDE_GAMES = ['dbfz','mtfs'];
 
 // Couleurs des numéros de placement par jeu
 const RANK_COLORS_BY_GAME = {
@@ -162,6 +177,7 @@ const RANK_COLORS_BY_GAME = {
   '2xko':  ['#C87DD4','#F5C842','#F5C842'],
   sf6:     ['#C87DD4','#F5C842','#F5C842'],
   dbfz:    ['#C87DD4','#F5C842','#F5C842','#FFFFFF','#FFFFFF','#FFFFFF','#FFFFFF','#FFFFFF'],
+  mtfs:    ['#C87DD4','#F5C842','#F5C842','#FFFFFF','#FFFFFF','#FFFFFF','#FFFFFF','#FFFFFF'],
 };
 
 // Noms affichés dans le sélecteur
@@ -172,4 +188,5 @@ const GAME_LABELS = {
   '2xko':  '2XKO',
   sf6:     'Street Fighter 6',
   dbfz:    'Dragon Ball FighterZ',
+  mtfs:    'Marvel Tōkon: Fighting Souls',
 };

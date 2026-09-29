@@ -1741,6 +1741,7 @@ function detectGameFromStartGG(gameName) {
   if (lower.includes('2xko')) return '2xko';
   if (lower.includes('street fighter')) return 'sf6';
   if (lower.includes('dragon ball') || lower.includes('fighterz')) return 'dbfz';
+  if (lower.includes('tokon') || lower.includes('tōkon') || lower.includes('fighting souls')) return 'mtfs';
   return null;
 }
 
@@ -4020,7 +4021,7 @@ function resetTitleEditor() {
 
 // ── CONFIG NOMS PAR JOUEUR ────────────────────────────────────────────────────
 
-const NAME_SIZE_DEFAULTS = { ssbu:20, ggst:20, tekken8:48, '2xko':40, sf6:20, dbfz:20 };
+const NAME_SIZE_DEFAULTS = { ssbu:20, ggst:20, tekken8:48, '2xko':40, sf6:20, dbfz:20, mtfs:20 };
 
 // Stockage en mémoire (plus rapide, sans délai localStorage)
 let _nameCfgsMem = {};

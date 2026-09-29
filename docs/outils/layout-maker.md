@@ -54,6 +54,7 @@ Pour les jeux d'équipe, tu peux **découper une carte** en zones (une par perso
 * **Persos / joueur** : de 1 à 4 (Marvel Tokon = 4). Sans découpe, la carte est partagée en bandes verticales égales.
 * **Découper la carte** : clique **2 points** pour tracer une ligne de coupe. Une ligne qui traverse plusieurs zones les divise toutes (deux diagonales en X, ou une croix → **4 zones**) ; une ligne courte s'arrête à la coupe précédente (ex. une verticale puis une horizontale sur la moitié droite → 3 zones).
 * Le nombre de persos par joueur suit automatiquement le nombre de zones. Glisse une ligne pour la déplacer, **clic droit** dessus pour la supprimer ; **Espacement** écarte les zones (le fond reste visible entre elles).
+* **Auto-import depuis start.gg** : pour les jeux dont Rêverie possède les visuels (Smash, SF6, GGST, Tekken 8, 2XKO, Marvel Tōkon: Fighting Souls…), les persos reportés sur start.gg sont remplacés par les **visuels locaux** en haute qualité (posters) ; sinon la vignette start.gg est utilisée. Pour que la détection marche sur un layout custom, nomme son jeu comme sur start.gg (ex. « Marvel Tokon: Fighting Souls »).
 
 ## Sauvegarder & réutiliser
 
