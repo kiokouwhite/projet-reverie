@@ -900,25 +900,10 @@ function lmUpdateGameImgStatus() {
 }
 
 function lmLoadGameImgFromUrl(url) {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    LM.gameImgImg = img;
-    lmUpdateGameImgStatus();
-    lmRenderPreview();
-  };
-  img.onerror = () => {
-    // CORS bloqué → essai sans crossOrigin (pas exportable mais visible)
-    const img2 = new Image();
-    img2.onload = () => {
-      LM.gameImgImg = img2;
-      lmUpdateGameImgStatus();
-      lmRenderPreview();
-    };
-    img2.onerror = () => { lmUpdateGameImgStatus(); };
-    img2.src = url;
-  };
-  img.src = url;
+  // CORS direct → proxy CORS → (dernier recours) sans CORS, cf. lmLoadCanvasImage.
+  lmLoadCanvasImage(url,
+    (img) => { LM.gameImgImg = img; lmUpdateGameImgStatus(); lmRenderPreview(); },
+    () => { lmUpdateGameImgStatus(); });
 }
 
 function lmLoadGameImg(event) {
@@ -1470,18 +1455,44 @@ function lmLocalCharId(name, game) {
   const id = findCharIdFromName(name);
   return (id && GAMES[game] && GAMES[game].chars.some(c => c.id === id)) ? id : null;
 }
-// Charge la première image qui répond parmi `urls` (CORS d'abord, puis sans) ;
+// ── Chargement d'images pour le canvas SANS le souiller ─────────────────────
+// Ordre : CORS direct → proxy CORS images.weserv.nl (toute URL http(s), cf.
+// loadCorsImage) → en DERNIER recours sans CORS : l'image s'affiche mais le
+// canvas n'est plus exportable (toDataURL → SecurityError) ; elle est alors
+// marquée _tainting pour que « Télécharger » puisse nommer l'image en cause.
+function lmLoadCanvasImage(url, onload, onfail) {
+  if (!url) { if (onfail) onfail(); return; }
+  const lastResort = () => {
+    const img2 = new Image();
+    img2.onload  = () => { img2._tainting = /^https?:\/\//i.test(url); onload(img2); };
+    img2.onerror = () => { if (onfail) onfail(); };
+    img2.src = url;
+  };
+  if (typeof loadCorsImage === 'function') { loadCorsImage(url, onload, lastResort); return; }
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => onload(img); img.onerror = lastResort; img.src = url;
+}
+// Libellés des images d'un layout chargées sans CORS (pour le message d'erreur).
+function lmTaintedImageLabels(L) {
+  const out = [];
+  if (!L) return out;
+  if (L.bgImg && L.bgImg._tainting) out.push('le fond');
+  if (L.gameImgImg && L.gameImgImg._tainting) out.push("l'image du jeu");
+  (L.charImgs || []).forEach((im, i) => { if (im && im._tainting) out.push(`le perso du joueur ${i+1}`); });
+  (L.charImgsMulti || []).forEach((arr, i) => (arr || []).forEach((im, k) => { if (im && im._tainting) out.push(`le perso ${k+1} du joueur ${i+1}`); }));
+  return out;
+}
+window.lmLoadCanvasImage = lmLoadCanvasImage; window.lmTaintedImageLabels = lmTaintedImageLabels;
+
+// Charge la première image qui répond parmi `urls` (chacune via lmLoadCanvasImage) ;
 // done(img|null, urlUtilisée). Permet le repli poster local → vignette start.gg.
 function lmLoadFirstImage(urls, done) {
   const list = (urls || []).filter(Boolean);
-  const tryAt = (i, cors) => {
+  const tryAt = (i) => {
     if (i >= list.length) return done(null, null);
-    const img = new Image(); if (cors) img.crossOrigin = 'anonymous';
-    img.onload  = () => done(img, list[i]);
-    img.onerror = () => cors ? tryAt(i, false) : tryAt(i + 1, true);
-    img.src = list[i];
+    lmLoadCanvasImage(list[i], (img) => done(img, list[i]), () => tryAt(i + 1));
   };
-  tryAt(0, true);
+  tryAt(0);
 }
 
 async function lmAutoImportChars() {
@@ -2105,11 +2116,8 @@ async function lmOpenForEdit(layoutId) {
   LM.charImgsMulti  = [[], [], []];
   LM.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
     if (!url) return;
-    const im = new Image(); im.crossOrigin = 'anonymous';
     const put = (x) => { LM.charImgsMulti[i] = LM.charImgsMulti[i] || []; LM.charImgsMulti[i][k] = x; lmRenderPreview(); };
-    im.onload = () => put(im);
-    im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
-    im.src = url;
+    lmLoadCanvasImage(url, put);
   }));
   // Image de fond par carte : restaure les URLs + cadrages, puis recharge les images.
   LM.slotBgUrls    = [...(layout.slotBgUrls || [null,null,null])];
@@ -2215,9 +2223,7 @@ async function lmOpenForEdit(layoutId) {
   // Lancer aussi le chargement async depuis les data URLs
   // (nécessaire si l'utilisateur navigue aux étapes bg/persos pour modifier)
   if (layout.bgDataUrl && !LM.bgImg) {
-    const img = new Image();
-    img.onload = () => { LM.bgImg = img; lmRenderPreview(); };
-    img.src = layout.bgDataUrl;
+    lmLoadCanvasImage(layout.bgDataUrl, (img) => { LM.bgImg = img; lmRenderPreview(); });
   }
   if (layout.overlayDataUrl && !LM.overlayImg) {
     const img = new Image();
@@ -2226,15 +2232,7 @@ async function lmOpenForEdit(layoutId) {
   }
   const gameImgSrc = layout.gameImgDataUrl || layout.gameImgUrl;
   if (gameImgSrc && !LM.gameImgImg) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { LM.gameImgImg = img; lmRenderPreview(); };
-    img.onerror = () => {
-      const img2 = new Image();
-      img2.onload = () => { LM.gameImgImg = img2; lmRenderPreview(); };
-      img2.src = gameImgSrc;
-    };
-    img.src = gameImgSrc;
+    lmLoadCanvasImage(gameImgSrc, (img) => { LM.gameImgImg = img; lmRenderPreview(); });
   }
   layout.charDataUrls?.forEach((url, i) => {
     if (!url || LM.charImgs[i]) return;
@@ -2375,9 +2373,7 @@ async function lmFinishAndSave(silent, keepEdit) {
   // Si ce layout est actuellement affiché, rafraîchir
   if (typeof currentGame !== 'undefined' && currentGame === layout.id) {
     if (layout.bgDataUrl) {
-      const img = new Image();
-      img.onload = () => { bgImg = img; if (typeof generatePreview === 'function') generatePreview(); };
-      img.src = layout.bgDataUrl;
+      lmLoadCanvasImage(layout.bgDataUrl, (img) => { bgImg = img; if (typeof generatePreview === 'function') generatePreview(); });
     } else {
       bgImg = null;
       if (typeof generatePreview === 'function') generatePreview();
@@ -2798,28 +2794,16 @@ function lmRegisterLayout(layout) {
     layout.charImgsMulti = [[], [], []];
     layout.charUrlsMulti.forEach((arr, i) => (arr || []).forEach((url, k) => {
       if (!url) return;
-      const im = new Image(); im.crossOrigin = 'anonymous';
       const put = (x) => { layout.charImgsMulti[i] = layout.charImgsMulti[i] || []; layout.charImgsMulti[i][k] = x; };
-      im.onload = () => put(im);
-      im.onerror = () => { const im2 = new Image(); im2.onload = () => put(im2); im2.src = url; };
-      im.src = url;
+      lmLoadCanvasImage(url, put);
     }));
   }
 
   // Précharger l'image du jeu (logo)
   const gameImgSrc = layout.gameImgDataUrl || layout.gameImgUrl;
   if (gameImgSrc && layout.gameImgVisible !== false) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { layout.gameImgImg = img; };
-    img.onerror = () => {
-      // Retry sans CORS (pour les URLs externes comme start.gg)
-      const img2 = new Image();
-      img2.onload = () => { layout.gameImgImg = img2; };
-      img2.onerror = () => {};
-      img2.src = gameImgSrc;
-    };
-    img.src = gameImgSrc;
+    // CORS direct → proxy CORS → dernier recours sans CORS (cf. lmLoadCanvasImage)
+    lmLoadCanvasImage(gameImgSrc, (img) => { layout.gameImgImg = img; });
   }
 }
 
@@ -2831,9 +2815,7 @@ async function lmApplyLayout(idx) {
 
   // Load bg
   if (layout.bgDataUrl) {
-    const img = new Image();
-    img.onload = () => { bgImg = img; };
-    img.src = layout.bgDataUrl;
+    lmLoadCanvasImage(layout.bgDataUrl, (img) => { bgImg = img; });
   } else {
     bgImg = null;
   }
@@ -3037,26 +3019,13 @@ function lmRenderLayoutToCanvas(canvas, layout, cb) {
 
   // Load bg
   if (layout.bgDataUrl) {
-    const img = new Image();
-    img.onload  = () => { bgI = img; tick(); };
-    img.onerror = () => tick();
-    img.src = layout.bgDataUrl;
+    lmLoadCanvasImage(layout.bgDataUrl, (img) => { bgI = img; tick(); }, () => tick());
   } else { tick(); }
 
   // Load game image (data URL priority, then start.gg URL)
   if (hasGameImg) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
     const src = layout.gameImgDataUrl || layout.gameImgUrl;
-    img.onload  = () => { gameI = img; tick(); };
-    img.onerror = () => {
-      // Retry without CORS for display-only
-      const img2 = new Image();
-      img2.onload  = () => { gameI = img2; tick(); };
-      img2.onerror = () => tick();
-      img2.src = src;
-    };
-    img.src = src;
+    lmLoadCanvasImage(src, (img) => { gameI = img; tick(); }, () => tick());
   }
 
   // Load overlay
@@ -4123,7 +4092,12 @@ function lmDownloadCurrent() {
   canvas.width = canvas.height = 1400;
   lmRenderToCanvasWithLM(canvas, LM);
   const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
+  try { a.href = canvas.toDataURL('image/png'); }
+  catch (e) {
+    console.error('[LM] export impossible :', e);
+    alert(typeof canvasExportErrorMessage === 'function' ? canvasExportErrorMessage(LM) : '❌ Téléchargement impossible (image sans CORS).');
+    return;
+  }
   a.download = `top8_${(LM.gameName||'custom').replace(/\s/g,'_')}.png`;
   a.click();
 }

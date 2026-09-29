@@ -3156,15 +3156,16 @@ function drawMagnaBackground(ctx, width, height) {
 // images.start.gg ne renvoie pas toujours l'en-tête CORS Access-Control-Allow-Origin,
 // ce qui fait échouer le chargement en crossOrigin='anonymous' (nécessaire pour
 // garder le canvas exportable via toDataURL). Dans ce cas on réessaie UNE fois via
-// le proxy images.weserv.nl, qui, lui, ajoute l'en-tête CORS. Les images NON
-// start.gg (assets locaux, data URLs) ne sont jamais proxifiées → onerror direct.
+// le proxy images.weserv.nl, qui, lui, ajoute l'en-tête CORS — pour TOUTE URL
+// http(s) distante (start.gg, CDN…). Les data URLs et chemins relatifs ne sont
+// jamais proxifiés → onerror direct.
 function loadCorsImage(url, onload, onerror) {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   let usedProxy = false;
   img.onload  = () => { if (onload) onload(img); };
   img.onerror = () => {
-    if (!usedProxy && /^https?:\/\/images\.start\.gg\//i.test(url || '')) {
+    if (!usedProxy && /^https?:\/\//i.test(url || '') && !/^https?:\/\/images\.weserv\.nl\//i.test(url)) {
       usedProxy = true;
       // weserv attend l'URL sans protocole ; on l'encode (les URLs start.gg
       // portent des query params). Réponse servie avec Access-Control-Allow-Origin.
@@ -5241,13 +5242,29 @@ function downloadImage() {
     const canvas=document.createElement('canvas');
     renderCanvas(canvas,1400);
     const name=document.getElementById('tournamentName').value||'tournoi';
+    // Canvas « souillé » (une image chargée sans CORS) → toDataURL lève une
+    // SecurityError : on l'explique au lieu d'échouer en silence.
+    let href = null;
+    try { href = canvas.toDataURL('image/png'); }
+    catch (e) { console.error('[download] export impossible :', e); alert(canvasExportErrorMessage()); return; }
     const a=document.createElement('a');
-    a.href=canvas.toDataURL('image/png');
+    a.href=href;
     a.download=`top8_${currentGame}_${name.replace(/\s/g,'_')}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  });
+  }).catch(e => { console.error('[download]', e); alert('❌ Téléchargement impossible : ' + ((e && e.message) || e)); });
+}
+
+// Message d'erreur d'export (canvas non exportable) : nomme les images en cause
+// quand elles ont été signalées au chargement (cf. lmLoadCanvasImage, _tainting).
+// layoutLike : LM (éditeur) ou, par défaut, le layout custom actif.
+function canvasExportErrorMessage(layoutLike) {
+  const L = layoutLike || (typeof LAYOUTS !== 'undefined' && LAYOUTS[currentGame] && LAYOUTS[currentGame]._lm) || null;
+  const labels = (typeof lmTaintedImageLabels === 'function') ? lmTaintedImageLabels(L) : [];
+  return "❌ Téléchargement impossible : une image du graph a été chargée sans autorisation CORS, le canvas n'est plus exportable."
+    + (labels.length ? `\nImage(s) en cause : ${labels.join(', ')}.` : '')
+    + "\n\nRecharge la page (Ctrl+F5) : les images distantes passent alors par le proxy CORS. Si ça persiste, remplace l'image en cause (📁 ou « Image du jeu »).";
 }
 
 // ── DAY/NIGHT SLIDER ─────────────────────────────────────────────────────────

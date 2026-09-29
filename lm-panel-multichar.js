@@ -182,9 +182,10 @@ function lmOpenMultiCrop(i, k) {
   let img = (layout.charImgsMulti && layout.charImgsMulti[i] && layout.charImgsMulti[i][k]) || null;
   const url = (layout.charUrlsMulti && layout.charUrlsMulti[i] && layout.charUrlsMulti[i][k]) || null;
   if (!img && url) {
-    img = new Image();
-    img.onload = () => { layout.charImgsMulti = layout.charImgsMulti||[[],[],[]]; layout.charImgsMulti[i]=layout.charImgsMulti[i]||[]; layout.charImgsMulti[i][k]=img; lmMCdraw(); };
-    img.src = url;
+    // Chargement CORS-clean (sinon le Top 8 final ne serait plus exportable).
+    const put = (im) => { layout.charImgsMulti = layout.charImgsMulti||[[],[],[]]; layout.charImgsMulti[i]=layout.charImgsMulti[i]||[]; layout.charImgsMulti[i][k]=im; lmMCdraw(); };
+    if (typeof lmLoadCanvasImage === 'function') lmLoadCanvasImage(url, put);
+    else { img = new Image(); img.onload = () => put(img); img.src = url; }
   }
   const shape = lmZoneShape(layout, i, k);
   _lmMC = { i, k, layout, poly: shape.poly, bbox: shape.bbox, ar: shape.ar, dragging:false, sx:0, sy:0 };

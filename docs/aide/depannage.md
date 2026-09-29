@@ -37,6 +37,15 @@ Cause : le serveur d'images de start.gg n'envoie pas toujours l'en-tête techniq
 
 **Bonne nouvelle :** l'app **réessaie automatiquement** via un proxy. Tu n'as rien à faire. Si une image manque encore ponctuellement, régénère l'aperçu.
 
+## Top 8 : « Télécharger » ne fait rien ou affiche une erreur CORS
+
+Avant, le bouton échouait **en silence** quand une image du visuel avait été chargée sans autorisation CORS (typiquement l'image du jeu ou un perso venant de start.gg) : le navigateur refuse alors d'exporter le canvas.
+
+Désormais :
+
+* les images distantes passent **automatiquement par un proxy CORS** si le site d'origine bloque, donc le cas devient rare ;
+* si ça arrive quand même, le bouton affiche un message qui **nomme l'image en cause** (« le perso 2 du joueur 1 », « l'image du jeu »…). Recharge la page (`Ctrl + F5`) ; si ça persiste, remplace cette image (📁 ou « Image du jeu »).
+
 ## Le bouton des Horaires (cube) s'affiche « éclaté »
 
 Sur certains navigateurs (Opera GX sans accélération matérielle), le rendu 3D peut mal s'afficher. L'app **détecte** ce cas et bascule sur un **bouton 2D** propre — même fonction, aucun réglage à faire.
