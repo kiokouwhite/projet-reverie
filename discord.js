@@ -510,7 +510,7 @@ function dcBuildEventControls() {
         <div class="dc-field-row dc-game-desc-row" style="${dcUsesGameEmbeds() ? '' : 'display:none'}">
           <label>Description (embed)</label>
           <textarea class="dc-desc-input" placeholder="Description du jeu pour l'embed Discord…"
-            rows="3" oninput="dcSaveGameDescription('${escDC(ev.gameName)}', this.value); dcGenerate();">${escDC(dcGameDescription(ev.gameName))}</textarea>
+            rows="3" oninput="dcSetGameDesc(${i}, this.value)">${escDC(dcGameDescription(ev.gameName))}</textarea>
         </div>
         <div class="dc-field-row dc-side-desc-row" style="${ev.isSide ? '' : 'display:none'}">
           <label>Description (side)</label>
@@ -769,6 +769,15 @@ function dcToggleSide(i, val) {
   dcGenerate();
 }
 function dcSetDesc(i, val)  { DC.events[i].description   = val;         dcGenerate(); }
+// Description du JEU (embed) : mémorisée par jeu (dc_game_desc_overrides) et
+// partagée par tous les events de ce jeu. Handler par INDEX : embarquer le nom
+// du jeu dans l'attribut oninput cassait le JS dès qu'il contenait une apostrophe
+// (« Them's Fightin' Herds ») → la saisie n'était jamais enregistrée ni affichée.
+function dcSetGameDesc(i, val) {
+  const ev = DC.events[i]; if (!ev) return;
+  dcSaveGameDescription(ev.gameName, val);
+  dcGenerate();
+}
 function dcSetRole(i, val)  {
   const ev = DC.events[i];
   if (!ev) return;

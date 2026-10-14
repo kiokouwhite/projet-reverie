@@ -1457,6 +1457,14 @@ function escHtml(s) {
   if (!s) return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// Littéral JS entre apostrophes DANS un attribut HTML inline (onclick="f('…')") :
+// échappe \ et ' pour le JS, puis & < > " pour le HTML. (Remplacer ' par &#39;
+// ne marche PAS : l'entité est décodée avant que le JS de l'attribut soit compilé,
+// donc un nom avec apostrophe cassait le handler.)
+function jsAttr(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 // ── MODAL PERSONNAGE ──────────────────────────────────────────────────────────
 // zone (optionnel) : { i, k, n, game } → mode « zone » d'un layout custom
@@ -4391,8 +4399,8 @@ async function _renderBgPicker() {
         <span>${s.isOfficial ? '🎮' : '📁'} ${escHtml(s.folder || 'Sans dossier')}</span>
         ${(!s.isOfficial && s.folder) ? `
           <span class="bg-picker-section-actions">
-            <button class="bg-picker-section-btn" onclick="bgPickerRenameFolder('${escHtml(s.folder).replace(/'/g,'&#39;')}')" title="Renommer ce dossier">✏️</button>
-            <button class="bg-picker-section-btn" onclick="bgPickerDeleteFolder('${escHtml(s.folder).replace(/'/g,'&#39;')}')" title="Supprimer ce dossier (les fonds reviennent à la racine)">🗑️</button>
+            <button class="bg-picker-section-btn" onclick="bgPickerRenameFolder('${jsAttr(s.folder)}')" title="Renommer ce dossier">✏️</button>
+            <button class="bg-picker-section-btn" onclick="bgPickerDeleteFolder('${jsAttr(s.folder)}')" title="Supprimer ce dossier (les fonds reviennent à la racine)">🗑️</button>
           </span>` : ''}
       </div>
       <div class="bg-picker-section-grid">${s.tiles}</div>
@@ -4416,11 +4424,11 @@ function _renderUserBgTile(b) {
     : `<div class="bg-picker-thumb bg-picker-thumb-import"><span class="bg-picker-import-icon">⚠</span></div>`;
   return `
     <div class="bg-picker-tile bg-picker-tile-user" data-bg-id="${escHtml(b.id)}">
-      <button class="bg-picker-tile-apply" onclick="applyUserBg('${escHtml(b.id).replace(/'/g,'&#39;')}')">
+      <button class="bg-picker-tile-apply" onclick="applyUserBg('${jsAttr(b.id)}')">
         ${thumb}
         <div class="bg-picker-name">${escHtml(b.name)}</div>
       </button>
-      <button class="bg-picker-tile-menu" onclick="bgPickerTileMenu(event, '${escHtml(b.id).replace(/'/g,'&#39;')}')" title="Actions">⋮</button>
+      <button class="bg-picker-tile-menu" onclick="bgPickerTileMenu(event, '${jsAttr(b.id)}')" title="Actions">⋮</button>
     </div>`;
 }
 
@@ -4528,7 +4536,7 @@ function bgPickerTileMenu(event, id) {
     `<button class="bg-picker-ctx-item" onclick="bgPickerMoveBg('${id}', '')">${bg.folder === '' ? '✓ ' : ''}🗂 Racine</button>`,
     ...folders
       .filter(f => f !== bg.folder)
-      .map(f => `<button class="bg-picker-ctx-item" onclick="bgPickerMoveBg('${id}', '${escHtml(f).replace(/'/g,'&#39;')}')">📁 ${escHtml(f)}</button>`),
+      .map(f => `<button class="bg-picker-ctx-item" onclick="bgPickerMoveBg('${id}', '${jsAttr(f)}')">📁 ${escHtml(f)}</button>`),
     `<button class="bg-picker-ctx-item" onclick="(function(){bgPickerNewFolderForBg('${id}')})()">➕ Nouveau dossier…</button>`,
   ].join('');
   const menu = document.createElement('div');
