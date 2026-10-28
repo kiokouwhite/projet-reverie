@@ -47,6 +47,14 @@ Dans la section **Bot Discord** :
 Pour poster, le bot doit être configuré (URL + secret dans l'onglet [Configuration](../demarrage/configuration.md)) et disposer des permissions nécessaires dans le salon visé.
 {% endhint %}
 
+## Modifier la dernière annonce envoyée
+
+Une coquille dans l'annonce déjà postée ? Corrige dans l'outil (descriptions, horaires, jeux…), puis dans la carte **✏️ Dernière annonce envoyée** clique **Mettre à jour avec le message actuel** : le message Discord existant est **modifié sur place** (texte, cartes de jeu et 2e message de clôture), sans nouveau post ni nouveau ping.
+
+* La carte rappelle quelle annonce sera modifiée (titre, date, salon) et une confirmation est demandée.
+* Le bot mémorise la dernière annonce postée depuis le site **ou** par un envoi programmé, donc ça marche aussi après un redémarrage ou depuis un autre ordinateur (🔄 pour recharger).
+* Si le message a été supprimé sur Discord, l'outil le signale : reposte normalement.
+
 ## Copier le texte
 
 Un bouton permet aussi de **copier le message en texte brut**, si tu préfères le coller toi-même.

@@ -698,10 +698,44 @@ app.delete('/tournament-watch/registered/:slug', (req, res) => {
 // Body attendu :
 //   { channelId: "123...", message?: "texte...", embeds?: [Discord embed objects] }
 // Au moins un de message/embeds doit être fourni.
+// ── DERNIÈRE ANNONCE ENVOYÉE (persistée) ────────────────────────────────────
+// Mémorise la dernière annonce du site (kind:'announce' sur /post-announce, ou
+// annonce planifiée) avec ses IDs Discord → le site peut la MODIFIER ensuite
+// via /edit-announce, même après un redémarrage ou depuis un autre appareil.
+// kind:'trailing' = 2e post (clôture + lien + mentions) rattaché à la dernière.
+const LAST_ANN_FILE = path.join(PERSIST_DIR, 'last-announce.json');
+let lastAnnounce = null;   // { channelId, channelName, messageId, trailingMessageId, sentAt, editedAt, title, source }
+function loadLastAnnounce() {
+  try { if (fs.existsSync(LAST_ANN_FILE)) lastAnnounce = JSON.parse(fs.readFileSync(LAST_ANN_FILE, 'utf8')) || null; }
+  catch (e) { lastAnnounce = null; console.warn('✏️  [DERNIÈRE ANNONCE] Lecture fichier échouée :', e.message); }
+}
+function saveLastAnnounce(rec) {
+  lastAnnounce = rec;
+  try { fs.writeFileSync(LAST_ANN_FILE, JSON.stringify(rec, null, 2), 'utf8'); }
+  catch (e) { console.warn('✏️  [DERNIÈRE ANNONCE] Écriture fichier échouée :', e.message); }
+}
+// Titre lisible : 1re ligne non vide du message (sans # / **), sinon titre du 1er embed.
+function announceTitle(message, embeds) {
+  const first = String(message || '').split('\n').find(l => l.trim())
+    || (Array.isArray(embeds) && embeds[0] && embeds[0].title) || '';
+  return first.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim().slice(0, 80);
+}
+function recordAnnounce(kind, channel, channelId, msgId, message, embeds) {
+  if (kind === 'announce') {
+    saveLastAnnounce({ channelId, channelName: channel.name, messageId: msgId, trailingMessageId: null,
+      sentAt: Date.now(), editedAt: null, title: announceTitle(message, embeds), source: 'site' });
+  } else if (kind === 'trailing' && lastAnnounce && lastAnnounce.channelId === channelId) {
+    saveLastAnnounce({ ...lastAnnounce, trailingMessageId: msgId });
+  }
+}
+loadLastAnnounce();
+
 app.post('/post-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
-  const { channelId, message, embeds, image, imageFirst } = req.body;
+  // kind (optionnel) : 'announce' = annonce principale du site (mémorisée pour
+  // édition ultérieure), 'trailing' = 2e post rattaché à cette annonce.
+  const { channelId, message, embeds, image, imageFirst, kind } = req.body;
 
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
   if (!message && !(Array.isArray(embeds) && embeds.length) && !image)
@@ -757,6 +791,7 @@ app.post('/post-announce', async (req, res) => {
       const contentMsg = await channel.send(second);
       console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) [image puis ${contentSub ? 'content' : ''}${contentSub && embedPayload ? '+' : ''}${embedPayload ? 'embed' : ''}]`);
       // On renvoie les IDs pour permettre une édition ultérieure du message.
+      recordAnnounce(kind, channel, channelId, contentMsg.id, message, embeds);
       return res.json({ ok: true, channel: channel.name, messageId: contentMsg.id, imageMessageId: imgMsg.id });
     }
 
@@ -766,6 +801,7 @@ app.post('/post-announce', async (req, res) => {
     if (embedPayload) payload.embeds = embedPayload;
     if (imageAttachment) payload.files = [imageAttachment];
     const sentMsg = await channel.send(payload);
+    recordAnnounce(kind, channel, channelId, sentMsg.id, message, embeds);
     console.log(`📢 Annonce postée dans #${channel.name} (${channelId}) ${embeds ? '[embed]' : ''}${image ? ' [+image]' : ''}`);
     res.json({ ok: true, channel: channel.name, messageId: sentMsg.id, imageMessageId: imageAttachment ? sentMsg.id : null });
 
@@ -781,10 +817,15 @@ app.post('/post-announce', async (req, res) => {
 //   - messageId       : le message de contenu (texte) à ré-éditer
 //   - imageMessageId  : le message portant l'image (peut être le même que
 //                       messageId si tout est dans un seul message)
+//   - embeds          : si fourni (même vide []), REMPLACE les embeds du message
+//   - trailing / trailingMessageId : 2e post (clôture + mentions) à éditer ;
+//                       posté à la suite s'il n'existe pas encore, supprimé si
+//                       trailing est vide.
 app.post('/edit-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
-  const { channelId, messageId, message, embeds, image, imageMessageId } = req.body;
+  const { channelId, messageId, message, embeds, image, imageMessageId, trailing, trailingMessageId } = req.body;
+  const embedsGiven = Array.isArray(embeds);
   if (!channelId) return res.status(400).json({ ok: false, error: 'channelId manquant' });
   if (!messageId && !imageMessageId) return res.status(400).json({ ok: false, error: 'messageId ou imageMessageId requis' });
   if (message && message.length > 2000)
@@ -821,16 +862,16 @@ app.post('/edit-announce', async (req, res) => {
       const m = await channel.messages.fetch(messageId);
       const edit = {};
       if (contentSub != null) edit.content = contentSub;
-      if (embedPayload)       edit.embeds  = embedPayload;
+      if (embedsGiven)        edit.embeds  = embedPayload || [];
       if (imageAttachment)  { edit.files = [imageAttachment]; edit.attachments = []; }
       await m.edit(edit);
     } else {
       // Message de contenu (texte/embed)
-      if (messageId && (contentSub != null || embedPayload)) {
+      if (messageId && (contentSub != null || embedsGiven)) {
         const m = await channel.messages.fetch(messageId);
         const edit = {};
         if (contentSub != null) edit.content = contentSub;
-        if (embedPayload)       edit.embeds  = embedPayload;
+        if (embedsGiven)        edit.embeds  = embedPayload || [];
         await m.edit(edit);
       }
       // Message image (séparé) : on remplace l'attachment
@@ -840,13 +881,46 @@ app.post('/edit-announce', async (req, res) => {
       }
     }
 
+    // 2e post « trailing » (clôture + lien + mentions) : édité s'il existe,
+    // posté à la suite sinon, supprimé si le nouveau contenu est vide.
+    let trailingId = trailingMessageId || null;
+    if (trailing != null) {
+      const trailSub = substituteAppEmojis(String(trailing), emojiMap).trim();
+      if (trailingId) {
+        let tm = null;
+        try { tm = await channel.messages.fetch(trailingId); } catch (e) { tm = null; }
+        if (tm && trailSub) await tm.edit({ content: trailSub });
+        else if (tm)        { await tm.delete(); trailingId = null; }
+        else if (trailSub)  { const nm = await channel.send({ content: trailSub }); trailingId = nm.id; }
+        else trailingId = null;
+      } else if (trailSub) {
+        const nm = await channel.send({ content: trailSub }); trailingId = nm.id;
+      }
+    }
+    if (lastAnnounce && messageId && lastAnnounce.messageId === messageId) {
+      saveLastAnnounce({ ...lastAnnounce, trailingMessageId: trailingId, editedAt: Date.now(),
+        title: (message != null || embedsGiven) ? (announceTitle(message, embeds) || lastAnnounce.title) : lastAnnounce.title });
+    }
+
     console.log(`✏️  Annonce éditée dans #${channel.name} (${channelId})`);
-    res.json({ ok: true, channel: channel.name });
+    res.json({ ok: true, channel: channel.name, messageId: messageId || null, trailingMessageId: trailingId });
 
   } catch (e) {
     console.error('Erreur edit-announce :', e.message);
+    // 10008 = Unknown Message (supprimée côté Discord) → 404 explicite
+    if (e && (e.code === 10008 || /Unknown Message/i.test(e.message || '')))
+      return res.status(404).json({ ok: false, error: 'Message introuvable sur Discord (supprimé ?)' });
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ── ROUTE : Dernière annonce envoyée (pour « Modifier la dernière annonce ») ──
+app.get('/last-announce', (req, res) => {
+  if (!checkSecret(req, res)) return;
+  if (!lastAnnounce) return res.json({ ok: true, last: null });
+  let channelName = lastAnnounce.channelName || null;
+  try { channelName = client.channels.cache.get(lastAnnounce.channelId)?.name || channelName; } catch (e) {}
+  res.json({ ok: true, last: { ...lastAnnounce, channelName } });
 });
 
 // ── PLANIFICATION ─────────────────────────────────────────────────────────────
@@ -887,12 +961,16 @@ async function fireScheduledAnnounce(entry) {
           return out;
         });
       }
-      await channel.send(payload);
+      const mainMsg = await channel.send(payload);
       // 2e post optionnel : trailing (closing + URL + mentions de rôle).
       // Posté APRÈS les embeds pour que les mentions pinguent.
+      let trailMsg = null;
       if (trailing) {
-        await channel.send({ content: substituteAppEmojis(trailing, emojiMap) });
+        trailMsg = await channel.send({ content: substituteAppEmojis(trailing, emojiMap) });
       }
+      // Mémorisée comme dernière annonce → modifiable depuis le site.
+      saveLastAnnounce({ channelId, channelName: channel.name, messageId: mainMsg.id, trailingMessageId: trailMsg ? trailMsg.id : null,
+        sentAt: Date.now(), editedAt: null, title: announceTitle(message, embeds), source: 'scheduled' });
       console.log(`📢 [PLANIFIÉ #${id}] Annonce postée dans #${channel.name}${trailing ? ' (+ trailing)' : ''}`);
     }
   } catch (e) {

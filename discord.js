@@ -1297,7 +1297,9 @@ async function dcPost() {
   dcPostStatus('loading', '⏳ Envoi en cours…');
 
   try {
-    const body = { channelId: chanId, message: msg };
+    // kind:'announce' → le bot mémorise cette annonce (IDs) pour « Modifier
+    // la dernière annonce envoyée » ; le 2e post est rattaché via kind:'trailing'.
+    const body = { channelId: chanId, message: msg, kind: 'announce' };
     // Embeds par-jeu pour les presets Stras'Fighters
     if (window._dcEmbeds && window._dcEmbeds.length) {
       body.embeds = window._dcEmbeds;
@@ -1316,14 +1318,22 @@ async function dcPost() {
       // Si preset Stras'Fighters, envoyer un 2e message contenant closing +
       // inscriptions + URL + mentions (apparaît APRÈS les embeds → ping).
       const trailing = dcUsesGameEmbeds() ? dcBuildTrailingContent() : '';
+      let trailingMessageId = null;
       if (trailing) {
         try {
-          await fetch(`${botUrl}/post-announce`, {
+          const r2 = await fetch(`${botUrl}/post-announce`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'x-secret': secret },
-            body:    JSON.stringify({ channelId: chanId, message: trailing }),
+            body:    JSON.stringify({ channelId: chanId, message: trailing, kind: 'trailing' }),
           });
+          const d2 = await r2.json();
+          if (d2 && d2.ok) trailingMessageId = d2.messageId || null;
         } catch(e) { console.warn('trailing post:', e.message); }
+      }
+      // Mémorise localement (le bot le fait aussi) → carte « Dernière annonce ».
+      if (data.messageId) {
+        dcSetLastAnnounce({ channelId: chanId, channelName: data.channel, messageId: data.messageId, trailingMessageId,
+          sentAt: Date.now(), editedAt: null, title: DC.tournament?.name || '', source: 'site' });
       }
       dcPostStatus('ok', `✅ Posté dans #${data.channel} !`);
     } else {
@@ -1333,6 +1343,94 @@ async function dcPost() {
     dcPostStatus('error', `❌ Impossible de joindre le bot — vérifie l'URL (${e.message})`);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🤖 Poster sur Discord'; }
+  }
+}
+
+// ── DERNIÈRE ANNONCE ENVOYÉE → « Mettre à jour avec le message actuel » ──────
+// Source : le bot (GET /last-announce : annonces du site ET planifiées, tous
+// appareils), avec un cache local (dc_last_sent) pour l'affichage immédiat.
+function dcGetLastAnnounce() {
+  try { return JSON.parse(localStorage.getItem('dc_last_sent') || 'null'); } catch { return null; }
+}
+function dcSetLastAnnounce(rec) {
+  try { if (rec) localStorage.setItem('dc_last_sent', JSON.stringify(rec)); else localStorage.removeItem('dc_last_sent'); } catch {}
+  dcRenderLastAnnounce();
+}
+async function dcLoadLastAnnounce() {
+  dcRenderLastAnnounce();   // cache local tout de suite
+  const botUrl = (document.getElementById('dcBotUrl')?.value || '').trim().replace(/\/$/, '');
+  const secret = (document.getElementById('dcBotSecret')?.value || '').trim();
+  if (!botUrl || !secret) return;
+  try {
+    const res  = await fetch(`${botUrl}/last-announce`, { headers: { 'x-secret': secret } });
+    if (!res.ok) return;   // bot pas encore à jour → on garde le cache local
+    const data = await res.json();
+    if (!data.ok) return;
+    const local = dcGetLastAnnounce();
+    // On garde la plus récente des deux (le bot connaît aussi les envois planifiés).
+    if (data.last && (!local || (data.last.sentAt || 0) >= (local.sentAt || 0))) dcSetLastAnnounce(data.last);
+  } catch (e) { /* silencieux : la carte reste sur le cache local */ }
+}
+function dcFmtDateTime(ts) {
+  return new Date(ts).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function dcRenderLastAnnounce() {
+  const block = document.getElementById('dcLastBlock');
+  const info  = document.getElementById('dcLastInfo');
+  if (!block || !info) return;
+  const rec = dcGetLastAnnounce();
+  if (!rec || !rec.messageId) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  const chan = rec.channelName ? `#${escDC(rec.channelName)}` : 'le salon mémorisé';
+  info.innerHTML = `📢 <strong>${escDC(rec.title || 'Annonce')}</strong><br>
+    Postée le ${dcFmtDateTime(rec.sentAt)} dans ${chan}${rec.source === 'scheduled' ? ' (envoi programmé)' : ''}${rec.editedAt ? ` · modifiée le ${dcFmtDateTime(rec.editedAt)}` : ''}`;
+}
+// Remplace le contenu de la dernière annonce par le message/les embeds actuels.
+async function dcEditLast() {
+  const rec    = dcGetLastAnnounce();
+  const msg    = window._dcMessage || '';
+  const botUrl = (document.getElementById('dcBotUrl')?.value   || '').trim().replace(/\/$/, '');
+  const secret = (document.getElementById('dcBotSecret')?.value || '').trim();
+  if (!rec || !rec.messageId) { dcPostStatus('error', '❌ Aucune annonce envoyée mémorisée'); return; }
+  if (!msg)    { dcPostStatus('error', '❌ Génère d\'abord le message'); return; }
+  if (!botUrl) { dcPostStatus('error', '❌ Configure l\'URL du bot dans l\'onglet ⚙️ Configuration'); return; }
+  if (!secret) { dcPostStatus('error', '❌ Entre le secret'); return; }
+  if (msg.length > 2000) { dcPostStatus('error', `❌ Message trop long (${msg.length}/2000 caractères)`); return; }
+  const chan = rec.channelName ? `#${rec.channelName}` : 'son salon';
+  const cur  = DC.tournament?.name || '(message actuel)';
+  if (!confirm(`Remplacer le contenu de l'annonce « ${rec.title || 'Annonce'} » (postée le ${dcFmtDateTime(rec.sentAt)} dans ${chan}) par le message actuel « ${cur} » ?\n\nLe message Discord existant est modifié sur place (pas de nouveau post, pas de nouveau ping).`)) return;
+
+  const btn = document.getElementById('dcEditLastBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Mise à jour…'; }
+  dcPostStatus('loading', '⏳ Mise à jour de l\'annonce…');
+  try {
+    const body = {
+      channelId: rec.channelId, messageId: rec.messageId,
+      message: msg,
+      embeds: (window._dcEmbeds && window._dcEmbeds.length) ? window._dcEmbeds : [],   // [] = retire d'anciens embeds
+      trailing: dcUsesGameEmbeds() ? (dcBuildTrailingContent() || '') : '',
+      trailingMessageId: rec.trailingMessageId || null,
+    };
+    const res  = await fetch(`${botUrl}/edit-announce`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-secret': secret }, body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let data = null; try { data = JSON.parse(text); } catch (_) {}
+    if (res.status === 404 && (!data || !data.ok)) {
+      dcPostStatus('error', `❌ ${data?.error || 'Annonce introuvable sur Discord (supprimée ?)'}`);
+      return;
+    }
+    if (data && data.ok) {
+      dcSetLastAnnounce({ ...rec, channelName: data.channel || rec.channelName, trailingMessageId: data.trailingMessageId ?? rec.trailingMessageId,
+        editedAt: Date.now(), title: DC.tournament?.name || rec.title });
+      dcPostStatus('ok', `✅ Annonce mise à jour dans #${data.channel} !`);
+    } else {
+      dcPostStatus('error', `❌ Erreur : ${(data && data.error) || ('HTTP ' + res.status)}`);
+    }
+  } catch (e) {
+    dcPostStatus('error', `❌ Impossible de joindre le bot — vérifie l'URL (${e.message})`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✏️ Mettre à jour avec le message actuel'; }
   }
 }
 
@@ -2064,6 +2162,7 @@ function dcLoadPreset() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function dcInit() {
   dcLoadBotSettings();
+  dcLoadLastAnnounce();   // carte « Dernière annonce envoyée »
   // Load AVANT build — sinon dcBuildSchedule rend les valeurs default
   // alors que dcLoadPreset() vient juste de restaurer DC.scheduleLines
   // depuis localStorage (les éditions de l'utilisateur sont perdues à

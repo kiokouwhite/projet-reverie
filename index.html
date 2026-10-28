@@ -554,6 +554,15 @@
                 </div>
                 <div id="dcPostStatus" class="dc-status" style="display:none;margin-bottom:8px;"></div>
                 <button id="dcPostBtn" class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="dcPost()">🤖 Poster maintenant</button>
+                <!-- Dernière annonce envoyée (site ou planifiée, via le bot) : modifiable sur place -->
+                <div class="dc-schedule-block" id="dcLastBlock" style="display:none;">
+                  <div class="dc-schedule-block-title">✏️ Dernière annonce envoyée
+                    <button type="button" class="dc-last-refresh" onclick="dcLoadLastAnnounce()" title="Recharger depuis le bot">🔄</button>
+                  </div>
+                  <div id="dcLastInfo" class="dc-last-info"></div>
+                  <button id="dcEditLastBtn" class="btn btn-secondary" style="width:100%;margin-top:8px;" onclick="dcEditLast()">✏️ Mettre à jour avec le message actuel</button>
+                  <div class="dc-last-hint">Génère le message corrigé, puis clique : l'annonce Discord est modifiée sur place (sans nouveau ping).</div>
+                </div>
                 <div class="dc-schedule-block">
                   <div class="dc-schedule-block-title">🕐 Programmer l'envoi</div>
                   <div class="dc-field-row">
