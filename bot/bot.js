@@ -730,6 +730,21 @@ function recordAnnounce(kind, channel, channelId, msgId, message, embeds) {
 }
 loadLastAnnounce();
 
+// Retrouve le 2e post « trailing » d'une annonce : 1er message du bot posté
+// juste après (≤ 5 min), sans embed. Sert aux annonces identifiées par LIEN
+// (collé sur le site) dont on ne connaît pas l'ID du 2e post.
+async function findTrailingMessage(channel, messageId) {
+  try {
+    const main  = await channel.messages.fetch(messageId);
+    const after = await channel.messages.fetch({ after: messageId, limit: 5 });
+    const cands = Array.from(after.values())
+      .filter(m => m.author?.id === client.user?.id && !(m.embeds && m.embeds.length)
+        && (m.createdTimestamp - main.createdTimestamp) <= 5 * 60000)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    return cands[0] ? cands[0].id : null;
+  } catch (e) { return null; }
+}
+
 app.post('/post-announce', async (req, res) => {
   if (!checkSecret(req, res)) return;
 
@@ -883,7 +898,9 @@ app.post('/edit-announce', async (req, res) => {
 
     // 2e post « trailing » (clôture + lien + mentions) : édité s'il existe,
     // posté à la suite sinon, supprimé si le nouveau contenu est vide.
+    // findTrailing : ID inconnu (annonce collée par lien) → on le cherche.
     let trailingId = trailingMessageId || null;
+    if (!trailingId && req.body.findTrailing && messageId) trailingId = await findTrailingMessage(channel, messageId);
     if (trailing != null) {
       const trailSub = substituteAppEmojis(String(trailing), emojiMap).trim();
       if (trailingId) {
@@ -908,6 +925,32 @@ app.post('/edit-announce', async (req, res) => {
   } catch (e) {
     console.error('Erreur edit-announce :', e.message);
     // 10008 = Unknown Message (supprimée côté Discord) → 404 explicite
+    if (e && (e.code === 10008 || /Unknown Message/i.test(e.message || '')))
+      return res.status(404).json({ ok: false, error: 'Message introuvable sur Discord (supprimé ?)' });
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── ROUTE : Infos d'une annonce par ses IDs (lien Discord collé sur le site) ──
+// Vérifie que le message est bien du bot, retrouve son 2e post « trailing ».
+app.get('/announce-info', async (req, res) => {
+  if (!checkSecret(req, res)) return;
+  const { channelId, messageId } = req.query;
+  if (!channelId || !messageId) return res.status(400).json({ ok: false, error: 'channelId et messageId requis' });
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased()) return res.status(400).json({ ok: false, error: 'Salon introuvable ou non textuel' });
+    const m = await channel.messages.fetch(messageId);
+    if (m.author?.id !== client.user?.id)
+      return res.status(403).json({ ok: false, error: "Ce message n'a pas été posté par Rêverie : impossible de le modifier" });
+    const trailingMessageId = await findTrailingMessage(channel, messageId);
+    res.json({ ok: true, info: {
+      channelId, channelName: channel.name, messageId, trailingMessageId,
+      sentAt: m.createdTimestamp, editedAt: m.editedTimestamp || null,
+      title: announceTitle(m.content, (m.embeds || []).map(e => ({ title: e.title }))),
+      hasEmbeds: !!(m.embeds && m.embeds.length), source: 'link',
+    } });
+  } catch (e) {
     if (e && (e.code === 10008 || /Unknown Message/i.test(e.message || '')))
       return res.status(404).json({ ok: false, error: 'Message introuvable sur Discord (supprimé ?)' });
     res.status(500).json({ ok: false, error: e.message });

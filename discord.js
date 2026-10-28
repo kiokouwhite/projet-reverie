@@ -1377,13 +1377,57 @@ function dcFmtDateTime(ts) {
 function dcRenderLastAnnounce() {
   const block = document.getElementById('dcLastBlock');
   const info  = document.getElementById('dcLastInfo');
+  const btn   = document.getElementById('dcEditLastBtn');
   if (!block || !info) return;
   const rec = dcGetLastAnnounce();
-  if (!rec || !rec.messageId) { block.style.display = 'none'; return; }
   block.style.display = '';
+  if (!rec || !rec.messageId) {
+    info.innerHTML = '<span style="opacity:.75">Aucune annonce mémorisée pour l\'instant (elle le sera au prochain envoi). Tu peux aussi coller ci-dessous le lien d\'une annonce déjà postée par Rêverie.</span>';
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+  if (btn) btn.style.display = '';
   const chan = rec.channelName ? `#${escDC(rec.channelName)}` : 'le salon mémorisé';
+  const src  = rec.source === 'scheduled' ? ' (envoi programmé)' : rec.source === 'link' ? ' (lien collé)' : '';
   info.innerHTML = `📢 <strong>${escDC(rec.title || 'Annonce')}</strong><br>
-    Postée le ${dcFmtDateTime(rec.sentAt)} dans ${chan}${rec.source === 'scheduled' ? ' (envoi programmé)' : ''}${rec.editedAt ? ` · modifiée le ${dcFmtDateTime(rec.editedAt)}` : ''}`;
+    Postée le ${dcFmtDateTime(rec.sentAt)} dans ${chan}${src}${rec.editedAt ? ` · modifiée le ${dcFmtDateTime(rec.editedAt)}` : ''}`;
+}
+// Lien d'un message Discord (clic droit → « Copier le lien du message ») →
+// { channelId, messageId }. Formats : discord.com / discordapp.com / ptb / canary.
+function dcParseMessageLink(text) {
+  const m = String(text || '').match(/discord(?:app)?\.com\/channels\/(\d+|@me)\/(\d+)\/(\d+)/i);
+  return m ? { channelId: m[2], messageId: m[3] } : null;
+}
+// Date de création encodée dans un ID Discord (snowflake) → ms epoch.
+function dcSnowflakeTime(id) {
+  try { return Number((BigInt(id) >> 22n) + 1420070400000n); } catch { return Date.now(); }
+}
+// « Utiliser » : identifie une annonce par son lien, puis demande au bot ses
+// infos (titre, date, 2e post) ; sans bot joignable, on garde le minimum et
+// le bot cherchera le 2e post au moment de la mise à jour (findTrailing).
+async function dcUseMessageLink() {
+  const input = document.getElementById('dcLastLink');
+  const ids = dcParseMessageLink(input?.value);
+  if (!ids) { dcPostStatus('error', '❌ Lien invalide — clic droit sur le message Discord → « Copier le lien du message »'); return; }
+  const botUrl = (document.getElementById('dcBotUrl')?.value || '').trim().replace(/\/$/, '');
+  const secret = (document.getElementById('dcBotSecret')?.value || '').trim();
+  const chanName = (window._dcChannels || []).find(c => c.id === ids.channelId)?.name || null;
+  let rec = { channelId: ids.channelId, channelName: chanName, messageId: ids.messageId, trailingMessageId: null,
+    sentAt: dcSnowflakeTime(ids.messageId), editedAt: null, title: 'Annonce (lien collé)', source: 'link' };
+  if (botUrl && secret) {
+    dcPostStatus('loading', '⏳ Vérification du message…');
+    try {
+      const res  = await fetch(`${botUrl}/announce-info?channelId=${encodeURIComponent(ids.channelId)}&messageId=${encodeURIComponent(ids.messageId)}`, { headers: { 'x-secret': secret } });
+      const text = await res.text();
+      let data = null; try { data = JSON.parse(text); } catch (_) {}
+      if (data && data.ok && data.info) rec = { ...rec, ...data.info, title: data.info.title || rec.title };
+      else if (data && !data.ok && res.status !== 404 && res.status !== 500 && res.status !== 403) { /* route absente (ancien bot) : minimum */ }
+      else if (data && !data.ok) { dcPostStatus('error', `❌ ${data.error}`); return; }
+    } catch (e) { /* bot injoignable : on garde le minimum */ }
+  }
+  dcSetLastAnnounce(rec);
+  if (input) input.value = '';
+  dcPostStatus('ok', `✅ Annonce identifiée : « ${rec.title} » — tu peux la mettre à jour.`);
 }
 // Remplace le contenu de la dernière annonce par le message/les embeds actuels.
 async function dcEditLast() {
@@ -1410,6 +1454,7 @@ async function dcEditLast() {
       embeds: (window._dcEmbeds && window._dcEmbeds.length) ? window._dcEmbeds : [],   // [] = retire d'anciens embeds
       trailing: dcUsesGameEmbeds() ? (dcBuildTrailingContent() || '') : '',
       trailingMessageId: rec.trailingMessageId || null,
+      findTrailing: !rec.trailingMessageId && rec.source === 'link',   // le bot cherche le 2e post
     };
     const res  = await fetch(`${botUrl}/edit-announce`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-secret': secret }, body: JSON.stringify(body),

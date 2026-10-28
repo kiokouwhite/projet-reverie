@@ -54,6 +54,7 @@ Une coquille dans l'annonce déjà postée ? Corrige dans l'outil (descriptions,
 * La carte rappelle quelle annonce sera modifiée (titre, date, salon) et une confirmation est demandée.
 * Le bot mémorise la dernière annonce postée depuis le site **ou** par un envoi programmé, donc ça marche aussi après un redémarrage ou depuis un autre ordinateur (🔄 pour recharger).
 * Si le message a été supprimé sur Discord, l'outil le signale : reposte normalement.
+* Annonce plus ancienne (ou postée avant cette fonction) : sur Discord, clic droit sur le message → **Copier le lien du message**, colle-le dans la carte et clique **Utiliser**. Le bot vérifie que le message est bien le sien, retrouve son message de clôture, et tu peux le mettre à jour pareil.
 
 ## Copier le texte
 
