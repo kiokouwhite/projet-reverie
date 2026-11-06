@@ -1763,15 +1763,18 @@ function detectGameFromStartGG(gameName) {
   if (!gameName) return null;
   // Cherche dans la map
   if (STARTGG_GAME_MAP[gameName]) return STARTGG_GAME_MAP[gameName];
-  // Recherche partielle
-  const lower = gameName.toLowerCase();
-  if (lower.includes('smash') || lower.includes('ultimate')) return 'ssbu';
-  if (lower.includes('guilty gear') || lower.includes('strive')) return 'ggst';
-  if (lower.includes('tekken')) return 'tekken8';
+  // Recherche partielle STRICTE : le nom doit désigner l'opus exact. Un simple
+  // « guilty gear » / « tekken » / « smash » / « street fighter » ne suffit pas :
+  // Guilty Gear Xrd REV 2, Tekken 7, Melee, 3rd Strike… n'ont PAS ces layouts
+  // (ils passent en « Jeux sans layout » ou par un layout custom du coffre).
+  const lower = gameName.toLowerCase().replace(/[™®]/g, '');
+  if ((lower.includes('smash') && lower.includes('ultimate')) || /\bssbu\b/.test(lower)) return 'ssbu';
+  if (lower.includes('strive') || /\bggst\b/.test(lower)) return 'ggst';
+  if (/tekken\s*8\b/.test(lower) || /\bt8\b/.test(lower)) return 'tekken8';
   if (lower.includes('2xko')) return '2xko';
-  if (lower.includes('street fighter')) return 'sf6';
-  if (lower.includes('dragon ball') || lower.includes('fighterz')) return 'dbfz';
-  if (lower.includes('tokon') || lower.includes('tōkon') || lower.includes('fighting souls')) return 'mtfs';
+  if (/street\s*fighter\s*(6|vi)\b/.test(lower) || /\bsf6\b/.test(lower)) return 'sf6';
+  if (lower.includes('fighterz') || /\bdbfz\b/.test(lower)) return 'dbfz';
+  if (lower.includes('tokon') || lower.includes('tōkon') || lower.includes('fighting souls') || /\bmtfs\b/.test(lower)) return 'mtfs';
   return null;
 }
 
