@@ -1778,6 +1778,19 @@ function detectGameFromStartGG(gameName) {
   return null;
 }
 
+// Détection depuis un EVENT start.gg : displayName du jeu (parfois court, ex.
+// « Ultimate » pour Super Smash Bros. Ultimate), puis nom complet du jeu, puis
+// nom de l'event (« MAIN EVENT - TEKKEN 8 »). Premier résultat non nul.
+function detectGameFromEvent(ev) {
+  if (!ev) return null;
+  const vg = ev.videogame || {};
+  for (const n of [vg.displayName, vg.name, ev.name]) {
+    const id = n ? detectGameFromStartGG(n) : null;
+    if (id) return id;
+  }
+  return null;
+}
+
 function saveApiKey() {
   const val = document.getElementById('apiKey').value;
   if (val) localStorage.setItem('top8_startgg_key', val);

@@ -283,9 +283,7 @@ async function importAllEvents() {
         //  3. Sinon on saute (rien à wirer dans le <select>)
         if (img?.url && typeof gameSelectorSetStartggImage === 'function') {
           const gameName = e.videogame.displayName || e.videogame.name || '';
-          let internalId = (typeof detectGameFromStartGG === 'function')
-            ? detectGameFromStartGG(gameName)
-            : null;
+          let internalId = (typeof detectGameFromEvent === 'function') ? detectGameFromEvent(e) : null;
           if (!internalId && typeof findCoffreLayoutForGame === 'function') {
             const customMatch = findCoffreLayoutForGame(gameName || e.name);
             if (customMatch?.id) internalId = customMatch.id;
@@ -326,7 +324,7 @@ async function importAllEvents() {
 
     rawEvents.forEach(e => {
       const gameName = e.videogame?.displayName || e.videogame?.name || '';
-      const builtinId = detectGameFromStartGG(gameName || e.name);
+      const builtinId = detectGameFromEvent(e);   // displayName (« Ultimate »), nom complet, puis nom de l'event
 
       if (!e.numEntrants) {
         // Pas de participants → toujours dans "sans layout" pour affichage
@@ -409,7 +407,7 @@ async function importAllEvents() {
     let _completed = 0;
     const importOneEvent = async (ev) => {
       const gameName = ev.videogame?.displayName || ev.videogame?.name || '';
-      const gameId   = ev._resolvedGameId || detectGameFromStartGG(gameName || ev.name) || 'ssbu';
+      const gameId   = ev._resolvedGameId || detectGameFromEvent(ev) || 'ssbu';
       const isCustom = !!ev._customLayout;
       const layout   = LAYOUTS[gameId];
       // En Lorem, certains layouts ne montrent que 3 joueurs (SF6, GGST,

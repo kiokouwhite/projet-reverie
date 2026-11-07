@@ -150,9 +150,11 @@ Object.values(LAYOUTS).forEach(l => {
 // Mapping noms start.gg → id interne
 const STARTGG_GAME_MAP = {
   'Super Smash Bros. Ultimate': 'ssbu',
+  'Ultimate': 'ssbu',                 // displayName start.gg de SSBU (nom court)
   'Guilty Gear -Strive-': 'ggst',
   'GUILTY GEAR -STRIVE-': 'ggst',
   'Guilty Gear Strive': 'ggst',
+  'Guilty Gear: Strive': 'ggst',
   'Tekken 8': 'tekken8',
   'TEKKEN 8': 'tekken8',
   '2XKO': '2xko',
